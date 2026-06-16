@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pernambucana Centro de Manutenção | Portal Financeiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="landing.css" />
+</head>
+<body>
+  <canvas id="particles"></canvas>
+  <div class="site-bg"></div>
+  <div class="mesh mesh-one"></div>
+  <div class="mesh mesh-two"></div>
+
+  <header class="topbar">
+    <a class="logo-lockup" href="#inicio" aria-label="Pernambucana Centro de Manutenção">
+      <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
+    </a>
+    <nav class="topnav" aria-label="Menu principal">
+      <a href="#servicos">Serviços</a>
+      <a href="#gestao">Gestão</a>
+      <a href="#indicadores">Indicadores</a>
+      <button class="nav-login" data-open-login>Acessar painel</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="inicio">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> Centro de manutenção • usinagem • gestão financeira</div>
+        <h1>Precisão mecânica com visão financeira de alto nível.</h1>
+        <p>
+          Uma landing page moderna para apresentar a Pernambucana e um painel financeiro executivo para acompanhar receitas, OS, clientes e compras de insumos com clareza gerencial.
+        </p>
+        <div class="hero-actions">
+          <button class="btn primary" data-open-login>Acessar painel financeiro</button>
+          <a class="btn ghost" href="#gestao">Ver estrutura do portal</a>
+        </div>
+        <div class="trust-row" aria-label="Destaques">
+          <div><strong>OS</strong><span>Controle por ordem</span></div>
+          <div><strong>Insumos</strong><span>Compras e fornecedores</span></div>
+          <div><strong>Lucro</strong><span>Resultado estimado</span></div>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Prévia do painel financeiro">
+        <div class="visual-card main-panel">
+          <div class="panel-top">
+            <div>
+              <span>Painel financeiro</span>
+              <strong>Pernambucana</strong>
+            </div>
+            <span class="status-dot">Online</span>
+          </div>
+          <div class="metric-grid">
+            <div class="mini-metric"><span>Faturamento</span><b>R$ 128 mil</b><em>+18%</em></div>
+            <div class="mini-metric"><span>Insumos</span><b>R$ 42 mil</b><em class="warn">controle</em></div>
+            <div class="mini-metric"><span>Margem</span><b>67%</b><em>estimada</em></div>
+            <div class="mini-metric"><span>OS</span><b>186</b><em>ativas</em></div>
+          </div>
+          <div class="chart-fake" aria-hidden="true">
+            <span style="height:46%"></span><span style="height:72%"></span><span style="height:58%"></span><span style="height:86%"></span><span style="height:68%"></span><span style="height:94%"></span>
+          </div>
+        </div>
+        <div class="floating-card card-a"><span>Top cliente</span><strong>Ranking automático</strong></div>
+        <div class="floating-card card-b"><span>Compras</span><strong>Insumos por fornecedor</strong></div>
+        <div class="gear gear-one"></div>
+        <div class="gear gear-two"></div>
+      </div>
+    </section>
+
+    <section class="section services" id="servicos">
+      <div class="section-title">
+        <span>Operação</span>
+        <h2>Uma presença digital com cara de empresa forte.</h2>
+        <p>Layout premium, direto e comercial, reforçando manutenção, usinagem, retífica, qualidade, agilidade e controle profissional.</p>
+      </div>
+      <div class="service-grid">
+        <article class="service-card"><i>01</i><h3>Manutenção e usinagem</h3><p>Apresentação institucional com foco em serviços técnicos, precisão, confiabilidade e atendimento profissional.</p></article>
+        <article class="service-card"><i>02</i><h3>Retífica e motores</h3><p>Comunicação visual voltada para clientes que buscam qualidade em manutenção automotiva e serviços especializados.</p></article>
+        <article class="service-card"><i>03</i><h3>Gestão financeira</h3><p>Acesso rápido ao dashboard executivo para acompanhar receitas, OS, compras de insumos, clientes e fornecedores.</p></article>
+      </div>
+    </section>
+
+    <section class="section management" id="gestao">
+      <div class="mock-phone">
+        <img src="assets/logo-pernambucana.jpg" alt="Logo Pernambucana" />
+        <div class="phone-lines"><span></span><span></span><span></span></div>
+        <button data-open-login>Abrir painel financeiro</button>
+      </div>
+      <div class="management-copy">
+        <span class="tag">Portal executivo</span>
+        <h2>Landing page + painel financeiro em um único projeto.</h2>
+        <p>O cliente acessa a página institucional e, por meio de login, entra no painel financeiro. Nesta versão o login é simples para apresentação comercial; depois podemos conectar com Google, Supabase, SharePoint ou outro controle real de acesso.</p>
+        <div class="flow-list">
+          <div><b>1</b><span>Cliente abre a landing page moderna</span></div>
+          <div><b>2</b><span>Clica em acessar painel financeiro</span></div>
+          <div><b>3</b><span>Informa usuário e senha</span></div>
+          <div><b>4</b><span>Visualiza indicadores, filtros, gráficos e base detalhada</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section indicators" id="indicadores">
+      <div class="indicator-card big">
+        <span>Visão gerencial</span>
+        <h2>Indicadores preparados para decisão rápida.</h2>
+      </div>
+      <div class="indicator-card"><b>Receitas / OS</b><p>Faturamento, ticket médio e ordens atendidas.</p></div>
+      <div class="indicator-card"><b>Compras / Insumos</b><p>Materiais comprados, fornecedores e categorias.</p></div>
+      <div class="indicator-card"><b>Resultado estimado</b><p>Faturamento menos compras de insumos no período.</p></div>
+      <div class="indicator-card"><b>Ranking</b><p>Clientes, mecânicos, fornecedores e descrições mais relevantes.</p></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
+    <p>Portal demonstrativo desenvolvido para apresentação comercial e gestão financeira.</p>
+    <button class="btn primary" data-open-login>Acessar painel financeiro</button>
+  </footer>
+
+  <div class="modal" id="loginModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-login></div>
+    <form class="login-card" id="loginForm">
+      <button class="close" type="button" data-close-login>×</button>
+      <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
+      <span>Acesso restrito</span>
+      <h2>Painel Financeiro</h2>
+      <label>Login<input id="loginUser" autocomplete="username" placeholder="Digite o login" /></label>
+      <label>Senha<input id="loginPass" type="password" autocomplete="current-password" placeholder="Digite a senha" /></label>
+      <p class="login-error" id="loginError"></p>
+      <button class="btn primary full" type="submit">Entrar no painel</button>
+      <small>Usuário de apresentação: <b>nsnexus</b></small>
+    </form>
+  </div>
+
+  <script src="landing.js"></script>
+</body>
+</html>
