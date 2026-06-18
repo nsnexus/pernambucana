@@ -1,8 +1,8 @@
 const STORAGE_KEY = 'pernambucana.financeData.manual.v2';
 const THEME_STORAGE_KEY = 'pernambucana.financeDashboard.theme.v1';
 const DEFAULT_FINANCE_DATA = window.FINANCE_DATA || {};
-const DEFAULT_DEPARTMENTS = ['Mecanica','Peças','Retifica','Torneadora','Caldeiraria'];
-const DEFAULT_DEPT_LABEL = {Mecanica:'Mecânica','Peças':'Peças',Retifica:'Retífica',Torneadora:'Torneadora',Caldeiraria:'Caldeiraria'};
+const DEFAULT_DEPARTMENTS = ['Mecanica','Peças','Retifica','Torneadora','Caldeiraria','AltoGeral'];
+const DEFAULT_DEPT_LABEL = {Mecanica:'Mecânica','Peças':'Peças',Retifica:'Retífica',Torneadora:'Torneadora',Caldeiraria:'Caldeiraria',AltoGeral:'Alto Geral'};
 let payload = loadStoredFinanceData() || DEFAULT_FINANCE_DATA || {};
 let resumo = payload.resumo || [];
 let servicos = payload.servicos || [];
@@ -74,7 +74,7 @@ function refreshDataRefs(nextPayload){
   produtivos = Array.isArray(payload.produtivos) ? payload.produtivos : [];
   const fromMeta = payload.meta && Array.isArray(payload.meta.departamentos) ? payload.meta.departamentos : [];
   departments = unique([...fromMeta, ...resumo.map(r=>r.departamento), ...despesas.map(r=>r.departamento), ...servicos.map(r=>r.departamento)]);
-  departments = DEFAULT_DEPARTMENTS.filter(d=>departments.includes(d)).concat(departments.filter(d=>!DEFAULT_DEPARTMENTS.includes(d)));
+  departments = DEFAULT_DEPARTMENTS.slice().concat(departments.filter(d=>!DEFAULT_DEPARTMENTS.includes(d)));
   if(!departments.length) departments = DEFAULT_DEPARTMENTS.slice();
   deptLabel = {...DEFAULT_DEPT_LABEL, ...((payload.meta && payload.meta.departamentosLabel) || {})};
 }
@@ -286,15 +286,42 @@ function normalizeDepartmentName(value){
   if(n.includes('peca') || n === 'p') return 'Peças';
   if(n.includes('torne') || n === 't') return 'Torneadora';
   if(n.includes('calde') || n === 'c') return 'Caldeiraria';
+  if(n.includes('alto geral') || n.includes('auto geral') || n === 'ag' || n === 'a' || n.includes('autogeral') || n.includes('altogeral')) return 'AltoGeral';
   return String(value ?? '').trim();
 }
 function deptFromCode(code){
-  const prefix = String(code||'').trim().charAt(0).toUpperCase();
-  return ({R:'Retifica',M:'Mecanica',P:'Peças',T:'Torneadora',C:'Caldeiraria'})[prefix] || '';
+  const compact = String(code||'').trim().replace(/\s+/g,'').toUpperCase();
+  if(/^AG/.test(compact) || /^ALTOGERAL/.test(compact) || /^AUTOGERAL/.test(compact)) return 'AltoGeral';
+  const prefix = compact.charAt(0);
+  return ({R:'Retifica',M:'Mecanica',P:'Peças',T:'Torneadora',C:'Caldeiraria',A:'AltoGeral'})[prefix] || '';
 }
 function monthFromCode(code){
   const m = String(code||'').match(/(1[0-2]|0?[1-9])$/);
   return m ? Number(m[1]) : null;
+}
+function codeInfoFromSheetName(sheetName){
+  const raw = String(sheetName||'').trim();
+  const compact = raw.replace(/\s+/g,'');
+  let match = compact.match(/^([RMPCTA])0?(1[0-2]|[1-9])$/i);
+  if(match){
+    const dept = deptFromCode(match[1]);
+    const mesNum = Number(match[2]);
+    return {codigo:`${match[1].toUpperCase()}${mesNum}`, mesNum, departamento:dept};
+  }
+  match = compact.match(/^(AG|ALTOGERAL|AUTOGERAL)0?(1[0-2]|[1-9])$/i);
+  if(match){
+    const mesNum = Number(match[2]);
+    return {codigo:`AG${mesNum}`, mesNum, departamento:'AltoGeral'};
+  }
+  const normalized = normalizeText(raw);
+  if(normalized.includes('alto geral') || normalized.includes('auto geral')){
+    const m = normalized.match(/(1[0-2]|0?[1-9])\b/);
+    if(m){
+      const mesNum = Number(m[1]);
+      return {codigo:`AG${mesNum}`, mesNum, departamento:'AltoGeral'};
+    }
+  }
+  return null;
 }
 function toNumber(value){
   if(typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -498,13 +525,12 @@ function parseProdutivosFromCodeSheet(rows, base){
 function buildCodeDataFromWorkbook(workbook){
   const data = {resumo:[],servicos:[],despesas:[],folha:[],produtivos:[],custosFixos:[]};
   workbook.SheetNames.forEach(sheetName=>{
-    const compact = String(sheetName||'').trim().replace(/\s+/g,'');
-    const match = compact.match(/^([RMPCT])0?(1[0-2]|[1-9])$/i);
-    if(!match) return;
-    const codigo = `${match[1].toUpperCase()}${Number(match[2])}`;
-    const mesNum = monthFromCode(codigo);
+    const info = codeInfoFromSheetName(sheetName);
+    if(!info) return;
+    const codigo = info.codigo;
+    const mesNum = info.mesNum || monthFromCode(codigo);
     const mes = months[mesNum-1] || String(mesNum);
-    const departamento = deptFromCode(codigo);
+    const departamento = info.departamento || deptFromCode(codigo);
     const base = {codigo, mesNum, mes, departamento};
     const rows = rowsFromSheet(workbook, sheetName);
     const servs = parseServicesFromCodeSheet(rows, base);
@@ -563,7 +589,7 @@ function finalizeFinanceData(data){
   data.produtivos = data.produtivos.map(r=>{ const prazo=toNumber(r.prazo), vista=toNumber(r.vista); return {...r, codigo:String(r.codigo||'').trim(), mesNum:Number(r.mesNum)||monthFromCode(r.codigo)||monthByName(r.mes)||0, mes:r.mes || months[(Number(r.mesNum)||monthFromCode(r.codigo)||1)-1] || '', departamento:normalizeDepartmentName(r.departamento)||deptFromCode(r.codigo), nome:String(r.nome||'').trim(), prazo, vista, total:toNumber(r.total)||prazo+vista}; }).filter(r=>r.nome && r.total);
   data.custosFixos = data.custosFixos.map(r=>({...r, codigo:String(r.codigo||'').trim(), mesNum:Number(r.mesNum)||monthFromCode(r.codigo)||monthByName(r.mes)||0, mes:r.mes || months[(Number(r.mesNum)||monthFromCode(r.codigo)||1)-1] || '', departamento:normalizeDepartmentName(r.departamento)||deptFromCode(r.codigo), valor:toNumber(r.valor)})).filter(r=>r.valor);
   data.resumo.sort((a,b)=>a.mesNum-b.mesNum || a.departamento.localeCompare(b.departamento));
-  const depts = DEFAULT_DEPARTMENTS.filter(d=>data.resumo.some(r=>r.departamento===d));
+  const depts = DEFAULT_DEPARTMENTS.slice();
   const extra = unique(data.resumo.map(r=>r.departamento)).filter(d=>!depts.includes(d));
   const mesNums = unique(data.resumo.map(r=>r.mesNum)).sort((a,b)=>a-b);
   data.meta = {
@@ -586,7 +612,7 @@ function buildFinanceDataFromWorkbook(workbook){
   const merged = (coded.resumo.length ? coded : direct);
   const finalData = finalizeFinanceData(merged);
   if(!finalData.resumo.length){
-    throw new Error('Não encontrei as abas de fechamento. Use a mesma planilha-base do painel ou abas consolidadas chamadas Resumo, Serviços, Despesas, Folha e Produtivos.');
+    throw new Error('Não encontrei as abas de fechamento. Use a mesma planilha-base do painel, incluindo abas como R4, M4, T4, C4, P4 ou AG4/Alto Geral 4, ou abas consolidadas chamadas Resumo, Serviços, Despesas, Folha e Produtivos.');
   }
   return finalData;
 }
