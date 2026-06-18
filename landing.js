@@ -1,3 +1,13 @@
+const THEME_STORAGE_KEY = 'pernambucana.financeDashboard.theme.v1';
+function landingTheme(){ return localStorage.getItem(THEME_STORAGE_KEY) === 'white' ? 'white' : 'black'; }
+function applyLandingTheme(theme){
+  const useWhite = theme === 'white';
+  document.body.classList.toggle('theme-white', useWhite);
+  localStorage.setItem(THEME_STORAGE_KEY, useWhite ? 'white' : 'black');
+  const btn = document.getElementById('landingThemeToggle');
+  if(btn) btn.textContent = useWhite ? 'Tema black' : 'Tema white';
+}
+
 const AUTH_USER = 'nsnexus';
 const AUTH_PASS = '123456';
 const AUTH_KEY = 'pernambucanaFinanceAuth';
@@ -6,6 +16,8 @@ const form = document.getElementById('loginForm');
 const error = document.getElementById('loginError');
 const user = document.getElementById('loginUser');
 const pass = document.getElementById('loginPass');
+applyLandingTheme(landingTheme());
+document.getElementById('landingThemeToggle')?.addEventListener('click',()=>applyLandingTheme(document.body.classList.contains('theme-white') ? 'black' : 'white'));
 
 function openLogin(){
   if(sessionStorage.getItem(AUTH_KEY)==='ok'){
@@ -63,11 +75,11 @@ function animate(){
     d.x += d.vx; d.y += d.vy;
     if(d.x<0||d.x>innerWidth) d.vx*=-1;
     if(d.y<0||d.y>innerHeight) d.vy*=-1;
-    ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2); ctx.fillStyle=document.body.classList.contains('theme-white')?'rgba(9,33,51,.28)':'rgba(255,255,255,.45)'; ctx.fill();
   }
   for(let i=0;i<dots.length;i++) for(let j=i+1;j<dots.length;j++){
     const a=dots[i],b=dots[j],dx=a.x-b.x,dy=a.y-b.y,dist=Math.hypot(dx,dy);
-    if(dist<120){ ctx.strokeStyle=`rgba(31,182,255,${(1-dist/120)*.16})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    if(dist<120){ ctx.strokeStyle=document.body.classList.contains('theme-white')?`rgba(0,126,122,${(1-dist/120)*.14})`:`rgba(31,182,255,${(1-dist/120)*.16})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
   }
   requestAnimationFrame(animate);
 }

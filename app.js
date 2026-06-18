@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'pernambucana.financeData.manual.v2';
+const THEME_STORAGE_KEY = 'pernambucana.financeDashboard.theme.v1';
 const DEFAULT_FINANCE_DATA = window.FINANCE_DATA || {};
 const DEFAULT_DEPARTMENTS = ['Mecanica','Peças','Retifica','Torneadora','Caldeiraria'];
 const DEFAULT_DEPT_LABEL = {Mecanica:'Mecânica','Peças':'Peças',Retifica:'Retífica',Torneadora:'Torneadora',Caldeiraria:'Caldeiraria'};
@@ -17,6 +18,41 @@ const $ = id => document.getElementById(id);
 const state = { page:'geral', dept:'all', charts:{} };
 if (window.ChartDataLabels) { Chart.register(ChartDataLabels); }
 
+function savedTheme(){
+  return localStorage.getItem(THEME_STORAGE_KEY) === 'white' ? 'white' : 'black';
+}
+function isWhiteTheme(){
+  return document.body.classList.contains('theme-white');
+}
+function chartTheme(){
+  return isWhiteTheme() ? {
+    axis:'#526276',
+    grid:'rgba(9,33,51,.10)',
+    legend:'#203449',
+    labelColor:'#102033',
+    labelBg:'rgba(255,255,255,.94)',
+    labelBorder:'rgba(9,33,51,.16)'
+  } : {
+    axis:'#b9c6d7',
+    gridStrong:'rgba(255,255,255,.08)',
+    grid:'rgba(255,255,255,.06)',
+    legend:'#dfeaf7',
+    labelColor:'#ffffff',
+    labelBg:'rgba(2,9,17,.82)',
+    labelBorder:'rgba(255,255,255,.16)'
+  };
+}
+function applyTheme(theme, rerender=false){
+  const useWhite = theme === 'white';
+  document.body.classList.toggle('theme-white', useWhite);
+  localStorage.setItem(THEME_STORAGE_KEY, useWhite ? 'white' : 'black');
+  const btn = $('btnThemeToggle');
+  if(btn){
+    btn.textContent = useWhite ? 'Tema black' : 'Tema white';
+    btn.setAttribute('aria-label', useWhite ? 'Alternar para tema black' : 'Alternar para tema white');
+  }
+  if(rerender) render();
+}
 
 function loadStoredFinanceData(){
   try{
@@ -151,12 +187,14 @@ function draw(id,type,data,opts={}){
     };
   });
   const isHorizontal = opts.indexAxis === 'y';
+  const theme = chartTheme();
+  const gridStrong = theme.gridStrong || theme.grid;
   const scales = type==='doughnut' ? {} : (isHorizontal ? {
-    x:{ticks:{color:'#b9c6d7',callback:v=>Intl.NumberFormat('pt-BR',{notation:'compact'}).format(v)},grid:{color:'rgba(255,255,255,.08)'}},
-    y:{ticks:{color:'#b9c6d7',font:{weight:'700'},callback:function(value){ return this.getLabelForValue(value); }},grid:{color:'rgba(255,255,255,.06)'}}
+    x:{ticks:{color:theme.axis,callback:v=>Intl.NumberFormat('pt-BR',{notation:'compact'}).format(v)},grid:{color:gridStrong}},
+    y:{ticks:{color:theme.axis,font:{weight:'700'},callback:function(value){ return this.getLabelForValue(value); }},grid:{color:theme.grid}}
   } : {
-    x:{ticks:{color:'#b9c6d7',font:{weight:'700'}},grid:{color:'rgba(255,255,255,.06)'}},
-    y:{ticks:{color:'#b9c6d7',callback:v=>Intl.NumberFormat('pt-BR',{notation:'compact'}).format(v)},grid:{color:'rgba(255,255,255,.08)'}}
+    x:{ticks:{color:theme.axis,font:{weight:'700'}},grid:{color:theme.grid}},
+    y:{ticks:{color:theme.axis,callback:v=>Intl.NumberFormat('pt-BR',{notation:'compact'}).format(v)},grid:{color:gridStrong}}
   });
   const datalabelsDefaults = {
     display: (context) => {
@@ -170,9 +208,9 @@ function draw(id,type,data,opts={}){
       }
       return true;
     },
-    color: '#ffffff',
-    backgroundColor: 'rgba(2,9,17,.82)',
-    borderColor: 'rgba(255,255,255,.16)',
+    color: theme.labelColor,
+    backgroundColor: theme.labelBg,
+    borderColor: theme.labelBorder,
     borderWidth: 1,
     borderRadius: 6,
     padding: {top:3,right:6,bottom:3,left:6},
@@ -216,7 +254,7 @@ function draw(id,type,data,opts={}){
   const defaultPadding = isPieLikeChart
     ? {top:42,right:74,left:74,bottom:42}
     : {top:44,right:isHorizontal?110:34,left:18,bottom:18};
-  const defaultLegend = {labels:{color:'#dfeaf7',font:{weight:'800'},usePointStyle:true,pointStyle:'circle',boxWidth:10,boxHeight:10}};
+  const defaultLegend = {labels:{color:theme.legend,font:{weight:'800'},usePointStyle:true,pointStyle:'circle',boxWidth:10,boxHeight:10}};
   const defaultTooltip = {callbacks:{label:(ctx)=>`${ctx.dataset.label||''}: ${fmtMoney.format(ctx.parsed.y ?? ctx.parsed.x ?? ctx.parsed)}`}};
   state.charts[id]=new Chart(ctx,{type,data,options:{
     responsive:true,
@@ -601,6 +639,7 @@ function setupSpreadsheetUpload(){
   });
 }
 function initDashboard(){
+  applyTheme(savedTheme(), false);
   refreshDataRefs(payload);
   populateFilters();
   setupNav();
@@ -646,7 +685,10 @@ function setupNav(){
   $('searchInput').addEventListener('input',()=>{ clearTimeout(window._s); window._s=setTimeout(render,130); });
   $('btnPresentation').addEventListener('click',()=>document.body.classList.toggle('presentation'));
   $('btnExport').addEventListener('click',exportCsv);
+  const themeBtn = $('btnThemeToggle');
+  if(themeBtn) themeBtn.addEventListener('click',()=>applyTheme(isWhiteTheme() ? 'black' : 'white', true));
 }
+
 function render(){
   const rows=filteredResumo();
   renderKpis(rows);
