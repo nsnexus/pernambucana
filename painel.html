@@ -3,103 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel Financeiro Integrado | Pernambucana</title>
+  <title>Pernambucana | Painel Financeiro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="auth-guard.js"></script>
   <script src="data.js"></script>
 </head>
 <body>
-  <div class="bg-grid"></div><div class="orb orb-a"></div><div class="orb orb-b"></div><div class="orb orb-c"></div>
+  <div class="bg-grid"></div><div class="orb orb-a"></div><div class="orb orb-b"></div>
   <aside class="sidebar">
-    <div class="brand"><img src="assets/logo-pernambucana.jpg" alt="Pernambucana" /><div><strong>Pernambucana</strong><span>Painel Integrado</span></div></div>
+    <div class="brand"><img src="assets/logo-pernambucana.jpg" alt="Pernambucana" /><div><strong>Pernambucana</strong><span>Painel Financeiro</span></div></div>
     <nav class="nav" id="mainNav">
       <button class="nav-link active" data-page="geral"><span>◈</span> Visão geral</button>
-      <button class="nav-link" data-page="mecanica" data-dept="Mecanica"><span>⚙</span> Mecânica</button>
-      <button class="nav-link" data-page="pecas" data-dept="Peças"><span>▣</span> Peças</button>
-      <button class="nav-link" data-page="retifica" data-dept="Retifica"><span>◇</span> Retífica</button>
-      <button class="nav-link" data-page="torneadora" data-dept="Torneadora"><span>◎</span> Torneadora</button>
-      <button class="nav-link" data-page="caldeiraria" data-dept="Caldeiraria"><span>▰</span> Caldeiraria</button>
-      <button class="nav-link" data-page="compras"><span>◆</span> Compras & 5X</button>
-      <button class="nav-link" data-page="abastecimento"><span>⛽</span> Abastecimento</button>
-      <button class="nav-link" data-page="detalhes"><span>☰</span> Detalhamento</button>
-      <a href="index.html"><span>↗</span> Landing page</a>
+      <button class="nav-link" data-page="setor" data-dept="Mecanica"><span>⚙</span> Mecânica</button>
+      <button class="nav-link" data-page="setor" data-dept="Peças"><span>▣</span> Peças</button>
+      <button class="nav-link" data-page="setor" data-dept="Retifica"><span>◇</span> Retífica</button>
+      <button class="nav-link" data-page="setor" data-dept="Torneadora"><span>◎</span> Torneadora</button>
+      <button class="nav-link" data-page="setor" data-dept="Caldeiraria"><span>▰</span> Caldeiraria</button>
+      <button class="nav-link" data-page="despesas"><span>◆</span> Despesas</button>
+      <button class="nav-link" data-page="produtivos"><span>★</span> Produtivos</button>
+      <button class="nav-link" data-page="detalhes"><span>☰</span> Fechamento</button>
+      <a href="index.html"><span>↗</span> Página inicial</a>
     </nav>
-    <button class="logout-btn" id="logoutBtn" type="button">Sair do painel</button>
-    <div class="side-card"><small>Status da base</small><strong id="sideStatus">Dados carregados</strong><p id="sidePeriod">Base integrada 2026</p></div>
-    <div class="side-card muted-card"><small>Regra aplicada</small><p>Itens marcados como <b>5X</b> foram rateados igualmente entre Mecânica, Peças, Retífica, Torneadora e Caldeiraria.</p></div>
+    <button class="logout-btn" id="logoutBtn" type="button">Sair</button>
+    <div class="side-card"><small>Status</small><strong id="sideStatus">Atualizado</strong><p id="sidePeriod">Março • Abril • Maio</p></div>
+    <div class="side-card muted-card"><small>Áreas</small><p>Mecânica, Peças, Retífica, Torneadora e Caldeiraria com visão mensal e acumulada.</p></div>
   </aside>
   <main class="main">
-    <section class="hero hero-integrated" id="visao">
+    <section class="hero" id="visao">
       <div class="hero-copy">
-        <div class="badge"><span></span> Dashboard integrado • serviços, compras, custos e rateio</div>
-        <h1>Visão financeira completa por negócio e por setor.</h1>
-        <p>Base tratada a partir dos arquivos de Usinagem, Retífica, Auto Geral, Custos, Abastecimento e Acompanhamento. O painel abre com a visão geral e permite navegar por Mecânica, Peças, Retífica, Torneadora e Caldeiraria.</p>
-        <div class="hero-actions"><button class="btn primary" id="btnPresentation">Modo apresentação</button><button class="btn ghost" id="btnExport">Exportar base filtrada</button><button class="btn soft" id="btnAudit">Ver auditoria</button></div>
+        <div class="badge"><span></span> Gestão financeira executiva</div>
+        <h1>Resultado financeiro por mês e por setor.</h1>
+        <p>Acompanhe entradas, retiradas, resultado, recebimentos à vista, recebimentos à prazo, despesas e produtividade por área.</p>
+        <div class="hero-actions"><button class="btn primary" id="btnPresentation">Tela cheia</button><button class="btn ghost" id="btnExport">Exportar fechamento</button></div>
       </div>
-      <div class="hero-panel glass"><div class="hero-panel-top"><div><span>Resultado estimado</span><strong id="heroResult">R$ 0,00</strong></div><span id="heroMargin" class="pill good">0%</span></div><canvas id="chartHero"></canvas><div class="hero-mini"><div><span>Receitas</span><strong id="heroRevenue">R$ 0,00</strong></div><div><span>Gastos</span><strong id="heroCost">R$ 0,00</strong></div></div></div>
+      <div class="hero-panel glass"><div class="hero-panel-top"><div><span>Resultado acumulado</span><strong id="heroResult">R$ 0,00</strong></div><span id="heroMargin" class="pill good">0%</span></div><canvas id="chartHero"></canvas><div class="hero-mini"><div><span>Entradas</span><strong id="heroRevenue">R$ 0,00</strong></div><div><span>Retiradas</span><strong id="heroCost">R$ 0,00</strong></div></div></div>
     </section>
     <section class="toolbar glass">
-      <label>Ano<select id="yearFilter"><option value="all">Todos</option></select></label>
       <label>Mês<select id="monthFilter"><option value="all">Todos</option></select></label>
-      <label>Departamento<select id="deptFilter"><option value="all">Todos</option></select></label>
-      <label>Condição<select id="conditionFilter"><option value="all">Todas</option></select></label>
-      <label>Origem<select id="originFilter"><option value="all">Todas</option></select></label>
-      <label class="search">Busca<input id="searchInput" type="search" placeholder="Cliente, OS, fornecedor, descrição..." /></label>
+      <label>Setor<select id="deptFilter"><option value="all">Todos</option></select></label>
+      <label>Categoria<select id="categoryFilter"><option value="all">Todas</option></select></label>
+      <label class="search">Busca<input id="searchInput" type="search" placeholder="Buscar setor, categoria, serviço, produtivo..." /></label>
+      <div class="upload-box">
+        <input id="spreadsheetInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden />
+        <button class="btn import" id="btnUploadSheet" type="button">Inserir planilha</button>
+        <button class="btn mini ghost" id="btnResetData" type="button">Dados padrão</button>
+        <small id="dataSourceInfo">Base interna</small>
+      </div>
     </section>
     <section class="kpis" id="kpiGrid"></section>
+
     <section class="page active" data-page-section="geral">
-      <section class="insights glass"><div class="section-title"><span>Leitura automática</span><h2>Principais pontos do negócio</h2></div><div class="insight-grid" id="insightsGrid"></div></section>
+      <section class="insights glass"><div class="section-title"><span>Resumo executivo</span><h2>Visão geral do negócio</h2></div><div class="insight-grid" id="insightsGrid"></div></section>
       <section class="charts">
-        <article class="card glass wide"><div class="card-head"><div><span>Evolução mensal</span><h3>Receita x gastos x resultado</h3></div><em>mensal</em></div><canvas id="chartMonthly"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Setores</span><h3>Participação no resultado</h3></div></div><canvas id="chartDept"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Pagamento</span><h3>À vista x à prazo</h3></div></div><canvas id="chartPayment"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Compras</span><h3>Gasto por departamento</h3></div></div><canvas id="chartCostsDept"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Clientes</span><h3>Top faturamento</h3></div></div><canvas id="chartClients"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Fornecedores</span><h3>Top gastos</h3></div></div><canvas id="chartSuppliers"></canvas></article>
+        <article class="card glass wide"><div class="card-head"><div><span>Mensal</span><h3>Entradas, retiradas e resultado</h3></div></div><canvas id="chartMonthly"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Setores</span><h3>Resultado por setor</h3></div></div><canvas id="chartDeptResult"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Recebimentos</span><h3>À vista x à prazo</h3></div></div><canvas id="chartPayment"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Retiradas</span><h3>Composição das despesas</h3></div></div><canvas id="chartExpenses"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Entradas</span><h3>Participação por setor</h3></div></div><canvas id="chartRevenueDept"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Compras</span><h3>Compras e material por setor</h3></div></div><canvas id="chartCompras"></canvas></article>
       </section>
-    </section>
-    <section class="page" data-page-section="setor">
-      <section class="sector-head glass"><div><span id="sectorEyebrow">Setor</span><h2 id="sectorTitle">Departamento</h2><p id="sectorDesc">Visão de receitas, compras, custos, resultado e pagamentos por setor.</p></div><div class="sector-score"><small>Resultado do setor</small><strong id="sectorResult">R$ 0,00</strong></div></section>
-      <section class="charts">
-        <article class="card glass wide"><div class="card-head"><div><span>Mensal</span><h3 id="sectorMonthlyTitle">Receita x gastos do setor</h3></div></div><canvas id="chartSectorMonthly"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Pagamento</span><h3>À vista x à prazo</h3></div></div><canvas id="chartSectorPayment"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Serviços</span><h3>Top serviços / descrições</h3></div></div><canvas id="chartSectorServices"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Origem</span><h3>Composição por relatório</h3></div></div><canvas id="chartSectorOrigin"></canvas></article>
-      </section>
-      <section class="rankings"><article class="table-card glass"><div class="card-head"><div><span>Detalhe do setor</span><h3 id="sectorTableTitle">Registros relevantes</h3></div></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Tipo</th><th>Condição</th><th>Cliente/Fornecedor</th><th>Descrição</th><th>Valor</th><th>Origem</th></tr></thead><tbody id="sectorRows"></tbody></table></div></article><article class="table-card glass compact"><div class="card-head"><div><span>Ranking</span><h3>Maiores valores</h3></div></div><div id="sectorRankList" class="list-rank"></div></article></section>
-    </section>
-    <section class="page" data-page-section="retifica">
-      <section class="insights glass"><div class="section-title"><span>Retífica</span><h2>Serviços à vista e à prazo por tipo de serviço</h2></div><div class="insight-grid" id="retificaCards"></div></section>
-      <section class="charts"><article class="card glass wide"><div class="card-head"><div><span>Serviços</span><h3>Executado por serviço e condição</h3></div></div><canvas id="chartRetificaServicos"></canvas></article><article class="card glass"><div class="card-head"><div><span>Lançamento</span><h3>Retífica, Mecânica e Peças na mesma planilha</h3></div></div><canvas id="chartRetificaLanc"></canvas></article></section>
-      <section class="details glass"><div class="card-head"><div><span>Tabela</span><h3>Serviços da Retífica por condição</h3></div></div><div class="table-wrap"><table><thead><tr><th>Serviço</th><th>À vista</th><th>À prazo</th><th>Total</th></tr></thead><tbody id="retificaTable"></tbody></table></div></section>
-    </section>
-    <section class="page" data-page-section="compras">
-      <section class="insights glass"><div class="section-title"><span>Compras e rateios</span><h2>Quanto cada departamento gastou no mês</h2></div><div class="insight-grid" id="comprasCards"></div></section>
-      <section class="charts"><article class="card glass wide"><div class="card-head"><div><span>Compras</span><h3>Gastos mensais por departamento</h3></div></div><canvas id="chartComprasDept"></canvas></article><article class="card glass"><div class="card-head"><div><span>5X</span><h3>Rateio fixo por departamento</h3></div></div><canvas id="chartRateio"></canvas></article><article class="card glass"><div class="card-head"><div><span>Tipo</span><h3>Gastos por categoria</h3></div></div><canvas id="chartCostType"></canvas></article></section>
-      <section class="details glass"><div class="card-head"><div><span>Detalhe</span><h3>Compras, custos e rateios</h3></div></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Departamento</th><th>Classe</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Origem</th><th>5X</th></tr></thead><tbody id="comprasRows"></tbody></table></div></section>
     </section>
 
-    <section class="page" data-page-section="abastecimento">
-      <section class="insights glass"><div class="section-title"><span>Controle de abastecimento</span><h2>Consumo, custo de combustível e abastecimentos</h2></div><div class="insight-grid" id="abastCards"></div></section>
+    <section class="page" data-page-section="setor">
+      <section class="sector-head glass"><div><span id="sectorEyebrow">Setor</span><h2 id="sectorTitle">Departamento</h2><p id="sectorDesc">Entradas, retiradas, resultado, despesas e produtividade do setor.</p></div><div class="sector-score"><small>Resultado</small><strong id="sectorResult">R$ 0,00</strong></div></section>
       <section class="charts">
-        <article class="card glass wide"><div class="card-head"><div><span>Mensal</span><h3>Valor gasto com abastecimento</h3></div></div><canvas id="chartAbastMensal"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Litros</span><h3>Litros consumidos por mês</h3></div></div><canvas id="chartAbastLitros"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Solicitantes</span><h3>Top solicitantes</h3></div></div><canvas id="chartAbastSolicitante"></canvas></article>
-        <article class="card glass"><div class="card-head"><div><span>Veículos / placas</span><h3>Maiores custos</h3></div></div><canvas id="chartAbastVeiculo"></canvas></article>
+        <article class="card glass wide"><div class="card-head"><div><span>Mensal</span><h3 id="sectorMonthlyTitle">Resultado mensal</h3></div></div><canvas id="chartSectorMonthly"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Recebimentos</span><h3>À vista x à prazo</h3></div></div><canvas id="chartSectorPayment"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Despesas</span><h3>Composição das retiradas</h3></div></div><canvas id="chartSectorExpenses"></canvas></article>
+        <article class="card glass"><div class="card-head"><div><span>Serviços</span><h3>Receita por tipo</h3></div></div><canvas id="chartSectorServices"></canvas></article>
       </section>
-      <section class="details glass"><div class="card-head"><div><span>Detalhe</span><h3>Registros do controle de abastecimento</h3></div><em id="abastCounter">0 linhas</em></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Mês</th><th>Solicitante</th><th>Veículo/placa</th><th>Litros</th><th>Valor</th><th>Custo/L</th><th>KM</th><th>Origem</th></tr></thead><tbody id="abastRows"></tbody></table></div></section>
+      <section class="details glass"><div class="card-head"><div><span>Resumo do setor</span><h3>Fechamento mensal</h3></div><em id="sectorCounter">0 linhas</em></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Código</th><th>À prazo</th><th>À vista</th><th>Entradas</th><th>Retiradas</th><th>Resultado</th><th>Compras/Material</th></tr></thead><tbody id="sectorRows"></tbody></table></div></section>
     </section>
+
+    <section class="page" data-page-section="despesas">
+      <section class="insights glass"><div class="section-title"><span>Controle de despesas</span><h2>Retiradas, compras e material</h2></div><div class="insight-grid" id="expenseCards"></div></section>
+      <section class="charts"><article class="card glass wide"><div class="card-head"><div><span>Mensal</span><h3>Despesas por mês</h3></div></div><canvas id="chartExpenseMonthly"></canvas></article><article class="card glass"><div class="card-head"><div><span>Setor</span><h3>Despesas por setor</h3></div></div><canvas id="chartExpenseDept"></canvas></article><article class="card glass"><div class="card-head"><div><span>Categoria</span><h3>Ranking de despesas</h3></div></div><canvas id="chartExpenseCategory"></canvas></article></section>
+      <section class="details glass"><div class="card-head"><div><span>Detalhamento</span><h3>Despesas e compras</h3></div><em id="expenseCounter">0 registros</em></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Setor</th><th>Categoria</th><th>Classe</th><th>Valor</th></tr></thead><tbody id="expenseRows"></tbody></table></div></section>
+    </section>
+
+    <section class="page" data-page-section="produtivos">
+      <section class="insights glass"><div class="section-title"><span>Produtividade</span><h2>Ranking de produtivos</h2></div><div class="insight-grid" id="prodCards"></div></section>
+      <section class="charts"><article class="card glass wide"><div class="card-head"><div><span>Ranking</span><h3>Top produtivos por valor total</h3></div></div><canvas id="chartProdRanking"></canvas></article><article class="card glass"><div class="card-head"><div><span>Condição</span><h3>À vista x à prazo</h3></div></div><canvas id="chartProdPayment"></canvas></article></section>
+      <section class="details glass"><div class="card-head"><div><span>Detalhamento</span><h3>Produtivos por mês e setor</h3></div><em id="prodCounter">0 registros</em></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Setor</th><th>Produtivo</th><th>À prazo</th><th>À vista</th><th>Total</th></tr></thead><tbody id="prodRows"></tbody></table></div></section>
+    </section>
+
     <section class="page" data-page-section="detalhes">
-      <section class="details glass"><div class="card-head"><div><span>Base tratada</span><h3>Registros filtrados</h3></div><em id="rowCounter">0 linhas</em></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Mês</th><th>Tipo</th><th>Depto.</th><th>Condição</th><th>Cliente</th><th>Descrição</th><th>OS</th><th>Valor</th><th>Fornecedor/Mecânico</th><th>Origem</th></tr></thead><tbody id="detailRows"></tbody></table></div></section>
-      <section class="details glass"><div class="card-head"><div><span>Auditoria</span><h3>Como as abas foram lidas e relacionadas</h3></div></div><div id="auditBox" class="audit-box"></div></section>
+      <section class="details glass"><div class="card-head"><div><span>Fechamento consolidado</span><h3>Tabela final por mês e setor</h3></div><em id="detailCounter">0 linhas</em></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Código</th><th>Setor</th><th>À prazo</th><th>À vista</th><th>Entradas</th><th>Retiradas</th><th>Resultado</th><th>Compras/Material</th></tr></thead><tbody id="detailRows"></tbody></table></div></section>
+      <section class="details glass"><div class="card-head"><div><span>Serviços</span><h3>Detalhamento de receitas por condição</h3></div><em id="serviceCounter">0 registros</em></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Setor</th><th>Serviço</th><th>Condição</th><th>Valor</th></tr></thead><tbody id="serviceRows"></tbody></table></div></section>
     </section>
   </main>
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast">Painel atualizado</div>
   <script src="dashboard-auth.js"></script>
   <script src="app.js"></script>
 </body>
