@@ -378,7 +378,7 @@ function normalizeDirectRow(kind, row){
     const receitaPrazo = getByAliases(row,['receitaprazo','aprazo','recebimentosaprazo','receitaprazor','prazo'], true);
     const receitaVista = getByAliases(row,['receitavista','avista','recebimentosavista','vista'], true);
     const comprasPrazo = getByAliases(row,['comprasprazo','comprasaprazo'], true);
-    const comprasMes = getByAliases(row,['comprasmes','comprasdomes'], true);
+    const comprasMes = getByAliases(row,['comprasmes','comprasmes','comprasdomes','compradomes'], true);
     const saidasVista = getByAliases(row,['saidasvista','saidasavista','saídaavista','saidaavista'], true);
     const folhaPagamento = getByAliases(row,['folhapagamento','folhadepagamento','folha'], true);
     const custoFixo = getByAliases(row,['custofixo'], true);
@@ -468,14 +468,18 @@ function parseServicesFromCodeSheet(rows, base){
   rows.forEach(row=>{
     const cells = row || [];
     cells.forEach((cell,idx)=>{
-      const service = serviceNames.find(s=>normalizeText(cell) === normalizeText(s) || normalizeText(cell).includes(normalizeText(s)));
+      const normalizedCell = normalizeText(cell);
+      const service = serviceNames.find(s=>normalizedCell === normalizeText(s) || normalizedCell.includes(normalizeText(s)));
       if(!service) return;
       const nums = cells.slice(idx+1).map(toNumber).filter(n=>n!==0);
-      if(nums.length >= 2){
+      const rowMentionsPrazo = normalizedCell.includes('prazo');
+      const rowMentionsVista = normalizedCell.includes('vista');
+      if(nums.length >= 2 && !rowMentionsPrazo && !rowMentionsVista){
         out.push({...base, servico:service, condicao:'À prazo', valor:nums[0]});
         out.push({...base, servico:service, condicao:'À vista', valor:nums[1]});
-      }else if(nums.length === 1){
-        out.push({...base, servico:service, condicao:'Total', valor:nums[0]});
+      }else if(nums.length >= 1){
+        const condicao = rowMentionsPrazo ? 'À prazo' : (rowMentionsVista ? 'À vista' : 'Total');
+        out.push({...base, servico:service, condicao, valor:nums[0]});
       }
     });
   });
@@ -536,18 +540,20 @@ function buildCodeDataFromWorkbook(workbook){
     const servs = parseServicesFromCodeSheet(rows, base);
     const folhaRows = parseFolhaFromCodeSheet(rows, base);
     const prodRows = parseProdutivosFromCodeSheet(rows, base);
-    const receitaPrazo = findLabelValue(rows, ['receita a prazo','receita prazo','recebimentos a prazo','total a prazo']) || sum(servs.filter(r=>normalizeText(r.condicao).includes('prazo')));
-    const receitaVista = findLabelValue(rows, ['receita a vista','receita vista','recebimentos a vista','total a vista']) || sum(servs.filter(r=>normalizeText(r.condicao).includes('vista')));
+    const receitaPrazo = findLabelValue(rows, ['serviços a prazo','servicos a prazo','serviço a prazo','servico a prazo','receita a prazo','receita prazo','recebimentos a prazo','total a prazo']) || sum(servs.filter(r=>normalizeText(r.condicao).includes('prazo')));
+    const receitaVista = findLabelValue(rows, ['serviços a vista','servicos a vista','serviço a vista','servico a vista','receita a vista','receita vista','recebimentos a vista','total a vista']) || sum(servs.filter(r=>normalizeText(r.condicao).includes('vista')));
     const comprasPrazo = findLabelValue(rows, ['compras a prazo','compra a prazo']);
-    const comprasMes = findLabelValue(rows, ['compras do mês','compras do mes','compra do mês','compra do mes']);
+    const comprasMes = findLabelValue(rows, ['compras mês','compras mes','compra mês','compra mes','compras do mês','compras do mes','compra do mês','compra do mes']);
     const saidasVista = findLabelValue(rows, ['saídas à vista','saidas a vista','saída à vista','saida a vista']);
     const folhaPagamento = findLabelValue(rows, ['folha de pagamento','folha pagamento']) || sumVal(folhaRows,'liquido');
-    const custoFixo = findLabelValue(rows, ['custo fixo','custos fixos']);
+    const custoFixo = findLabelValue(rows, ['custo fixo','custos fixos','despesas fixas','despesa fixa']);
     const imposto = findLabelValue(rows, ['imposto','impostos']);
     const alimentacao = findLabelValue(rows, ['alimentação','alimentacao']);
     const materialOS = findLabelValue(rows, ['material os','material o.s','material ordem']);
-    const entradas = findLabelValue(rows, ['entradas','total entradas','receita total']) || receitaPrazo + receitaVista;
-    const retiradas = findLabelValue(rows, ['retiradas','total retiradas','saídas','saidas']) || comprasPrazo + saidasVista + folhaPagamento + custoFixo + imposto + alimentacao;
+    const entradasCalculadas = receitaPrazo + receitaVista;
+    const retiradasCalculadas = comprasPrazo + saidasVista + folhaPagamento + custoFixo + imposto + alimentacao;
+    const entradas = entradasCalculadas || findLabelValue(rows, ['total entradas','receita total','entradas']);
+    const retiradas = retiradasCalculadas || findLabelValue(rows, ['total retiradas','retiradas','total saídas','total saidas','saídas','saidas']);
     const resultado = findLabelValue(rows, ['resultado','saldo']) || entradas - retiradas;
     const summaryHasData = entradas || retiradas || resultado || comprasPrazo || comprasMes || materialOS;
     if(summaryHasData) data.resumo.push({...base, receitaPrazo, receitaVista, entradas, retiradas, resultado, comprasPrazo, comprasMes, saidasVista, folhaPagamento, custoFixo, imposto, alimentacao, materialOS});
