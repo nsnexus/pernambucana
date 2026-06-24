@@ -3,40 +3,72 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pernambucana Centro de Manutenção | Painel Financeiro</title>
+  <title>Pernambucana | Portal Financeiro</title>
   <link rel="shortcut icon" href="assets/favicon.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="landing.css" />
+  <link rel="stylesheet" href="landing.css?v=1.1" />
 </head>
-<body>
+<body class="portal-body">
   <canvas id="particles"></canvas>
   <div class="site-bg"></div><div class="mesh mesh-one"></div><div class="mesh mesh-two"></div>
-  <header class="topbar">
-    <a class="logo-lockup" href="#inicio" aria-label="Pernambucana Centro de Manutenção"><img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" /></a>
-    <nav class="topnav" aria-label="Menu principal"><a href="#servicos">Serviços</a><a href="#gestao">Gestão</a><a href="#indicadores">Indicadores</a><button class="theme-btn" id="landingThemeToggle" type="button">Tema white</button><button class="nav-login" data-open-login>Painel</button><button class="nav-login" style="background: linear-gradient(135deg, var(--cyan), #9fe3cf); color: #06111f; margin-left: 6px;" data-open-login-cadastros>Lançamentos</button></nav>
+  
+  <header class="portal-header">
+    <button class="theme-btn" id="landingThemeToggle" type="button">Tema white</button>
   </header>
-  <main>
-    <section class="hero" id="inicio">
-      <div class="hero-content">
-        <div class="eyebrow"><span></span> Centro de manutenção • usinagem • gestão financeira</div>
-        <h1>Precisão mecânica com gestão financeira de alto nível.</h1>
-        <p>Portal executivo para acompanhar o desempenho financeiro da operação, com visão por setor, mês, entradas, retiradas, compras, despesas e produtividade.</p>
-        <div class="hero-actions"><button class="btn primary" data-open-login>Acessar painel financeiro</button><button class="btn ghost" data-open-login-cadastros>Cadastrar Lançamentos</button><a class="btn ghost" href="#gestao">Ver gestão</a></div>
-        <div class="trust-row" aria-label="Destaques"><div><strong>5</strong><span>Áreas acompanhadas</span></div><div><strong>3</strong><span>Meses consolidados</span></div><div><strong>360°</strong><span>Visão financeira</span></div></div>
+
+  <main class="portal-container">
+    <div class="portal-card glass">
+      <div class="portal-brand">
+        <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" class="portal-logo" />
+        <h2>Pernambucana</h2>
+        <p>Centro de Manutenção & Usinagem</p>
+        <span class="portal-badge">Gestão Financeira</span>
       </div>
-      <div class="hero-visual" aria-label="Painel financeiro">
-        <div class="visual-card main-panel"><div class="panel-top"><div><span>Painel financeiro</span><strong>Pernambucana</strong></div><span class="status-dot">Online</span></div><div class="metric-grid"><div class="mini-metric"><span>Entradas</span><b>R$</b><em>mensal</em></div><div class="mini-metric"><span>Retiradas</span><b>R$</b><em class="warn">controle</em></div><div class="mini-metric"><span>Resultado</span><b>R$</b><em>acumulado</em></div><div class="mini-metric"><span>Setores</span><b>5</b><em>áreas</em></div></div><div class="chart-fake" aria-hidden="true"><span style="height:46%"></span><span style="height:72%"></span><span style="height:58%"></span><span style="height:86%"></span><span style="height:68%"></span><span style="height:94%"></span></div></div>
-        <div class="floating-card card-a"><span>Resultado</span><strong>Visão por setor</strong></div><div class="floating-card card-b"><span>Despesas</span><strong>Controle mensal</strong></div><div class="gear gear-one"></div><div class="gear gear-two"></div>
+      
+      <div class="portal-divider"></div>
+      
+      <div class="portal-actions">
+        <h3>Selecione a área de acesso</h3>
+        
+        <button class="portal-action-btn" data-open-login>
+          <div class="btn-icon-wrapper">◈</div>
+          <div class="btn-text-wrapper">
+            <strong>Painel Financeiro</strong>
+            <span>Visualizar KPIs, gráficos e relatórios consolidados da operação.</span>
+          </div>
+        </button>
+        
+        <button class="portal-action-btn" data-open-login-cadastros>
+          <div class="btn-icon-wrapper">✏</div>
+          <div class="btn-text-wrapper">
+            <strong>Painel de Cadastro</strong>
+            <span>Lançar serviços prestados, compras, despesas, folha e custos.</span>
+          </div>
+        </button>
       </div>
-    </section>
-    <section class="section services" id="servicos"><div class="section-title"><span>Operação</span><h2>Gestão clara para tomada de decisão.</h2><p>Informações financeiras organizadas para facilitar acompanhamento gerencial, comparação mensal e análise por departamento.</p></div><div class="service-grid"><article class="service-card"><i>01</i><h3>Mecânica, peças e Alto Geral</h3><p>Indicadores de entradas, retiradas, compras, material, Alto Geral e resultado mensal.</p></article><article class="service-card"><i>02</i><h3>Retífica e motores</h3><p>Serviços detalhados por tipo, condição de pagamento e desempenho acumulado.</p></article><article class="service-card"><i>03</i><h3>Torneadora e caldeiraria</h3><p>Acompanhamento das áreas produtivas com visão mensal e ranking de produtivos.</p></article></div></section>
-    <section class="section management" id="gestao"><div class="mock-phone"><img src="assets/logo-pernambucana.jpg" alt="Logo Pernambucana" /><div class="phone-lines"><span></span><span></span><span></span></div><button data-open-login>Abrir painel financeiro</button></div><div class="management-copy"><span class="tag">Portal executivo</span><h2>Indicadores financeiros em um único ambiente.</h2><p>O painel reúne visão geral, páginas por setor, controle de despesas, produtivos e tabela final de fechamento.</p><div class="flow-list"><div><b>1</b><span>Acesse o painel financeiro</span></div><div><b>2</b><span>Filtre por mês ou setor</span></div><div><b>3</b><span>Acompanhe gráficos e indicadores</span></div><div><b>4</b><span>Exporte o fechamento quando necessário</span></div></div></div></section>
-    <section class="section indicators" id="indicadores"><div class="indicator-card big"><span>Visão gerencial</span><h2>Indicadores preparados para decisão rápida.</h2></div><div class="indicator-card"><b>Entradas</b><p>Recebimentos à vista, à prazo e total consolidado.</p></div><div class="indicator-card"><b>Retiradas</b><p>Compras, folha, custo fixo, alimentação e demais saídas.</p></div><div class="indicator-card"><b>Resultado</b><p>Saldo mensal e acumulado por departamento.</p></div><div class="indicator-card"><b>Produtivos</b><p>Ranking por valor total, à vista e à prazo.</p></div></section>
+    </div>
   </main>
-  <footer class="footer"><img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" /><p>Painel financeiro executivo da Pernambucana Centro de Manutenção.</p><button class="btn primary" data-open-login>Acessar painel financeiro</button></footer>
-  <div class="modal" id="loginModal" aria-hidden="true"><div class="modal-backdrop" data-close-login></div><form class="login-card" id="loginForm"><button class="close" type="button" data-close-login>×</button><img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" /><span>Acesso restrito</span><h2>Painel Financeiro</h2><label>Login<input id="loginUser" autocomplete="username" placeholder="Digite o login" /></label><label>Senha<input id="loginPass" type="password" autocomplete="current-password" placeholder="Digite a senha" /></label><p class="login-error" id="loginError"></p><button class="btn primary full" type="submit">Entrar no painel</button></form></div>
+
+  <footer class="portal-footer">
+    <p>© 2026 NSNexus. Todos os direitos reservados.</p>
+  </footer>
+
+  <div class="modal" id="loginModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-login></div>
+    <form class="login-card" id="loginForm">
+      <button class="close" type="button" data-close-login>×</button>
+      <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
+      <span>Acesso restrito</span>
+      <h2>Acesso ao Portal</h2>
+      <label>Login (E-mail)<input id="loginUser" autocomplete="username" placeholder="Digite seu login ou e-mail" required /></label>
+      <label>Senha<input id="loginPass" type="password" autocomplete="current-password" placeholder="Digite sua senha" required /></label>
+      <p class="login-error" id="loginError"></p>
+      <button class="btn primary full" type="submit">Entrar no sistema</button>
+    </form>
+  </div>
+
   <script src="landing.js?v=1.1"></script>
 </body>
 </html>
