@@ -56,6 +56,9 @@ function applyTheme(theme, rerender=false){
 
 function loadStoredFinanceData(){
   try{
+    if (window.DataStore && window.DataStore.hasData()) {
+      return window.DataStore.buildFinancePayload();
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return null;
     const parsed = JSON.parse(raw);
@@ -665,6 +668,9 @@ function setupSpreadsheetUpload(){
   if(btnUpload && input) btnUpload.addEventListener('click',()=>input.click());
   if(input) input.addEventListener('change',()=>importSpreadsheet(input.files && input.files[0]));
   if(btnReset) btnReset.addEventListener('click',()=>{
+    if (window.DataStore) {
+      window.DataStore.clearAll();
+    }
     localStorage.removeItem(STORAGE_KEY);
     applyFinanceData(DEFAULT_FINANCE_DATA, 'Base interna');
     toast('Dados padrão restaurados.');
@@ -677,8 +683,27 @@ function initDashboard(){
   setupNav();
   setupSpreadsheetUpload();
   render();
-  updateDataStatus(localStorage.getItem(STORAGE_KEY) ? 'Planilha manual salva' : 'Base interna');
+  
+  let statusText = 'Base interna';
+  if (window.DataStore && window.DataStore.hasData()) {
+    statusText = 'Lançamentos cadastrados';
+  } else if (localStorage.getItem(STORAGE_KEY)) {
+    statusText = 'Planilha manual salva';
+  }
+  updateDataStatus(statusText);
   toast('Painel financeiro atualizado.');
+
+  // Reload dashboard automatically when data changes (e.g. from the Cadastros tab/window)
+  window.addEventListener('dataStoreChanged', () => {
+    const nextPayload = loadStoredFinanceData() || DEFAULT_FINANCE_DATA || {};
+    let newStatusText = 'Base interna';
+    if (window.DataStore && window.DataStore.hasData()) {
+      newStatusText = 'Lançamentos cadastrados';
+    } else if (localStorage.getItem(STORAGE_KEY)) {
+      newStatusText = 'Planilha manual salva';
+    }
+    applyFinanceData(nextPayload, newStatusText);
+  });
 }
 
 

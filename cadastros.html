@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pernambucana | Cadastro de Lançamentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css" />
+  <link rel="stylesheet" href="cadastros.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="auth-guard.js"></script>
+</head>
+<body>
+  <div class="bg-grid"></div><div class="orb orb-a"></div><div class="orb orb-b"></div>
+  
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="assets/logo-pernambucana.jpg" alt="Pernambucana" />
+      <div><strong>Pernambucana</strong><span>Módulos de Cadastro</span></div>
+    </div>
+    
+    <nav class="nav" id="cadastroNav">
+      <a href="painel.html"><span>◈</span> Ver Painel Financeiro</a>
+      <button class="nav-link active" data-page="servicos"><span>◇</span> Serviços</button>
+      <button class="nav-link" data-page="compras"><span>◆</span> Compras e Despesas</button>
+      <button class="nav-link" data-page="folha"><span>★</span> Folha de Pagamento</button>
+      <button class="nav-link" data-page="custosFixos"><span>⚙</span> Custos Fixos</button>
+      <a href="index.html"><span>↗</span> Página inicial</a>
+    </nav>
+    
+    <button class="logout-btn" id="logoutBtn" type="button">Sair</button>
+    
+    <!-- User/Sector indicator -->
+    <div class="side-card">
+      <small>Usuário Conectado</small>
+      <strong id="userSectorName">-</strong>
+      <p id="userEmailAddress">-</p>
+    </div>
+    
+    <div class="side-card muted-card">
+      <small>Lançamentos Diretos</small>
+      <p>Os dados salvos aqui alimentam em tempo real os gráficos e KPIs do painel financeiro.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="hero">
+      <div class="hero-copy" style="grid-column: 1 / -1; min-height: auto; padding: 24px;">
+        <div class="badge"><span></span> Lançamentos em tempo real</div>
+        <h1 style="font-size: 38px; margin: 12px 0 6px;">Controle de Cadastros</h1>
+        <p style="margin: 0 0 12px; font-size: 14px;">Adicione, edite ou exclua lançamentos do seu setor. O admin poderá visualizar os dados consolidados no dashboard.</p>
+        <div class="hero-actions" style="margin-top: 12px;">
+          <button class="btn primary" id="btnNewEntry">Novo Lançamento</button>
+          <button class="btn ghost" id="btnExportJson">Exportar JSON</button>
+          <button class="btn ghost" id="btnExportXlsx">Exportar Excel (XLSX)</button>
+          <button class="btn ghost" id="btnImportJson">Importar JSON</button>
+          <button class="btn theme-toggle" id="btnThemeToggle" type="button">Tema white</button>
+          <input type="file" id="jsonFileInput" accept=".json" hidden />
+        </div>
+      </div>
+    </section>
+
+    <!-- Toolbar section for searches and filters -->
+    <section class="toolbar glass">
+      <label>Mês<select id="monthFilter"><option value="all">Todos</option></select></label>
+      <label>Setor<select id="deptFilter"><option value="all">Todos</option></select></label>
+      <!-- Hidden dummy category filter to keep layout consistent or hide it -->
+      <div style="display:none;"><select id="categoryFilter"><option value="all">Todas</option></select></div>
+      <label class="search" style="grid-column: span 2;">Busca<input id="searchInput" type="search" placeholder="Buscar por cliente, funcionário, fornecedor, OS, descrição..." /></label>
+    </section>
+
+    <!-- Page: Serviços -->
+    <section class="page active" data-page-section="servicos">
+      <section class="details glass" style="margin-top: 0;">
+        <div class="card-head">
+          <div><span>Cadastro</span><h3>Lançamentos de Serviços</h3></div>
+          <em id="servicosCounter">0 registros</em>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Setor</th>
+                <th>OS</th>
+                <th>Cliente</th>
+                <th>Serviço</th>
+                <th>Pagamento</th>
+                <th>Qtd</th>
+                <th>Valor Total</th>
+                <th>Produtivo</th>
+                <th>Desconto</th>
+                <th style="width: 100px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="servicosTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination" id="servicosPagination">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </section>
+
+    <!-- Page: Compras -->
+    <section class="page" data-page-section="compras">
+      <section class="details glass" style="margin-top: 0;">
+        <div class="card-head">
+          <div><span>Cadastro</span><h3>Compras e Despesas</h3></div>
+          <em id="comprasCounter">0 registros</em>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Setor</th>
+                <th>Categoria</th>
+                <th>Solicitante</th>
+                <th>Fornecedor</th>
+                <th>Descrição</th>
+                <th>Forma Compra</th>
+                <th>Valor</th>
+                <th style="width: 100px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="comprasTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination" id="comprasPagination">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </section>
+
+    <!-- Page: Folha de Pagamento -->
+    <section class="page" data-page-section="folha">
+      <section class="details glass" style="margin-top: 0;">
+        <div class="card-head">
+          <div><span>Cadastro</span><h3>Folha de Pagamento</h3></div>
+          <em id="folhaCounter">0 funcionários</em>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mês/Ano</th>
+                <th>Setor</th>
+                <th>Colaborador</th>
+                <th>Bruto</th>
+                <th>Desconto</th>
+                <th>Líquido</th>
+                <th style="width: 100px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="folhaTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination" id="folhaPagination">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </section>
+
+    <!-- Page: Custos Fixos -->
+    <section class="page" data-page-section="custosFixos">
+      <section class="details glass" style="margin-top: 0;">
+        <div class="card-head">
+          <div><span>Cadastro</span><h3>Custos Fixos</h3></div>
+          <em id="custosFixosCounter">0 registros</em>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mês/Ano</th>
+                <th>Setor</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th style="width: 100px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="custosFixosTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination" id="custosFixosPagination">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- MODAL: Serviços -->
+  <div class="modal" id="servicoModal" aria-hidden="true">
+    <div class="modal-backdrop" id="servicoModalBackdrop"></div>
+    <form class="login-card modal-form-card glass" id="servicoForm">
+      <button class="close" type="button" id="btnCancelServico">×</button>
+      <div class="modal-header">
+        <h3 id="servicoModalTitle">Novo Lançamento de Serviço</h3>
+      </div>
+      
+      <div class="modal-body">
+        <div class="restricted-info" id="servicoRestrictedInfo" style="display:none;">
+          <span>⚠️</span> Lançamento restrito ao seu setor.
+        </div>
+        
+        <div class="form-grid">
+          <input type="hidden" id="servicoId" />
+          
+          <div class="form-group">
+            <label for="servicoData">Data *</label>
+            <input type="date" id="servicoData" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoSetor">Setor *</label>
+            <select id="servicoSetor" required>
+              <option value="Mecanica">Mecânica</option>
+              <option value="Peças">Peças</option>
+              <option value="Retifica">Retífica</option>
+              <option value="Torneadora">Torneadora</option>
+              <option value="Caldeiraria">Caldeiraria</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoPagamento">Forma de Pagamento *</label>
+            <select id="servicoPagamento" required>
+              <option value="À vista">À vista</option>
+              <option value="À prazo">À prazo</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoTipo">Tipo de Serviço *</label>
+            <select id="servicoTipo" required>
+              <option value="Serviços">Serviços Geral</option>
+              <option value="Cabeçote">Cabeçote</option>
+              <option value="Bloco">Bloco</option>
+              <option value="Biela">Biela</option>
+              <option value="Virabrequim">Virabrequim</option>
+              <option value="Comando">Comando</option>
+              <option value="Peças">Peças</option>
+              <option value="Soldas">Soldas</option>
+              <option value="Outras">Outras</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoOS">Nº da OS</label>
+            <input type="text" id="servicoOS" placeholder="Ex: 5043" />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoCliente">Cliente *</label>
+            <input type="text" id="servicoCliente" placeholder="Nome do Cliente" required />
+          </div>
+          
+          <div class="form-group full-width">
+            <label for="servicoDescricao">Descrição dos Produtos/Serviços</label>
+            <input type="text" id="servicoDescricao" placeholder="Detalhes do serviço prestado" />
+          </div>
+          
+          <div class="modal-section-title">Valores e Quantidades</div>
+          
+          <div class="form-group">
+            <label for="servicoQtd">Quantidade *</label>
+            <input type="number" id="servicoQtd" min="1" step="any" value="1" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoValorUnitario">Valor Unitário *</label>
+            <input type="number" id="servicoValorUnitario" min="0" step="0.01" value="0.00" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoDesconto">Desconto</label>
+            <input type="number" id="servicoDesconto" min="0" step="0.01" value="0.00" />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoValorTotal">Valor Total (Lançado no Caixa) *</label>
+            <input type="number" id="servicoValorTotal" min="0" step="0.01" value="0.00" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoMaterial">Valor do Material</label>
+            <input type="number" id="servicoMaterial" min="0" step="0.01" value="0.00" />
+          </div>
+          
+          <div class="modal-section-title">Produtivo (Mão de Obra)</div>
+          
+          <div class="form-group">
+            <label for="servicoProdutivo">Nome do Produtivo</label>
+            <input type="text" id="servicoProdutivo" placeholder="Ex: Eilson, Allex" />
+          </div>
+          
+          <div class="form-group">
+            <label for="servicoValorProdutivo">Valor do Produtivo (Repasse)</label>
+            <input type="number" id="servicoValorProdutivo" min="0" step="0.01" value="0.00" />
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn ghost" type="button" id="btnCancelServico2">Cancelar</button>
+        <button class="btn primary" type="submit">Salvar Registro</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- MODAL: Compras e Despesas / Folha / Custo Fixo -->
+  <div class="modal" id="compraModal" aria-hidden="true">
+    <div class="modal-backdrop" id="compraModalBackdrop"></div>
+    <form class="login-card modal-form-card glass" id="compraForm">
+      <button class="close" type="button" id="btnCancelCompra">×</button>
+      <div class="modal-header">
+        <h3 id="compraModalTitle">Novo Lançamento de Compra/Despesa</h3>
+      </div>
+      
+      <div class="modal-body">
+        <div class="restricted-info" id="compraRestrictedInfo" style="display:none;">
+          <span>⚠️</span> Lançamento restrito ao seu setor.
+        </div>
+        
+        <div class="form-grid">
+          <input type="hidden" id="compraId" />
+          
+          <div class="form-group">
+            <label for="compraData">Data *</label>
+            <input type="date" id="compraData" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="compraSetor">Setor *</label>
+            <select id="compraSetor" required>
+              <option value="Mecanica">Mecânica</option>
+              <option value="Peças">Peças</option>
+              <option value="Retifica">Retífica</option>
+              <option value="Torneadora">Torneadora</option>
+              <option value="Caldeiraria">Caldeiraria</option>
+              <option value="AltoGeral">Alto Geral</option>
+            </select>
+          </div>
+          
+          <div class="form-group full-width">
+            <label for="compraCategoria">Categoria *</label>
+            <select id="compraCategoria" required>
+              <option value="Almoxarifado">Almoxarifado (Geral)</option>
+              <option value="Oficina">Oficina</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Imposto">Imposto</option>
+              <option value="Custo fixo">Custo Fixo</option>
+              <option value="Folha de pagamento">Folha de Pagamento (Salário)</option>
+              <option value="Material OS">Material OS (Repassado p/ OS)</option>
+              <option value="Cliente">Cliente</option>
+              <option value="Compras a prazo">Compras a prazo</option>
+              <option value="Compras do mês">Compras do mês</option>
+              <option value="Saídas à vista">Saídas à vista</option>
+            </select>
+          </div>
+
+          <!-- DYNAMIC PANEL: General Compras/Despesas -->
+          <div class="form-grid full-width" id="panelCompraPadrao" style="grid-column: span 2; display: grid;">
+            <div class="modal-section-title">Dados da Compra</div>
+            
+            <div class="form-group">
+              <label for="compraForma">Forma de Compra *</label>
+              <select id="compraForma">
+                <option value="À vista">À vista</option>
+                <option value="À prazo">À prazo</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="compraSolicitante">Nome do Solicitante</label>
+              <input type="text" id="compraSolicitante" placeholder="Quem solicitou" />
+            </div>
+            
+            <div class="form-group">
+              <label for="compraFornecedor">Fornecedor</label>
+              <input type="text" id="compraFornecedor" placeholder="Nome do Fornecedor" />
+            </div>
+            
+            <div class="form-group">
+              <label for="compraPedido">Nº do Pedido / Nota Fiscal</label>
+              <input type="text" id="compraPedido" placeholder="Ex: NF-204" />
+            </div>
+            
+            <div class="form-group">
+              <label for="compraNumOS">Nº da OS (Se aplicável)</label>
+              <input type="text" id="compraNumOS" placeholder="Ex: 5043" />
+            </div>
+            
+            <div class="form-group">
+              <label for="compraValorOS">Valor da OS (Se aplicável)</label>
+              <input type="number" id="compraValorOS" min="0" step="0.01" value="0.00" />
+            </div>
+            
+            <div class="form-group full-width">
+              <label for="compraDescricao">Descrição do Material *</label>
+              <input type="text" id="compraDescricao" placeholder="O que foi comprado" />
+            </div>
+            
+            <div class="form-group">
+              <label for="compraValorProduto">Valor do Produto *</label>
+              <input type="number" id="compraValorProduto" min="0" step="0.01" value="0.00" />
+            </div>
+          </div>
+
+          <!-- DYNAMIC PANEL: Folha de Pagamento -->
+          <div class="form-grid full-width" id="panelCompraFolha" style="grid-column: span 2; display: none;">
+            <div class="modal-section-title">Dados do Colaborador e Salário</div>
+            
+            <div class="form-group full-width">
+              <label for="folhaFuncionario">Nome Completo do Colaborador *</label>
+              <input type="text" id="folhaFuncionario" placeholder="Nome do Colaborador" />
+            </div>
+            
+            <div class="form-group">
+              <label for="folhaBruto">Salário Bruto *</label>
+              <input type="number" id="folhaBruto" min="0" step="0.01" value="0.00" />
+            </div>
+            
+            <div class="form-group">
+              <label for="folhaDesconto">Desconto (INSS, Faltas, adiantamento)</label>
+              <input type="number" id="folhaDesconto" min="0" step="0.01" value="0.00" />
+            </div>
+            
+            <div class="form-group">
+              <label for="folhaLiquido">Salário Líquido (Calculado) *</label>
+              <input type="number" id="folhaLiquido" min="0" step="0.01" value="0.00" readonly />
+            </div>
+          </div>
+
+          <!-- DYNAMIC PANEL: Custos Fixos -->
+          <div class="form-grid full-width" id="panelCompraCustoFixo" style="grid-column: span 2; display: none;">
+            <div class="modal-section-title">Detalhamento do Custo Fixo</div>
+            
+            <div class="form-group full-width">
+              <label for="fixoDescricao">Descrição do Custo Fixo *</label>
+              <input type="text" id="fixoDescricao" placeholder="Ex: Energia, Aluguel, Internet, etc." />
+            </div>
+            
+            <div class="form-group">
+              <label for="fixoValor">Valor Mensal *</label>
+              <input type="number" id="fixoValor" min="0" step="0.01" value="0.00" />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn ghost" type="button" id="btnCancelCompra2">Cancelar</button>
+        <button class="btn primary" type="submit">Salvar Registro</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast">Cadastro atualizado</div>
+
+  <script src="data-store.js"></script>
+  <script src="export-utils.js"></script>
+  <script src="cadastros.js"></script>
+  <script src="dashboard-auth.js"></script>
+</body>
+</html>

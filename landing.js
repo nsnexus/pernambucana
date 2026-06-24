@@ -19,9 +19,12 @@ const pass = document.getElementById('loginPass');
 applyLandingTheme(landingTheme());
 document.getElementById('landingThemeToggle')?.addEventListener('click',()=>applyLandingTheme(document.body.classList.contains('theme-white') ? 'black' : 'white'));
 
-function openLogin(){
+let redirectTarget = new URLSearchParams(location.search).get('next') || 'painel.html';
+
+function openLogin(targetPage = 'painel.html'){
+  redirectTarget = targetPage;
   if(sessionStorage.getItem(AUTH_KEY)==='ok'){
-    window.location.href = 'painel.html';
+    window.location.href = redirectTarget;
     return;
   }
   modal.classList.add('show');
@@ -34,22 +37,29 @@ function closeLogin(){
   form.reset();
   error.textContent = '';
 }
-document.querySelectorAll('[data-open-login]').forEach(btn=>btn.addEventListener('click',openLogin));
+document.querySelectorAll('[data-open-login]').forEach(btn=>btn.addEventListener('click',()=>openLogin('painel.html')));
+document.querySelectorAll('[data-open-login-cadastros]').forEach(btn=>btn.addEventListener('click',()=>openLogin('cadastros.html')));
 document.querySelectorAll('[data-close-login]').forEach(btn=>btn.addEventListener('click',closeLogin));
 window.addEventListener('keydown', e=>{ if(e.key==='Escape' && modal.classList.contains('show')) closeLogin(); });
 form.addEventListener('submit', e=>{
   e.preventDefault();
   const login = user.value.trim().toLowerCase();
   const password = pass.value.trim();
-  if(login === AUTH_USER && password === AUTH_PASS){
+  const isValidUser = login === AUTH_USER || login.includes('@');
+  
+  if(isValidUser && password === AUTH_PASS){
     sessionStorage.setItem(AUTH_KEY,'ok');
-    window.location.href = 'painel.html';
+    sessionStorage.setItem('pernambucanaUserEmail', login);
+    window.location.href = redirectTarget;
   }else{
-    error.textContent = 'Login ou senha inválidos.';
+    error.textContent = 'Login (e-mail) ou senha inválidos.';
     pass.select();
   }
 });
-if(new URLSearchParams(location.search).get('login')==='1') openLogin();
+if(new URLSearchParams(location.search).get('login')==='1') {
+  const target = new URLSearchParams(location.search).get('next') || 'painel.html';
+  openLogin(target);
+}
 
 const reveals = document.querySelectorAll('.service-card,.management,.indicator-card,.section-title,.footer');
 reveals.forEach(el=>el.classList.add('reveal'));
