@@ -54,6 +54,7 @@
         <p style="margin: 0 0 12px; font-size: 14px;">Adicione, edite ou exclua lançamentos do seu setor. O admin poderá visualizar os dados consolidados no dashboard.</p>
         <div class="hero-actions" style="margin-top: 12px;">
           <button class="btn primary" id="btnNewEntry">Novo Lançamento</button>
+          <button class="btn ghost" id="btnPasteExcel">Colar do Excel</button>
           <button class="btn ghost" id="btnExportJson">Exportar JSON</button>
           <button class="btn ghost" id="btnExportXlsx">Exportar Excel (XLSX)</button>
           <button class="btn ghost" id="btnImportJson">Importar JSON</button>
@@ -470,6 +471,46 @@
         <button class="btn primary" type="submit">Salvar Registro</button>
       </div>
     </form>
+  </div>
+
+  <!-- MODAL: Colar do Excel -->
+  <div class="modal" id="pasteExcelModal" aria-hidden="true">
+    <div class="modal-backdrop" id="pasteExcelModalBackdrop"></div>
+    <div class="login-card modal-form-card glass" style="width: min(700px, 95vw);">
+      <button class="close" type="button" id="btnCancelPasteExcel">×</button>
+      <div class="modal-header">
+        <h3>Importar Copiando e Colando do Excel</h3>
+      </div>
+      
+      <div class="modal-body">
+        <p style="font-size: 13px; margin: 0 0 14px 0; line-height: 1.5;">
+          Abra sua planilha do Excel, selecione e copie as linhas de dados desejadas (pode incluir a linha de cabeçalhos) e cole na caixa abaixo:
+        </p>
+        
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="pasteExcelType">Tipo de Lançamento</label>
+          <select id="pasteExcelType">
+            <option value="auto">Detectar Automaticamente (16 colunas = Serviços, 12 colunas = Compras)</option>
+            <option value="servicos">Forçar Importação como Serviços (16 colunas)</option>
+            <option value="compras">Forçar Importação como Compras (12 colunas)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="pasteExcelTextarea">Área de Colagem (Ctrl+V)</label>
+          <textarea id="pasteExcelTextarea" placeholder="Clique aqui e cole os dados do Excel..." style="width: 100%; height: 180px; font-family: monospace; font-size: 11px; border-radius: 12px; border: 1px solid var(--line); background: rgba(2, 9, 17, 0.55); color: #fff; padding: 12px; outline: none; resize: vertical;"></textarea>
+        </div>
+        
+        <div id="pasteExcelPreview" style="margin-top: 16px; padding: 14px; border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); font-size: 13px; min-height: 50px; display: flex; align-items: center; justify-content: center; text-align: center;">
+          <span style="color: var(--muted);">Cole os dados para ver o resumo da importação.</span>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn ghost" type="button" id="btnCancelPasteExcel2">Cancelar</button>
+        <button class="btn primary" id="btnConfirmPasteImport" disabled>Confirmar e Importar</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast">Cadastro atualizado</div>

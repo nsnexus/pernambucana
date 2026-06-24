@@ -818,6 +818,222 @@
     });
   }
 
+  // --- EXCEL COPY & PASTE IMPORT FEATURE ---
+  let parsedExcelItems = [];
+  let parsedExcelType = ''; // 'servicos' or 'compras'
+
+  function cleanExcelCell(val) {
+    let s = String(val ?? '').trim();
+    if (s.startsWith('"') && s.endsWith('"')) {
+      s = s.slice(1, -1);
+    }
+    return s;
+  }
+
+  function parseExcelNumber(val) {
+    let s = cleanExcelCell(val);
+    if (!s || s === '-') return 0;
+    s = s.replace(/R\$/gi, '').replace(/\s/g, '');
+    if (s.includes(',') && s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function parseExcelDate(val) {
+    const s = cleanExcelCell(val);
+    if (!s) return '';
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (m) {
+      const day = m[1].padStart(2, '0');
+      const month = m[2].padStart(2, '0');
+      const year = m[3];
+      return `${year}-${month}-${day}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      return s.slice(0, 10);
+    }
+    return s;
+  }
+
+  function handleExcelPasteInput() {
+    const text = $('pasteExcelTextarea').value;
+    const forceType = $('pasteExcelType').value;
+    const previewEl = $('pasteExcelPreview');
+    const confirmBtn = $('btnConfirmPasteImport');
+    
+    parsedExcelItems = [];
+    parsedExcelType = '';
+    
+    if (!text.trim()) {
+      previewEl.innerHTML = '<span style="color: var(--muted);">Cole os dados para ver o resumo da importação.</span>';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    const lines = text.split(/\r?\n/).map(l => l.split('\t')).filter(cols => cols.length > 1 || (cols.length === 1 && cols[0].trim() !== ''));
+    if (lines.length === 0) {
+      previewEl.innerHTML = '<span style="color: var(--red);">Nenhum dado válido encontrado.</span>';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    // Determine type: check first non-header row column count
+    let startIndex = 0;
+    
+    // Check if first line is header
+    const firstRowHasHeaders = lines[0].some(cell => {
+      const c = cleanExcelCell(cell).toLowerCase();
+      return ['data', 'mês', 'mes', 'setor', 'cliente', 'categoria', 'valor', 'total', 'pagamento'].includes(c);
+    });
+    
+    if (firstRowHasHeaders) {
+      startIndex = 1;
+    }
+
+    if (lines.length <= startIndex) {
+      previewEl.innerHTML = '<span style="color: var(--red);">Apenas cabeçalho detectado. Cole também as linhas de dados.</span>';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    // Inspect columns count of the first data line to auto-detect
+    const testColsCount = lines[startIndex].length;
+    let detectedType = '';
+    if (forceType === 'auto') {
+      if (testColsCount >= 14 && testColsCount <= 18) {
+        detectedType = 'servicos';
+      } else if (testColsCount >= 10 && testColsCount <= 13) {
+        detectedType = 'compras';
+      } else {
+        previewEl.innerHTML = `<span style="color: var(--red);">Não conseguimos identificar o tipo de dados pelas colunas (${testColsCount} colunas detectadas).<br/>Copie a linha inteira da planilha de Serviços (16 colunas) ou de Compras (12 colunas), ou selecione o tipo de importação acima.</span>`;
+        confirmBtn.disabled = true;
+        return;
+      }
+    } else {
+      detectedType = forceType;
+    }
+
+    parsedExcelType = detectedType;
+
+    // Parse rows
+    for (let i = startIndex; i < lines.length; i++) {
+      const cols = lines[i];
+      if (cols.length === 1 && cols[0].trim() === '') continue; // skip blank rows
+
+      // Pad columns to prevent undefined checks
+      while (cols.length < (detectedType === 'servicos' ? 16 : 12)) {
+        cols.push('');
+      }
+
+      if (detectedType === 'servicos') {
+        const totalVal = parseExcelNumber(cols[10]);
+        const unitVal = parseExcelNumber(cols[9]);
+        const qtdVal = parseExcelNumber(cols[7]) || 1;
+        
+        parsedExcelItems.push({
+          data: parseExcelDate(cols[0]),
+          mes: cleanExcelCell(cols[1]),
+          setor: cleanExcelCell(cols[2]),
+          pagamento: cleanExcelCell(cols[3]) || 'À vista',
+          codigoServico: cleanExcelCell(cols[4]),
+          cliente: cleanExcelCell(cols[5]) || 'Cliente Importado',
+          descricao: cleanExcelCell(cols[6]),
+          qtd: qtdVal,
+          os: cleanExcelCell(cols[8]),
+          valorUnitario: unitVal || (totalVal / qtdVal) || 0,
+          valorTotal: totalVal || (unitVal * qtdVal) || 0,
+          produtivo: cleanExcelCell(cols[11]),
+          valorProdutivo: parseExcelNumber(cols[12]),
+          desconto: parseExcelNumber(cols[13]),
+          tipoServico: cleanExcelCell(cols[14]) || 'Serviços',
+          material: parseExcelNumber(cols[15])
+        });
+      } else {
+        // compras
+        parsedExcelItems.push({
+          data: parseExcelDate(cols[0]),
+          mes: cleanExcelCell(cols[1]),
+          setor: cleanExcelCell(cols[2]),
+          formaCompra: cleanExcelCell(cols[3]) || 'À vista',
+          solicitante: cleanExcelCell(cols[4]),
+          descricao: cleanExcelCell(cols[5]) || 'Compra Importada',
+          numOS: cleanExcelCell(cols[6]),
+          valorOS: parseExcelNumber(cols[7]),
+          valorProduto: parseExcelNumber(cols[8]),
+          fornecedor: cleanExcelCell(cols[9]),
+          numPedido: cleanExcelCell(cols[10]),
+          categoria: cleanExcelCell(cols[11]) || 'Almoxarifado'
+        });
+      }
+    }
+
+    if (parsedExcelItems.length === 0) {
+      previewEl.innerHTML = '<span style="color: var(--red);">Nenhuma linha de dados válida para importar.</span>';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    // Success summary
+    const typeLabel = detectedType === 'servicos' ? 'Serviços' : 'Compras e Despesas';
+    previewEl.innerHTML = `
+      <div style="color: var(--green); text-align: left;">
+        <strong>✔ Formato Identificado:</strong> Lançamentos de ${typeLabel}<br/>
+        <strong>📊 Registros Encontrados:</strong> ${parsedExcelItems.length} linhas de dados prontas.<br/>
+        <small style="color: var(--muted); margin-top: 4px; display: block;">Clique no botão abaixo para confirmar e gravar.</small>
+      </div>
+    `;
+    confirmBtn.disabled = false;
+  }
+
+  function initExcelPaste() {
+    $('btnPasteExcel')?.addEventListener('click', () => {
+      $('pasteExcelTextarea').value = '';
+      $('pasteExcelType').value = 'auto';
+      $('pasteExcelPreview').innerHTML = '<span style="color: var(--muted);">Cole os dados para ver o resumo da importação.</span>';
+      $('btnConfirmPasteImport').disabled = true;
+      showModal('pasteExcelModal');
+      setTimeout(() => $('pasteExcelTextarea').focus(), 150);
+    });
+
+    $('btnCancelPasteExcel')?.addEventListener('click', () => hideModal('pasteExcelModal'));
+    $('btnCancelPasteExcel2')?.addEventListener('click', () => hideModal('pasteExcelModal'));
+    $('pasteExcelModalBackdrop')?.addEventListener('click', () => hideModal('pasteExcelModal'));
+
+    $('pasteExcelTextarea')?.addEventListener('input', handleExcelPasteInput);
+    $('pasteExcelType')?.addEventListener('change', handleExcelPasteInput);
+
+    $('btnConfirmPasteImport')?.addEventListener('click', () => {
+      if (parsedExcelItems.length === 0 || !parsedExcelType) return;
+      
+      let importedCount = 0;
+      try {
+        parsedExcelItems.forEach(item => {
+          // Security lock: Override sector for non-admin users
+          if (!state.user.isAdmin) {
+            item.setor = state.user.sector;
+          }
+          
+          if (parsedExcelType === 'servicos') {
+            window.DataStore.addServico(item);
+          } else {
+            window.DataStore.addCompra(item);
+          }
+          importedCount++;
+        });
+
+        toast(`${importedCount} lançamentos importados com sucesso.`);
+        hideModal('pasteExcelModal');
+        renderData();
+      } catch (err) {
+        alert(err.message || 'Erro ao realizar a importação em lote.');
+      }
+    });
+  }
+
   // Setup initial load
   window.addEventListener('DOMContentLoaded', () => {
     initTheme();
@@ -826,6 +1042,7 @@
     initNavigation();
     initAutoCalculations();
     initSubmitHandlers();
+    initExcelPaste();
     
     // Initial render of default page
     renderData();
