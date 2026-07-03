@@ -1,74 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pernambucana | Portal Financeiro</title>
-  <link rel="shortcut icon" href="assets/favicon.png" type="image/png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="landing.css?v=1.1" />
-</head>
-<body class="portal-body">
-  <canvas id="particles"></canvas>
-  <div class="site-bg"></div><div class="mesh mesh-one"></div><div class="mesh mesh-two"></div>
-  
-  <header class="portal-header">
-    <button class="theme-btn" id="landingThemeToggle" type="button">Tema white</button>
-  </header>
-
-  <main class="portal-container">
-    <div class="portal-card glass">
-      <div class="portal-brand">
-        <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" class="portal-logo" />
-        <h2>Pernambucana</h2>
-        <p>Centro de Manutenção & Usinagem</p>
-        <span class="portal-badge">Gestão Financeira</span>
-      </div>
-      
-      <div class="portal-divider"></div>
-      
-      <div class="portal-actions">
-        <h3>Selecione a área de acesso</h3>
-        
-        <button class="portal-action-btn" data-open-login>
-          <div class="btn-icon-wrapper">◈</div>
-          <div class="btn-text-wrapper">
-            <strong>Painel Financeiro</strong>
-            <span>Visualizar KPIs, gráficos e relatórios consolidados da operação.</span>
-          </div>
-        </button>
-        
-        <button class="portal-action-btn" data-open-login-cadastros>
-          <div class="btn-icon-wrapper">✏</div>
-          <div class="btn-text-wrapper">
-            <strong>Painel de Cadastro</strong>
-            <span>Lançar serviços prestados, compras, despesas, folha e custos.</span>
-          </div>
-        </button>
-      </div>
-    </div>
-  </main>
-
-  <footer class="portal-footer">
-    <p>© 2026 NSNexus. Todos os direitos reservados.</p>
-  </footer>
-
-  <div class="modal" id="loginModal" aria-hidden="true">
-    <div class="modal-backdrop" data-close-login></div>
-    <form class="login-card" id="loginForm">
-      <button class="close" type="button" data-close-login>×</button>
-      <img src="assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
-      <span>Acesso restrito</span>
-      <h2>Acesso ao Portal</h2>
-      <label>Login (E-mail)<input id="loginUser" autocomplete="username" placeholder="Digite seu login ou e-mail" required /></label>
-      <label>Senha<input id="loginPass" type="password" autocomplete="current-password" placeholder="Digite sua senha" required /></label>
-      <p class="login-error" id="loginError"></p>
-      <button class="btn primary full" type="submit">Entrar no sistema</button>
-    </form>
-  </div>
-
-  <script src="landing.js?v=1.1"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pernambucana | Portal Financeiro</title>
+    <!-- Carrega a base padrão consolidada de fallback -->
+    <script src="/data.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
