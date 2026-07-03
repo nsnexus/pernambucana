@@ -106,6 +106,14 @@ const Dashboard = () => {
     }
   }, [activeDept]);
 
+  // Sync sector values for non-admin on login
+  useEffect(() => {
+    if (currentUser && !currentUser.isAdmin) {
+      setDeptFilter('all');
+      setActiveDept((currentUser.allowedSectors && currentUser.allowedSectors[0]) || currentUser.sector);
+    }
+  }, [currentUser]);
+
   const triggerToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 2600);
@@ -917,11 +925,17 @@ const Dashboard = () => {
 
           <label>
             Setor
-            <select value={deptFilter} onChange={(e) => { setDeptFilter(e.target.value); if (e.target.value !== 'all') setActiveDept(e.target.value); }}>
-              <option value="all">Todos</option>
-              {DEPARTMENTS.map(d => (
-                <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>
-              ))}
+            <select 
+              value={deptFilter} 
+              onChange={(e) => { setDeptFilter(e.target.value); if (e.target.value !== 'all') setActiveDept(e.target.value); }}
+              disabled={currentUser && !currentUser.isAdmin && currentUser.allowedSectors && currentUser.allowedSectors.length <= 1}
+            >
+              {currentUser?.isAdmin && <option value="all">Todos</option>}
+              {!currentUser?.isAdmin && currentUser?.allowedSectors && currentUser.allowedSectors.length > 1 && <option value="all">Meus setores</option>}
+              {DEPARTMENTS.map(d => {
+                if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(d)) return null;
+                return <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>;
+              })}
             </select>
           </label>
 

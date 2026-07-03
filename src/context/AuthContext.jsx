@@ -31,16 +31,45 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         const email = user.email.toLowerCase();
         let sector = 'all';
-        if (email.includes('retif')) sector = 'Retifica';
-        else if (email.includes('mecan')) sector = 'Mecanica';
-        else if (email.includes('peca')) sector = 'Peças';
-        else if (email.includes('torne')) sector = 'Torneadora';
-        else if (email.includes('calde')) sector = 'Caldeiraria';
+        let allowedSectors = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+        let isAdmin = false;
+
+        // Regras de permissões e acessos múltiplos por e-mail
+        if (
+          email.includes('rejanebrito') || 
+          email.includes('rubensbrito') || 
+          email.includes('financeiro')
+        ) {
+          sector = 'all';
+          isAdmin = true;
+          allowedSectors = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+        } else if (email.includes('retifica')) {
+          sector = 'Retifica';
+          allowedSectors = ['Retifica', 'Mecanica'];
+        } else if (email.includes('peca')) {
+          sector = 'Peças';
+          allowedSectors = ['Peças'];
+        } else if (email.includes('torne') || email.includes('orcamnto')) {
+          sector = 'Torneadora';
+          allowedSectors = ['Torneadora', 'Caldeiraria'];
+        } else if (email.includes('calde')) {
+          sector = 'Caldeiraria';
+          allowedSectors = ['Caldeiraria'];
+        } else if (email.includes('mecan')) {
+          sector = 'Mecanica';
+          allowedSectors = ['Mecanica'];
+        } else {
+          // Fallback administrador por padrão
+          sector = 'all';
+          isAdmin = true;
+          allowedSectors = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+        }
 
         setCurrentUser({
           email,
           sector,
-          isAdmin: sector === 'all'
+          isAdmin,
+          allowedSectors
         });
         sessionStorage.setItem('pernambucanaFinanceAuth', 'ok');
         sessionStorage.setItem('pernambucanaUserEmail', email);

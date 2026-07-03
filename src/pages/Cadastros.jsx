@@ -101,9 +101,9 @@ const Cadastros = () => {
   // Sync sector values for non-admin on login
   useEffect(() => {
     if (currentUser && !currentUser.isAdmin) {
-      setSectorFilter(currentUser.sector);
-      setServicoForm(f => ({ ...f, setor: currentUser.sector }));
-      setCompraForm(f => ({ ...f, setor: currentUser.sector }));
+      setSectorFilter('all');
+      setServicoForm(f => ({ ...f, setor: (currentUser.allowedSectors && currentUser.allowedSectors[0]) || currentUser.sector }));
+      setCompraForm(f => ({ ...f, setor: (currentUser.allowedSectors && currentUser.allowedSectors[0]) || currentUser.sector }));
     }
   }, [currentUser]);
 
@@ -574,12 +574,14 @@ const Cadastros = () => {
             <select 
               value={sectorFilter} 
               onChange={(e) => { setSectorFilter(e.target.value); setCurrentPage(1); }}
-              disabled={currentUser && !currentUser.isAdmin}
+              disabled={currentUser && !currentUser.isAdmin && currentUser.allowedSectors && currentUser.allowedSectors.length <= 1}
             >
-              <option value="all">Todos os setores</option>
-              {DEPARTMENTS.map(d => (
-                <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>
-              ))}
+              {currentUser?.isAdmin && <option value="all">Todos os setores</option>}
+              {!currentUser?.isAdmin && currentUser?.allowedSectors && currentUser.allowedSectors.length > 1 && <option value="all">Meus setores</option>}
+              {DEPARTMENTS.map(d => {
+                if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(d)) return null;
+                return <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>;
+              })}
             </select>
           </label>
 
@@ -812,11 +814,12 @@ const Cadastros = () => {
                   <select 
                     value={servicoForm.setor} 
                     onChange={(e) => setServicoForm(f => ({ ...f, setor: e.target.value }))}
-                    disabled={currentUser && !currentUser.isAdmin}
+                    disabled={currentUser && !currentUser.isAdmin && currentUser.allowedSectors && currentUser.allowedSectors.length <= 1}
                   >
-                    {DEPARTMENTS.map(d => (
-                      <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>
-                    ))}
+                    {DEPARTMENTS.map(d => {
+                      if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(d)) return null;
+                      return <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>;
+                    })}
                   </select>
                 </div>
               </div>
@@ -924,11 +927,12 @@ const Cadastros = () => {
                   <select 
                     value={compraForm.setor} 
                     onChange={(e) => setCompraForm(f => ({ ...f, setor: e.target.value }))}
-                    disabled={currentUser && !currentUser.isAdmin}
+                    disabled={currentUser && !currentUser.isAdmin && currentUser.allowedSectors && currentUser.allowedSectors.length <= 1}
                   >
-                    {DEPARTMENTS.map(d => (
-                      <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>
-                    ))}
+                    {DEPARTMENTS.map(d => {
+                      if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(d)) return null;
+                      return <option key={d} value={d}>{DEFAULT_DEPT_LABEL[d]}</option>;
+                    })}
                   </select>
                 </div>
               </div>

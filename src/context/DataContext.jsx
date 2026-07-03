@@ -592,13 +592,13 @@ export const DataProvider = ({ children }) => {
   const getFilteredServicos = () => {
     if (!currentUser) return [];
     if (currentUser.isAdmin) return servicos;
-    return servicos.filter(item => normalizeSector(item.setor) === currentUser.sector);
+    return servicos.filter(item => currentUser.allowedSectors && currentUser.allowedSectors.includes(normalizeSector(item.setor)));
   };
 
   const getFilteredCompras = () => {
     if (!currentUser) return [];
     if (currentUser.isAdmin) return compras;
-    return compras.filter(item => normalizeSector(item.setor) === currentUser.sector);
+    return compras.filter(item => currentUser.allowedSectors && currentUser.allowedSectors.includes(normalizeSector(item.setor)));
   };
 
   const value = {

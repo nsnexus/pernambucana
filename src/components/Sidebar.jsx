@@ -68,8 +68,8 @@ const Sidebar = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadas
               <span>◈</span> Visão geral
             </button>
             {['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'].map((d) => {
-              // Oculta setores diferentes do setor do usuário se não for admin
-              if (currentUser && !currentUser.isAdmin && currentUser.sector !== d) return null;
+              // Oculta setores diferentes dos setores permitidos ao usuário se não for admin
+              if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(d)) return null;
               return (
                 <button
                   key={d}
