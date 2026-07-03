@@ -526,7 +526,15 @@ const Cadastros = () => {
   };
 
   return (
-    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', color: '#fff' }}>
+    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <button 
+        className="theme-btn-icon" 
+        onClick={() => setWhiteTheme(!whiteTheme)}
+        title={whiteTheme ? 'Alternar para Tema Escuro' : 'Alternar para Tema Claro'}
+        type="button"
+      >
+        {whiteTheme ? '🌙' : '☀️'}
+      </button>
       <Sidebar 
         currentPage={activeTab} 
         onPageChange={handleTabChange}
@@ -546,9 +554,6 @@ const Cadastros = () => {
               Importar Backup JSON
               <input type="file" accept=".json" onChange={handleJSONImport} style={{ display: 'none' }} />
             </label>
-            <button className="btn theme-toggle" onClick={() => setWhiteTheme(!whiteTheme)}>
-              {whiteTheme ? 'Tema black' : 'Tema white'}
-            </button>
           </div>
         </header>
 
@@ -784,7 +789,7 @@ const Cadastros = () => {
       {servicoModalOpen && (
         <div className="modal show" id="servicoModal">
           <div className="modal-backdrop" onClick={() => setServicoModalOpen(false)}></div>
-          <form className="modal-card" onSubmit={handleServicoSubmit} style={{ maxWidth: '640px' }}>
+          <form className="login-card modal-form-card glass" onSubmit={handleServicoSubmit} style={{ maxWidth: '640px' }}>
             <div className="modal-header">
               <h2>{servicoEditId ? 'Editar Serviço' : 'Novo Serviço'}</h2>
               <button className="close" type="button" onClick={() => setServicoModalOpen(false)}>×</button>
@@ -896,7 +901,7 @@ const Cadastros = () => {
       {compraModalOpen && (
         <div className="modal show" id="compraModal">
           <div className="modal-backdrop" onClick={() => setCompraModalOpen(false)}></div>
-          <form className="modal-card" onSubmit={handleCompraSubmit} style={{ maxWidth: '640px' }}>
+          <form className="login-card modal-form-card glass" onSubmit={handleCompraSubmit} style={{ maxWidth: '640px' }}>
             <div className="modal-header">
               <h2>{compraEditId ? 'Editar Lançamento' : 'Novo Lançamento'}</h2>
               <button className="close" type="button" onClick={() => setCompraModalOpen(false)}>×</button>
@@ -1045,7 +1050,7 @@ const Cadastros = () => {
       {excelModalOpen && (
         <div className="modal show" id="pasteExcelModal">
           <div className="modal-backdrop" onClick={() => setExcelModalOpen(false)}></div>
-          <div className="modal-card" style={{ maxWidth: '680px' }}>
+          <div className="login-card modal-form-card glass" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
               <h2>Importar Copiando do Excel</h2>
               <button className="close" type="button" onClick={() => setExcelModalOpen(false)}>×</button>

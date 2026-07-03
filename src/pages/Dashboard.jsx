@@ -199,12 +199,40 @@ const Dashboard = () => {
         legend: {
           display: !hideLegend,
           position: 'bottom',
-          labels: { color: colors.legend }
+          labels: { 
+            color: colors.legend,
+            font: { family: 'Inter, system-ui, sans-serif', weight: '600', size: 11 }
+          }
+        },
+        tooltip: {
+          backgroundColor: whiteTheme ? 'rgba(255, 255, 255, 0.98)' : 'rgba(13, 34, 51, 0.98)',
+          titleColor: whiteTheme ? '#092133' : '#fff',
+          bodyColor: whiteTheme ? '#092133' : '#fff',
+          borderColor: colors.grid,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter, system-ui, sans-serif', weight: 'bold' },
+          bodyFont: { family: 'Inter, system-ui, sans-serif' },
+          callbacks: {
+            label: (context) => {
+              let label = context.dataset.label || '';
+              if (label) label += ': ';
+              if (context.parsed.y !== null) {
+                label += fmtMoney.format(context.parsed.y);
+              } else if (context.parsed.x !== null) {
+                label += fmtMoney.format(context.parsed.x);
+              }
+              return label;
+            }
+          }
         },
         datalabels: {
           display: true,
           color: colors.labelColor,
-          font: { weight: 'bold', size: 10 },
+          font: { family: 'Inter, system-ui, sans-serif', weight: 'bold', size: 9 },
+          offset: 4,
+          align: 'top',
           formatter: (value) => {
             if (!value) return '';
             return value >= 1000 ? `R$ ${(value / 1000).toFixed(0)}k` : `R$ ${value.toFixed(0)}`;
@@ -213,12 +241,26 @@ const Dashboard = () => {
       },
       scales: {
         x: {
-          grid: { color: colors.grid },
-          ticks: { color: colors.axis }
+          grid: { 
+            color: colors.grid,
+            drawBorder: false,
+            borderDash: [5, 5]
+          },
+          ticks: { 
+            color: colors.axis,
+            font: { family: 'Inter, system-ui, sans-serif', size: 10 }
+          }
         },
         y: {
-          grid: { color: colors.grid },
-          ticks: { color: colors.axis }
+          grid: { 
+            color: colors.grid,
+            drawBorder: false,
+            borderDash: [5, 5]
+          },
+          ticks: { 
+            color: colors.axis,
+            font: { family: 'Inter, system-ui, sans-serif', size: 10 }
+          }
         }
       }
     };
@@ -242,7 +284,12 @@ const Dashboard = () => {
           borderColor: PALETTE[1].border,
           backgroundColor: PALETTE[1].soft,
           fill: true,
-          tension: 0.3
+          tension: 0.45,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: PALETTE[1].border,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5
         }
       ]
     };
@@ -283,7 +330,12 @@ const Dashboard = () => {
           borderColor: PALETTE[1].border,
           borderWidth: 3,
           fill: false,
-          tension: 0.1
+          tension: 0.45,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: PALETTE[1].border,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5
         }
       ]
     };
@@ -438,7 +490,12 @@ const Dashboard = () => {
           borderColor: PALETTE[1].border,
           borderWidth: 3,
           fill: false,
-          tension: 0.1
+          tension: 0.45,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: PALETTE[1].border,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1.5
         }
       ]
     };
@@ -785,7 +842,15 @@ const Dashboard = () => {
   }, [resumo]);
 
   return (
-    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', color: '#fff' }}>
+    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      <button 
+        className="theme-btn-icon" 
+        onClick={() => setWhiteTheme(!whiteTheme)}
+        title={whiteTheme ? 'Alternar para Tema Escuro' : 'Alternar para Tema Claro'}
+        type="button"
+      >
+        {whiteTheme ? '🌙' : '☀️'}
+      </button>
       <Sidebar 
         currentPage={activeTab} 
         onPageChange={setActiveTab}
@@ -805,9 +870,6 @@ const Dashboard = () => {
             <div className="hero-actions" style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
               <button className="btn primary" onClick={() => document.body.classList.toggle('presentation')}>Tela Cheia</button>
               <button className="btn ghost" onClick={exportCsv}>Exportar CSV</button>
-              <button className="btn theme-toggle" onClick={() => setWhiteTheme(!whiteTheme)}>
-                {whiteTheme ? 'Tema black' : 'Tema white'}
-              </button>
             </div>
           </div>
 
