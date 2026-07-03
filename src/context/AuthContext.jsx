@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAhino5yPV-9UrRj8FboDwV_UoQsN5aIZ0",
@@ -27,14 +27,39 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const email = user.email.toLowerCase();
         let sector = 'all';
         let allowedSectors = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
         let isAdmin = false;
 
-        // Regras de permissões e acessos múltiplos por e-mail
+        // 1. Tenta carregar permissões dinâmicas da coleção 'users' no Firestore (ID = e-mail)
+        try {
+          const userDocRef = doc(db, 'users', email);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            sector = userData.sector || 'all';
+            isAdmin = !!userData.isAdmin;
+            allowedSectors = userData.allowedSectors || ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+            
+            setCurrentUser({
+              email,
+              sector,
+              isAdmin,
+              allowedSectors
+            });
+            sessionStorage.setItem('pernambucanaFinanceAuth', 'ok');
+            sessionStorage.setItem('pernambucanaUserEmail', email);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("Erro ao buscar permissões no Firestore, usando fallback:", err);
+        }
+
+        // 2. Fallback de regras estáticas por padrão de e-mail (se não cadastrado no Firestore)
         if (
           email.includes('rejanebrito') || 
           email.includes('rubensbrito') || 
