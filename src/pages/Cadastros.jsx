@@ -541,7 +541,7 @@ const Cadastros = () => {
         isCadastrosPage={true}
       />
 
-      <main className="main" style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+      <main className="main" style={{ flex: 1, padding: '24px' }}>
         <header className="hero" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--line)' }}>
           <div>
             <div className="badge"><span></span> Cadastro de Informações</div>

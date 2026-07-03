@@ -867,7 +867,7 @@ const Dashboard = () => {
         isCadastrosPage={false}
       />
 
-      <main className="main" style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+      <main className="main" style={{ flex: 1, padding: '24px' }}>
         
         {/* Seção Hero Superior */}
         <section className="hero" id="visao" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '24px' }}>
