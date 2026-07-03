@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAhino5yPV-9UrRj8FboDwV_UoQsN5aIZ0",
@@ -88,6 +88,19 @@ export const AuthProvider = ({ children }) => {
           sector = 'all';
           isAdmin = true;
           allowedSectors = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+        }
+
+        // 3. Cria automaticamente o perfil no Firestore para fácil gerenciamento posterior pelo painel
+        try {
+          await setDoc(doc(db, 'users', email), {
+            email,
+            sector,
+            isAdmin,
+            allowedSectors,
+            criadoAutomaticamente: true
+          });
+        } catch (saveErr) {
+          console.warn("Erro ao registrar perfil inicial do usuário no Firestore:", saveErr);
         }
 
         setCurrentUser({
