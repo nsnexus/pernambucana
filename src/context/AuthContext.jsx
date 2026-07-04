@@ -83,6 +83,9 @@ export const AuthProvider = ({ children }) => {
         } else if (email.includes('mecan')) {
           sector = 'Mecanica';
           allowedSectors = ['Mecanica'];
+        } else if (email.includes('autogeral') || email.includes('auto')) {
+          sector = 'AltoGeral';
+          allowedSectors = ['AltoGeral'];
         } else {
           // Fallback administrador por padrão
           sector = 'all';
