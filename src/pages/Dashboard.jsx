@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import Sidebar from '../components/Sidebar';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import TopNav from '../components/TopNav';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -64,28 +64,10 @@ const Dashboard = () => {
   // Toast message state
   const [toastMessage, setToastMessage] = useState('');
 
-  // Local spreadsheet upload fallback state
-  const [localSpreadsheetPayload, setLocalSpreadsheetPayload] = useState(() => {
-    try {
-      const raw = localStorage.getItem('pernambucana.financeData.manual.v2');
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed && Array.isArray(parsed.resumo) ? parsed : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Load consolidated default or custom payload
+  // Load consolidated payload directly from Firebase Firestore (seeded automatically if empty)
   const currentPayload = useMemo(() => {
-    if (hasData()) {
-      return buildFinancePayload();
-    }
-    if (localSpreadsheetPayload) {
-      return localSpreadsheetPayload;
-    }
-    return window.FINANCE_DATA || {};
-  }, [hasData, buildFinancePayload, localSpreadsheetPayload]);
+    return buildFinancePayload();
+  }, [buildFinancePayload]);
 
   const resumo = currentPayload.resumo || [];
   const servs = currentPayload.servicos || [];
@@ -196,6 +178,16 @@ const Dashboard = () => {
     { solid: 'rgba(163,230,53,.92)', soft: 'rgba(163,230,53,.24)', border: 'rgba(163,230,53,1)' }
   ];
 
+  const getGradient = (context, cStart, cEnd) => {
+    const chart = context.chart;
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return cEnd;
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, cStart);
+    gradient.addColorStop(1, cEnd);
+    return gradient;
+  };
+
   // Helper chart configurations
   const commonOptions = (title, indexAxis = 'x', hideLegend = true) => {
     const colors = getChartColors();
@@ -203,6 +195,14 @@ const Dashboard = () => {
       responsive: true,
       maintainAspectRatio: false,
       indexAxis,
+      layout: {
+        padding: {
+          bottom: 16,
+          top: 10,
+          left: 10,
+          right: 10
+        }
+      },
       plugins: {
         legend: {
           display: !hideLegend,
@@ -240,7 +240,14 @@ const Dashboard = () => {
           color: colors.labelColor,
           font: { family: 'Inter, system-ui, sans-serif', weight: 'bold', size: 9 },
           offset: 4,
-          align: 'top',
+          align: (context) => {
+            const value = context.dataset.data[context.dataIndex];
+            return value >= 0 ? 'end' : 'start';
+          },
+          anchor: (context) => {
+            const value = context.dataset.data[context.dataIndex];
+            return value >= 0 ? 'end' : 'start';
+          },
           formatter: (value) => {
             if (!value) return '';
             return value >= 1000 ? `R$ ${(value / 1000).toFixed(0)}k` : `R$ ${value.toFixed(0)}`;
@@ -256,8 +263,12 @@ const Dashboard = () => {
           },
           ticks: { 
             color: colors.axis,
-            font: { family: 'Inter, system-ui, sans-serif', size: 10 }
-          }
+            font: { family: 'Inter, system-ui, sans-serif', size: 9 },
+            maxRotation: 30,
+            minRotation: 0,
+            autoSkip: true
+          },
+          grace: '15%'
         },
         y: {
           grid: { 
@@ -267,7 +278,58 @@ const Dashboard = () => {
           },
           ticks: { 
             color: colors.axis,
-            font: { family: 'Inter, system-ui, sans-serif', size: 10 }
+            font: { family: 'Inter, system-ui, sans-serif', size: 9 }
+          },
+          grace: '15%'
+        }
+      }
+    };
+  };
+
+  const pieOptions = (title, hideLegend = false) => {
+    const colors = getChartColors();
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: !hideLegend,
+          position: 'bottom',
+          labels: { 
+            color: colors.legend,
+            font: { family: 'Inter, system-ui, sans-serif', weight: '600', size: 10 }
+          }
+        },
+        tooltip: {
+          backgroundColor: whiteTheme ? 'rgba(255, 255, 255, 0.98)' : 'rgba(13, 34, 51, 0.98)',
+          titleColor: whiteTheme ? '#092133' : '#fff',
+          bodyColor: whiteTheme ? '#092133' : '#fff',
+          borderColor: colors.grid,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter, system-ui, sans-serif', weight: 'bold' },
+          bodyFont: { family: 'Inter, system-ui, sans-serif' },
+          callbacks: {
+            label: (context) => {
+              let label = context.label || '';
+              if (label) label += ': ';
+              if (context.parsed !== null) {
+                label += fmtMoney.format(context.parsed);
+              }
+              return label;
+            }
+          }
+        },
+        datalabels: {
+          display: true,
+          color: '#fff',
+          font: { family: 'Inter, system-ui, sans-serif', weight: 'bold', size: 10 },
+          formatter: (value, context) => {
+            if (!value) return '';
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = total ? ((value / total) * 100).toFixed(0) + '%' : '';
+            return pct;
           }
         }
       }
@@ -289,13 +351,13 @@ const Dashboard = () => {
         {
           label: 'Resultado',
           data: dataPoints.map(d => d.sum),
-          borderColor: PALETTE[1].border,
-          backgroundColor: PALETTE[1].soft,
+          borderColor: 'rgba(245, 158, 11, 1)',
+          backgroundColor: (context) => getGradient(context, 'rgba(245, 158, 11, 0.01)', 'rgba(245, 158, 11, 0.25)'),
           fill: true,
           tension: 0.45,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: PALETTE[1].border,
+          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
           pointBorderColor: '#fff',
           pointBorderWidth: 1.5
         }
@@ -321,27 +383,27 @@ const Dashboard = () => {
           type: 'bar',
           label: 'Entradas',
           data: dataPoints.map(d => d.e),
-          backgroundColor: PALETTE[0].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(20, 184, 166, 0.15)', 'rgba(20, 184, 166, 0.85)'),
           borderRadius: 8
         },
         {
           type: 'bar',
           label: 'Retiradas',
           data: dataPoints.map(d => d.s),
-          backgroundColor: PALETTE[3].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(244, 63, 94, 0.15)', 'rgba(244, 63, 94, 0.85)'),
           borderRadius: 8
         },
         {
           type: 'line',
           label: 'Resultado',
           data: dataPoints.map(d => d.r),
-          borderColor: PALETTE[1].border,
+          borderColor: 'rgba(245, 158, 11, 1)',
           borderWidth: 3,
           fill: false,
           tension: 0.45,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: PALETTE[1].border,
+          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
           pointBorderColor: '#fff',
           pointBorderWidth: 1.5
         }
@@ -363,7 +425,13 @@ const Dashboard = () => {
         {
           label: 'Resultado',
           data: dataPoints.map(d => d.sum),
-          backgroundColor: dataPoints.map((_, i) => PALETTE[i % PALETTE.length].solid),
+          backgroundColor: (context) => {
+            const val = context.dataIndex !== undefined ? context.dataset.data[context.dataIndex] : undefined;
+            if (val === undefined) return 'rgba(20, 184, 166, 0.85)';
+            return val >= 0 
+              ? getGradient(context, 'rgba(20, 184, 166, 0.15)', 'rgba(20, 184, 166, 0.85)')
+              : getGradient(context, 'rgba(244, 63, 94, 0.15)', 'rgba(244, 63, 94, 0.85)');
+          },
           borderRadius: 8
         }
       ]
@@ -377,7 +445,13 @@ const Dashboard = () => {
       datasets: [
         {
           data: [totalVista, totalPrazo],
-          backgroundColor: [PALETTE[5].solid, PALETTE[1].solid],
+          backgroundColor: (context) => {
+            const index = context.dataIndex;
+            if (index === undefined) return '#14b8a6';
+            return index === 0 
+              ? getGradient(context, 'rgba(20, 184, 166, 0.2)', 'rgba(20, 184, 166, 0.85)')
+              : getGradient(context, 'rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.85)');
+          },
           borderWidth: 0
         }
       ]
@@ -399,7 +473,7 @@ const Dashboard = () => {
         {
           label: 'Valor',
           data: sorted.map(s => s[1]),
-          backgroundColor: PALETTE[2].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(59, 130, 246, 0.25)', 'rgba(139, 92, 246, 0.85)'),
           borderRadius: 8
         }
       ]
@@ -419,7 +493,20 @@ const Dashboard = () => {
       datasets: [
         {
           data: dataPoints.map(d => d.sum),
-          backgroundColor: dataPoints.map((_, i) => PALETTE[i % PALETTE.length].solid),
+          backgroundColor: (context) => {
+            const index = context.dataIndex;
+            if (index === undefined) return 'rgba(20, 184, 166, 0.85)';
+            const colors = [
+              { s: 'rgba(20, 184, 166, 0.2)', e: 'rgba(20, 184, 166, 0.85)' },
+              { s: 'rgba(249, 146, 60, 0.2)', e: 'rgba(249, 146, 60, 0.85)' },
+              { s: 'rgba(59, 130, 246, 0.2)', e: 'rgba(59, 130, 246, 0.85)' },
+              { s: 'rgba(236, 72, 153, 0.2)', e: 'rgba(236, 72, 153, 0.85)' },
+              { s: 'rgba(168, 85, 247, 0.2)', e: 'rgba(168, 85, 247, 0.85)' },
+              { s: 'rgba(99, 102, 241, 0.2)', e: 'rgba(99, 102, 241, 0.85)' }
+            ];
+            const c = colors[index % colors.length];
+            return getGradient(context, c.s, c.e);
+          },
           borderWidth: 0
         }
       ]
@@ -440,7 +527,7 @@ const Dashboard = () => {
         {
           label: 'Valor',
           data: dataPoints.map(d => d.sum),
-          backgroundColor: PALETTE[4].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(139, 92, 246, 0.15)', 'rgba(139, 92, 246, 0.85)'),
           borderRadius: 8
         }
       ]
@@ -481,27 +568,27 @@ const Dashboard = () => {
           type: 'bar',
           label: 'Entradas',
           data: dataPoints.map(d => d.e),
-          backgroundColor: PALETTE[0].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(20, 184, 166, 0.15)', 'rgba(20, 184, 166, 0.85)'),
           borderRadius: 8
         },
         {
           type: 'bar',
           label: 'Retiradas',
           data: dataPoints.map(d => d.s),
-          backgroundColor: PALETTE[3].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(244, 63, 94, 0.15)', 'rgba(244, 63, 94, 0.85)'),
           borderRadius: 8
         },
         {
           type: 'line',
           label: 'Resultado',
           data: dataPoints.map(d => d.r),
-          borderColor: PALETTE[1].border,
+          borderColor: 'rgba(245, 158, 11, 1)',
           borderWidth: 3,
           fill: false,
           tension: 0.45,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: PALETTE[1].border,
+          pointBackgroundColor: 'rgba(245, 158, 11, 1)',
           pointBorderColor: '#fff',
           pointBorderWidth: 1.5
         }
@@ -518,7 +605,13 @@ const Dashboard = () => {
       datasets: [
         {
           data: [vista, prazo],
-          backgroundColor: [PALETTE[5].solid, PALETTE[1].solid],
+          backgroundColor: (context) => {
+            const index = context.dataIndex;
+            if (index === undefined) return '#14b8a6';
+            return index === 0 
+              ? getGradient(context, 'rgba(20, 184, 166, 0.2)', 'rgba(20, 184, 166, 0.85)')
+              : getGradient(context, 'rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.85)');
+          },
           borderWidth: 0
         }
       ]
@@ -540,7 +633,7 @@ const Dashboard = () => {
         {
           label: 'Valor',
           data: sorted.map(s => s[1]),
-          backgroundColor: PALETTE[3].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(244, 63, 94, 0.15)', 'rgba(244, 63, 94, 0.85)'),
           borderRadius: 8
         }
       ]
@@ -562,7 +655,7 @@ const Dashboard = () => {
         {
           label: 'Valor',
           data: sorted.map(s => s[1]),
-          backgroundColor: PALETTE[0].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(20, 184, 166, 0.15)', 'rgba(20, 184, 166, 0.85)'),
           borderRadius: 8
         }
       ]
@@ -667,7 +760,7 @@ const Dashboard = () => {
         {
           label: 'Total',
           data: sorted.map(s => s[1]),
-          backgroundColor: PALETTE[0].solid,
+          backgroundColor: (context) => getGradient(context, 'rgba(59, 130, 246, 0.25)', 'rgba(139, 92, 246, 0.85)'),
           borderRadius: 8
         }
       ]
@@ -681,143 +774,20 @@ const Dashboard = () => {
       datasets: [
         {
           data: [prodVistaSum, prodPrazoSum],
-          backgroundColor: [PALETTE[5].solid, PALETTE[1].solid],
+          backgroundColor: (context) => {
+            const index = context.dataIndex;
+            if (index === undefined) return '#14b8a6';
+            return index === 0 
+              ? getGradient(context, 'rgba(20, 184, 166, 0.2)', 'rgba(20, 184, 166, 0.85)')
+              : getGradient(context, 'rgba(245, 158, 11, 0.2)', 'rgba(245, 158, 11, 0.85)');
+          },
           borderWidth: 0
         }
       ]
     };
   }, [prodVistaSum, prodPrazoSum]);
 
-  // Spreadsheet workbook loading fallback logic
-  const handleSpreadsheetUpload = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-      
-      // Port parsing functions from app.js to convert worksheets to payload
-      // (This serves as a backup upload when they drag and drop local spreadsheets directly)
-      const data = { resumo: [], servicos: [], despesas: [], folha: [], produtivos: [], custosFixos: [] };
-      
-      const sheetNames = workbook.SheetNames;
-      sheetNames.forEach(sheetName => {
-        const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        if (json.length === 0) return;
-        
-        // Simples parsing do Excel consolidador (como no app.js original)
-        // (Apenas mapeando as abas consolidadas principais do modelo)
-        const nameLower = sheetName.toLowerCase().trim();
-        
-        if (nameLower === 'resumo') {
-          // parse rows into resumen
-          for(let i=1; i<json.length; i++) {
-            const row = json[i];
-            if (row.length < 3) continue;
-            data.resumo.push({
-              codigo: String(row[0] || ''),
-              mesNum: Number(row[1]) || 1,
-              mes: String(row[2] || ''),
-              departamento: String(row[3] || ''),
-              receitaPrazo: Number(row[4]) || 0,
-              receitaVista: Number(row[5]) || 0,
-              entradas: Number(row[6]) || 0,
-              retiradas: Number(row[7]) || 0,
-              resultado: Number(row[8]) || 0,
-              comprasPrazo: Number(row[9]) || 0,
-              comprasMes: Number(row[10]) || 0,
-              saidasVista: Number(row[11]) || 0,
-              folhaPagamento: Number(row[12]) || 0,
-              custoFixo: Number(row[13]) || 0,
-              imposto: Number(row[14]) || 0,
-              alimentacao: Number(row[15]) || 0,
-              materialOS: Number(row[16]) || 0
-            });
-          }
-        } else if (nameLower === 'serviços' || nameLower === 'servicos') {
-          for(let i=1; i<json.length; i++) {
-            const row = json[i];
-            if (row.length < 3) continue;
-            data.servicos.push({
-              codigo: String(row[0] || ''),
-              mesNum: Number(row[1]) || 1,
-              mes: String(row[2] || ''),
-              departamento: String(row[3] || ''),
-              servico: String(row[4] || ''),
-              condicao: String(row[5] || ''),
-              valor: Number(row[6]) || 0
-            });
-          }
-        } else if (nameLower === 'despesas') {
-          for(let i=1; i<json.length; i++) {
-            const row = json[i];
-            if (row.length < 3) continue;
-            data.despesas.push({
-              codigo: String(row[0] || ''),
-              mesNum: Number(row[1]) || 1,
-              mes: String(row[2] || ''),
-              departamento: String(row[3] || ''),
-              categoria: String(row[4] || ''),
-              valor: Number(row[5]) || 0,
-              classe: String(row[6] || ''),
-              entraResultado: String(row[7]).toLowerCase() !== 'false'
-            });
-          }
-        } else if (nameLower === 'folha') {
-          for(let i=1; i<json.length; i++) {
-            const row = json[i];
-            if (row.length < 3) continue;
-            data.folha.push({
-              codigo: String(row[0] || ''),
-              mesNum: Number(row[1]) || 1,
-              mes: String(row[2] || ''),
-              departamento: String(row[3] || ''),
-              nome: String(row[4] || ''),
-              bruto: Number(row[5]) || 0,
-              desconto: Number(row[6]) || 0,
-              liquido: Number(row[7]) || 0
-            });
-          }
-        } else if (nameLower === 'produtivos') {
-          for(let i=1; i<json.length; i++) {
-            const row = json[i];
-            if (row.length < 3) continue;
-            data.produtivos.push({
-              codigo: String(row[0] || ''),
-              mesNum: Number(row[1]) || 1,
-              mes: String(row[2] || ''),
-              departamento: String(row[3] || ''),
-              nome: String(row[4] || ''),
-              prazo: Number(row[5]) || 0,
-              vista: Number(row[6]) || 0,
-              total: Number(row[7]) || 0
-            });
-          }
-        }
-      });
-
-      if (data.resumo.length > 0) {
-        localStorage.setItem('pernambucana.financeData.manual.v2', JSON.stringify(data));
-        setLocalSpreadsheetPayload(data);
-        triggerToast('Planilha carregada e salva localmente.');
-      } else {
-        alert('Não encontramos as abas padrão consolidadas ("Resumo", "Serviços", "Despesas", "Folha", "Produtivos") no arquivo.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao carregar planilha: ' + err.message);
-    }
-    e.target.value = '';
-  };
-
-  const handleResetData = () => {
-    localStorage.removeItem('pernambucana.financeData.manual.v2');
-    setLocalSpreadsheetPayload(null);
-    clearAll();
-    triggerToast('Base resetada para o padrão.');
-  };
+  // Spreadsheet workbook loading functions removed - reading exclusively from Firebase
 
   const exportCsv = () => {
     const head = ['Mês', 'Código', 'Setor', 'À prazo', 'À vista', 'Entradas', 'Retiradas', 'Resultado', 'Compras/Material'];
@@ -850,63 +820,55 @@ const Dashboard = () => {
   }, [resumo]);
 
   return (
-    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <button 
-        className="theme-btn-icon" 
-        onClick={() => setWhiteTheme(!whiteTheme)}
-        title={whiteTheme ? 'Alternar para Tema Escuro' : 'Alternar para Tema Claro'}
-        type="button"
-      >
-        {whiteTheme ? '🌙' : '☀️'}
-      </button>
-      <Sidebar 
+    <div className="painel-layout" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <TopNav 
         currentPage={activeTab} 
-        onPageChange={setActiveTab}
+        onPageChange={(page) => {
+          if (page === 'setor' && (activeDept === 'all' || deptFilter === 'all')) {
+            const firstAllowed = currentUser?.isAdmin ? 'Mecanica' : (currentUser?.allowedSectors?.[0] || 'Mecanica');
+            setActiveDept(firstAllowed);
+            setDeptFilter(firstAllowed);
+          }
+          setActiveTab(page);
+        }}
         currentDept={activeDept}
         onDeptChange={setActiveDept}
         isCadastrosPage={false}
+        whiteTheme={whiteTheme}
+        setWhiteTheme={setWhiteTheme}
       />
 
-      <main className="main" style={{ flex: 1, padding: '24px' }}>
+      <main className="main">
         
-        {/* Seção Hero Superior */}
-        <section className="hero" id="visao" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '24px' }}>
-          <div className="hero-copy" style={{ flex: 1.2, minWidth: '300px' }}>
-            <div className="badge"><span></span> Gestão financeira executiva</div>
-            <h1>Resultado financeiro por mês e setor.</h1>
-            <p>Monitore KPIs consolidados de entradas, saídas, resultado líquido, recebimentos e produtividade em tempo real.</p>
-            <div className="hero-actions" style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button className="btn primary" onClick={() => document.body.classList.toggle('presentation')}>Tela Cheia</button>
-              <button className="btn ghost" onClick={exportCsv}>Exportar CSV</button>
+        {/* Hero panel compacto — Resultado Acumulado */}
+        <section className="hero-panel glass" style={{ marginBottom: '24px' }}>
+          <div className="hero-panel-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div>
+              <span>Resultado acumulado</span>
+              <strong id="heroResult" className={totalResultado >= 0 ? 'positive' : 'negative'} style={{ display: 'block', fontSize: '24px' }}>
+                {fmtMoney.format(totalResultado)}
+              </strong>
             </div>
-          </div>
-
-          <div className="hero-panel glass" style={{ flex: 1, minWidth: '300px', padding: '16px', borderRadius: '16px' }}>
-            <div className="hero-panel-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div>
-                <span>Resultado acumulado</span>
-                <strong id="heroResult" className={totalResultado >= 0 ? 'positive' : 'negative'} style={{ display: 'block', fontSize: '24px' }}>
-                  {fmtMoney.format(totalResultado)}
-                </strong>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span id="heroMargin" className={`pill ${totalResultado >= 0 ? 'good' : 'bad'}`}>
                 {totalMargem.toFixed(1).replace('.', ',')}% margem
               </span>
+              <button className="btn ghost" onClick={exportCsv} style={{ fontSize: '12px', padding: '7px 12px' }}>Exportar CSV</button>
             </div>
-            
-            <div style={{ height: '160px', position: 'relative' }}>
-              <Line data={chartHeroData} options={commonOptions('Resultado Acumulado', 'x', true)} />
-            </div>
+          </div>
+          
+          <div style={{ height: '140px', position: 'relative' }}>
+            <Line data={chartHeroData} options={commonOptions('Resultado Acumulado', 'x', true)} />
+          </div>
 
-            <div className="hero-mini" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
-              <div>
-                <span>Entradas</span>
-                <strong id="heroRevenue" style={{ color: 'var(--green)' }}>{fmtMoney.format(totalEntradas)}</strong>
-              </div>
-              <div>
-                <span>Retiradas</span>
-                <strong id="heroCost" style={{ color: 'var(--red)' }}>{fmtMoney.format(totalRetiradas)}</strong>
-              </div>
+          <div className="hero-mini" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+            <div>
+              <span>Entradas</span>
+              <strong id="heroRevenue" style={{ color: 'var(--green)' }}>{fmtMoney.format(totalEntradas)}</strong>
+            </div>
+            <div>
+              <span>Retiradas</span>
+              <strong id="heroCost" style={{ color: 'var(--red)' }}>{fmtMoney.format(totalRetiradas)}</strong>
             </div>
           </div>
         </section>
@@ -961,16 +923,7 @@ const Dashboard = () => {
             />
           </label>
 
-          <div className="upload-box" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label className="btn import" style={{ cursor: 'pointer' }}>
-              Carregar Planilha local
-              <input type="file" accept=".xlsx,.xls,.xlsm,.csv" onChange={handleSpreadsheetUpload} style={{ display: 'none' }} />
-            </label>
-            <button className="btn mini ghost" onClick={handleResetData}>Limpar Base</button>
-            <small id="dataSourceInfo" style={{ color: 'var(--muted)', fontSize: '11px' }}>
-              {hasData() ? 'Base Firebase Firestore' : localSpreadsheetPayload ? 'Planilha local salva' : 'Base Estática Inicial'}
-            </small>
-          </div>
+
         </section>
 
         {/* KPIs Cards Grid */}
@@ -1059,7 +1012,7 @@ const Dashboard = () => {
                   <h3>Recebimentos à vista x prazo</h3>
                 </div>
                 <div style={{ height: '240px', position: 'relative' }}>
-                  <Doughnut data={chartPaymentData} options={commonOptions('Recebimentos', 'x', false)} />
+                  <Pie data={chartPaymentData} options={pieOptions('Recebimentos', false)} />
                 </div>
               </article>
 
@@ -1077,7 +1030,7 @@ const Dashboard = () => {
                   <h3>Participação no Faturamento</h3>
                 </div>
                 <div style={{ height: '240px', position: 'relative' }}>
-                  <Doughnut data={chartRevenueDeptData} options={commonOptions('Faturamento por Setor', 'x', false)} />
+                  <Pie data={chartRevenueDeptData} options={pieOptions('Faturamento por Setor', false)} />
                 </div>
               </article>
 
@@ -1125,7 +1078,7 @@ const Dashboard = () => {
                   <h3>Forma de Recebimento</h3>
                 </div>
                 <div style={{ height: '240px', position: 'relative' }}>
-                  <Doughnut data={chartSectorPaymentData} options={commonOptions('Recebimentos do Setor', 'x', false)} />
+                  <Pie data={chartSectorPaymentData} options={pieOptions('Recebimentos do Setor', false)} />
                 </div>
               </article>
 
@@ -1320,7 +1273,7 @@ const Dashboard = () => {
                   <h3>Recebimentos Relacionados</h3>
                 </div>
                 <div style={{ height: '240px', position: 'relative' }}>
-                  <Doughnut data={chartProdPaymentData} options={commonOptions('Faturamento por Tipo', 'x', false)} />
+                  <Pie data={chartProdPaymentData} options={pieOptions('Faturamento por Tipo', false)} />
                 </div>
               </article>
             </section>

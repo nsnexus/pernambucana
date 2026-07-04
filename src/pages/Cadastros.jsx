@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import Sidebar from '../components/Sidebar';
+import TopNav from '../components/TopNav';
 import * as XLSX from 'xlsx';
 import '../styles/cadastros.css';
 
@@ -526,22 +526,16 @@ const Cadastros = () => {
   };
 
   return (
-    <div className="painel-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <button 
-        className="theme-btn-icon" 
-        onClick={() => setWhiteTheme(!whiteTheme)}
-        title={whiteTheme ? 'Alternar para Tema Escuro' : 'Alternar para Tema Claro'}
-        type="button"
-      >
-        {whiteTheme ? '🌙' : '☀️'}
-      </button>
-      <Sidebar 
+    <div className="painel-layout" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <TopNav 
         currentPage={activeTab} 
         onPageChange={handleTabChange}
         isCadastrosPage={true}
+        whiteTheme={whiteTheme}
+        setWhiteTheme={setWhiteTheme}
       />
 
-      <main className="main" style={{ flex: 1, padding: '24px' }}>
+      <main className="main">
         <header className="hero" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--line)' }}>
           <div>
             <div className="badge"><span></span> Cadastro de Informações</div>

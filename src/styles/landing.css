@@ -35,7 +35,6 @@ body {
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;
-  overflow: hidden;
 }
 
 /* Background effects */
@@ -127,6 +126,7 @@ body.theme-white .glass {
   justify-content: space-between;
   min-height: 100vh;
   padding: 24px;
+  overflow: hidden;
 }
 
 .portal-header {
@@ -491,7 +491,7 @@ body.theme-white .modal-backdrop {
 
 /* Responsive portal design */
 @media (max-width: 768px) {
-  body {
+  .portal-body {
     overflow: auto;
   }
   
