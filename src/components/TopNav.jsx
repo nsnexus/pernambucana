@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, whiteTheme, setWhiteTheme }) => {
+const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme }) => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -56,7 +56,7 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
           <img src="/assets/logo-pernambucana.jpg" alt="Pernambucana" />
           <div>
             <strong>Pernambucana</strong>
-            <span>{isCadastrosPage ? 'Cadastros' : 'Financeiro'}</span>
+            <span>{isAutoGeral ? 'Auto Geral' : isCadastrosPage ? 'Cadastros' : 'Financeiro'}</span>
           </div>
         </Link>
 
@@ -67,7 +67,12 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
 
         {/* Center: Navigation */}
         <nav className={`topnav-links ${mobileOpen ? 'open' : ''}`}>
-          {isCadastrosPage ? (
+          {isAutoGeral ? (
+            <>
+              <div className="topnav-divider" />
+              <Link to="/" className="topnav-link" onClick={() => setMobileOpen(false)}>↗ Portal</Link>
+            </>
+          ) : isCadastrosPage ? (
             <>
               {navLink('servicos', 'Serviços')}
               {navLink('compras', 'Compras')}

@@ -229,6 +229,16 @@ body.theme-white .btn-page {
   flex: 1;
 }
 
+.modal-body .form-row,
+.modal-body > .form-group {
+  margin-bottom: 16px;
+}
+
+.modal-body .form-row:last-child,
+.modal-body > .form-group:last-child {
+  margin-bottom: 0;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -263,6 +273,13 @@ body.theme-white .btn-page {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .06em;
+  margin-bottom: 0;
+  display: block;
+}
+
+.login-card .form-group label {
+  margin-bottom: 0;
+  display: block;
 }
 
 .form-group input, .form-group select {

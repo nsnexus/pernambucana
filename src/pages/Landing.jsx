@@ -26,7 +26,12 @@ const Landing = () => {
 
   useEffect(() => {
     if (currentUser) {
-      navigate(redirectTarget);
+      // Auto-redirect AltoGeral users to the dedicated module
+      if (currentUser.sector === 'AltoGeral' && !currentUser.isAdmin) {
+        navigate('/autogeral');
+      } else {
+        navigate(redirectTarget);
+      }
     }
   }, [currentUser, navigate, redirectTarget]);
 

@@ -1,0 +1,482 @@
+/* ═══════════════════════════════════════════════════════════════
+   AUTO GERAL — MÓDULO FINANCEIRO DEDICADO
+   Estilos específicos para /autogeral
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Status Badges ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: all .2s ease;
+  border: none;
+  user-select: none;
+}
+
+.status-badge.pendente {
+  background: rgba(245, 158, 11, .15);
+  color: #f59e0b;
+}
+
+.status-badge.pendente:hover {
+  background: rgba(245, 158, 11, .28);
+}
+
+.status-badge.recebido {
+  background: rgba(20, 184, 166, .15);
+  color: #14b8a6;
+}
+
+.status-badge.recebido:hover {
+  background: rgba(20, 184, 166, .28);
+}
+
+.status-badge.vencido {
+  background: rgba(244, 63, 94, .15);
+  color: #f43f5e;
+  animation: pulseVencido 2s ease infinite;
+}
+
+@keyframes pulseVencido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .7; }
+}
+
+body.theme-white .status-badge.pendente {
+  background: rgba(245, 158, 11, .1);
+  color: #b45309;
+}
+
+body.theme-white .status-badge.recebido {
+  background: rgba(20, 184, 166, .1);
+  color: #0f766e;
+}
+
+body.theme-white .status-badge.vencido {
+  background: rgba(244, 63, 94, .1);
+  color: #be123c;
+}
+
+/* ── AG KPI Cards ── */
+.ag-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.ag-kpi {
+  padding: 18px 20px;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ag-kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+  background: var(--green);
+  opacity: .6;
+}
+
+.ag-kpi.accent-yellow::before { background: var(--yellow); }
+.ag-kpi.accent-red::before { background: var(--red); }
+.ag-kpi.accent-blue::before { background: #3b82f6; }
+.ag-kpi.accent-purple::before { background: #8b5cf6; }
+
+.ag-kpi .kpi-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 4px;
+}
+
+.ag-kpi .kpi-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.ag-kpi .kpi-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── AG Section Headers ── */
+.ag-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ag-section-header h1 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.ag-section-header p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+/* ── AG Caixa Hero ── */
+.ag-caixa-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .ag-caixa-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ag-caixa-card {
+  padding: 24px;
+  border-radius: 20px;
+  text-align: center;
+}
+
+.ag-caixa-card .caixa-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+
+.ag-caixa-card .caixa-value {
+  font-size: 28px;
+  font-weight: 900;
+  display: block;
+}
+
+.ag-caixa-card .caixa-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.ag-caixa-card.positive .caixa-value { color: var(--green); }
+.ag-caixa-card.negative .caixa-value { color: var(--red); }
+.ag-caixa-card.neutral .caixa-value { color: var(--yellow); }
+
+body.theme-white .ag-caixa-card.positive .caixa-value { color: #0f766e; }
+body.theme-white .ag-caixa-card.negative .caixa-value { color: #be123c; }
+body.theme-white .ag-caixa-card.neutral .caixa-value { color: #b45309; }
+
+/* ── AG Recebíveis Row ── */
+.ag-recebiveis-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ag-recebiveis-row .parcela-info {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ag-recebiveis-row .parcela-info strong {
+  color: var(--txt);
+}
+
+/* ── Import Modal ── */
+.ag-import-area {
+  width: 100%;
+  min-height: 160px;
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .03);
+  color: var(--txt);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 16px;
+  resize: vertical;
+  outline: none;
+  transition: border-color .2s;
+}
+
+.ag-import-area:focus {
+  border-color: var(--yellow);
+}
+
+.ag-import-area::placeholder {
+  color: var(--muted);
+  font-family: Inter, system-ui, sans-serif;
+  font-style: italic;
+}
+
+body.theme-white .ag-import-area {
+  background: #fff;
+  color: #092133;
+  border-color: #d1d5db;
+}
+
+body.theme-white .ag-import-area:focus {
+  border-color: #007e7a;
+}
+
+/* ── AG Table enhancements ── */
+.ag-table-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ag-table-actions button {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .06);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.ag-table-actions button:hover {
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
+}
+
+.ag-table-actions button.delete:hover {
+  background: rgba(244, 63, 94, .15);
+  color: var(--red);
+  border-color: rgba(244, 63, 94, .3);
+}
+
+body.theme-white .ag-table-actions button {
+  background: #fff;
+  color: #526276;
+}
+
+body.theme-white .ag-table-actions button:hover {
+  background: #f1f5f9;
+  color: #092133;
+}
+
+body.theme-white .ag-table-actions button.delete:hover {
+  background: rgba(244, 63, 94, .08);
+  color: #be123c;
+}
+
+/* ── AG Summary Row in Tables ── */
+.ag-summary-row td {
+  font-weight: 900 !important;
+  border-top: 2px solid var(--line) !important;
+  background: rgba(255, 255, 255, .03) !important;
+}
+
+body.theme-white .ag-summary-row td {
+  background: rgba(0, 0, 0, .02) !important;
+}
+
+/* ── AG Empty State ── */
+.ag-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+
+.ag-empty .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: .4;
+}
+
+.ag-empty p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── AG Import Type Select ── */
+.ag-import-type-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ag-import-type-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .05);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.ag-import-type-btn:hover {
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+}
+
+.ag-import-type-btn.active {
+  background: rgba(20, 184, 166, .15);
+  color: var(--green);
+  border-color: rgba(20, 184, 166, .3);
+}
+
+body.theme-white .ag-import-type-btn.active {
+  background: rgba(0, 126, 122, .1);
+  color: #007e7a;
+  border-color: rgba(0, 126, 122, .3);
+}
+
+/* ── AG Tab Specific: Charts Grid ── */
+.ag-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ag-charts-grid .ag-chart-card {
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.ag-charts-grid .ag-chart-card h3 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ── AG Filter Bar ── */
+.ag-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.ag-filters label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ag-filters select,
+.ag-filters input[type="search"] {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(2, 9, 17, .55);
+  color: #fff;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s;
+}
+
+.ag-filters select:focus,
+.ag-filters input[type="search"]:focus {
+  border-color: var(--yellow);
+}
+
+body.theme-white .ag-filters select,
+body.theme-white .ag-filters input[type="search"] {
+  background: #fff;
+  color: #092133;
+}
+
+body.theme-white .ag-filters select:focus,
+body.theme-white .ag-filters input[type="search"]:focus {
+  border-color: #007e7a;
+}
+
+.ag-filters .search-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+.ag-filters .search-field input {
+  width: 100%;
+}
+
+/* ── Spreadsheet Grid Mode Inputs ── */
+.ag-grid-input {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--txt);
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.15s ease;
+  min-width: 80px;
+}
+
+.ag-grid-input:focus, .ag-grid-input:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--line);
+}
+
+.ag-grid-input:focus {
+  border-color: var(--yellow);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+body.theme-white .ag-grid-input {
+  color: #0f172a;
+}
+
+body.theme-white .ag-grid-input:focus, body.theme-white .ag-grid-input:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: #cbd5e1;
+}
+
+body.theme-white .ag-grid-input:focus {
+  border-color: #007e7a;
+  box-shadow: 0 0 0 2px rgba(0, 126, 122, 0.15);
+}
+
+/* Make modified rows stand out */
+tr.grid-changed-row {
+  background: rgba(245, 158, 11, 0.04) !important;
+}
+
+tr.grid-changed-row td {
+  border-bottom: 1px solid rgba(245, 158, 11, 0.4) !important;
+  border-top: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+body.theme-white tr.grid-changed-row {
+  background: rgba(245, 158, 11, 0.03) !important;
+}
+
