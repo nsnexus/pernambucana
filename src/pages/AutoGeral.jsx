@@ -56,6 +56,7 @@ const AutoGeral = () => {
 
   // Filters
   const [monthFilter, setMonthFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -158,27 +159,117 @@ const AutoGeral = () => {
   const fmtMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Reset page on tab change
-  useEffect(() => { setCurrentPage(1); setGridEditMode(false); setGridChanges({}); }, [activeTab, monthFilter, searchQuery, statusFilter]);
+  useEffect(() => { setCurrentPage(1); setGridEditMode(false); setGridChanges({}); }, [activeTab, monthFilter, yearFilter, searchQuery, statusFilter]);
+
+  // Extract years dynamically from data
+  const yearsList = useMemo(() => {
+    const years = new Set();
+    servicos.forEach(s => s.data && years.add(s.data.split('-')[0]));
+    compras.forEach(c => c.data && years.add(c.data.split('-')[0]));
+    boletos.forEach(b => b.dataVencimento && years.add(b.dataVencimento.split('-')[0]));
+    recebiveis.forEach(r => r.dataVencimento && years.add(r.dataVencimento.split('-')[0]));
+    
+    // Fallback current and previous year
+    years.add(String(new Date().getFullYear()));
+    years.add(String(new Date().getFullYear() - 1));
+    
+    return Array.from(years).filter(Boolean).sort((a, b) => b - a);
+  }, [servicos, compras, boletos, recebiveis]);
+
+  // Recalculate Caixa stats dynamically based on month and year filters
+  const dashboardStats = useMemo(() => {
+    const filterByMonthYear = (item, dateField) => {
+      const dateStr = item[dateField];
+      if (!dateStr) return false;
+      const y = dateStr.split('-')[0];
+      const m = parseInt(dateStr.split('-')[1], 10);
+      
+      const matchMonth = monthFilter === 'all' || String(m) === monthFilter;
+      const matchYear = yearFilter === 'all' || String(y) === yearFilter;
+      return matchMonth && matchYear;
+    };
+
+    const sFiltered = servicos.filter(s => filterByMonthYear(s, 'data'));
+    const cFiltered = compras.filter(c => filterByMonthYear(c, 'data'));
+    const bFiltered = boletos.filter(b => filterByMonthYear(b, 'dataVencimento'));
+    
+    const rFiltered = recebiveis.filter(r => {
+      if (r.status === 'Recebido') {
+        return filterByMonthYear(r, r.dataRecebimento || r.dataVencimento);
+      } else {
+        return filterByMonthYear(r, r.dataVencimento);
+      }
+    });
+
+    const totalServicos = sFiltered.reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
+    
+    const servicosVista = sFiltered.filter(s => {
+      const forma = String(s.formaCompra || '').toLowerCase();
+      return !forma.includes('prazo');
+    });
+    const totalServicoVista = servicosVista.reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
+
+    const recebiveisRecebidos = rFiltered.filter(r => r.status === 'Recebido');
+    const totalRecebido = recebiveisRecebidos.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+
+    const recebivelPendentes = rFiltered.filter(r => r.status === 'Pendente');
+    const totalPendente = recebivelPendentes.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const recebiveisVencidos = recebivelPendentes.filter(r => r.dataVencimento < hojeStr);
+    const totalVencido = recebiveisVencidos.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+
+    const totalBoletos = bFiltered.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0);
+    const totalCompras = cFiltered.reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
+
+    const entradas = totalServicoVista + totalRecebido;
+    const saidas = totalBoletos;
+    const saldo = entradas - saidas;
+
+    return {
+      totalServicos,
+      totalServicoVista,
+      totalRecebido,
+      totalPendente,
+      totalVencido,
+      totalBoletos,
+      totalCompras,
+      entradas,
+      saidas,
+      saldo,
+      recebiveisVencidos: recebiveisVencidos.length,
+      recebiveisPendentes: recebivelPendentes.length,
+      recebiveisRecebidos: recebiveisRecebidos.length,
+      sFiltered,
+      bFiltered,
+      rFiltered,
+      cFiltered
+    };
+  }, [servicos, compras, boletos, recebiveis, monthFilter, yearFilter]);
 
   // ── FILTERING ──
   const filterList = (list, extraFilter) => {
     return list.filter(item => {
-      const mNum = item.mesNum || parseInt((item.dataVencimento || '').split('-')[1], 10);
+      const dateStr = item.data || item.dataVencimento;
+      const yNum = dateStr ? dateStr.split('-')[0] : '';
+      const mNum = item.mesNum || (dateStr ? parseInt(dateStr.split('-')[1], 10) : null);
+      
       const matchMonth = monthFilter === 'all' || String(mNum) === monthFilter;
+      const matchYear = yearFilter === 'all' || String(yNum) === yearFilter;
       const q = searchQuery.toLowerCase().trim();
       const matchSearch = !q || Object.values(item).join(' ').toLowerCase().includes(q);
       const extra = extraFilter ? extraFilter(item) : true;
-      return matchMonth && matchSearch && extra;
+      return matchMonth && matchYear && matchSearch && extra;
     });
   };
 
-  const filteredServicos = useMemo(() => filterList(servicos), [servicos, monthFilter, searchQuery]);
-  const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, searchQuery]);
-  const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, searchQuery]);
+  const filteredServicos = useMemo(() => filterList(servicos), [servicos, monthFilter, yearFilter, searchQuery]);
+  const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, yearFilter, searchQuery]);
+  const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, yearFilter, searchQuery]);
   const filteredRecebiveis = useMemo(() => filterList(recebiveis, (item) => {
     if (statusFilter === 'all') return true;
     return item.status === statusFilter;
-  }), [recebiveis, monthFilter, searchQuery, statusFilter]);
+  }), [recebiveis, monthFilter, yearFilter, searchQuery, statusFilter]);
 
   // Pagination helper
   const paginate = (list) => {
@@ -501,56 +592,77 @@ const AutoGeral = () => {
 
   // ── CHART DATA ──
   const chartCaixaMensal = useMemo(() => {
-    const monthsSet = new Set();
-    servicos.forEach(s => monthsSet.add(s.mesNum));
-    boletos.forEach(b => {
-      const m = parseInt((b.dataVencimento || '').split('-')[1], 10);
-      if (m) monthsSet.add(m);
+    // Filter arrays by selected year for the monthly overview chart
+    const sForYear = servicos.filter(s => {
+      const y = s.data ? s.data.split('-')[0] : '';
+      return yearFilter === 'all' || y === yearFilter;
     });
-    const months = Array.from(monthsSet).sort((a, b) => a - b);
+    const bForYear = boletos.filter(b => {
+      const y = b.dataVencimento ? b.dataVencimento.split('-')[0] : '';
+      return yearFilter === 'all' || y === yearFilter;
+    });
+    const rForYear = recebiveis.filter(r => {
+      const dateStr = r.dataRecebimento || r.dataVencimento || '';
+      const y = dateStr ? dateStr.split('-')[0] : '';
+      return yearFilter === 'all' || y === yearFilter;
+    });
+
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
     const dataEntradas = months.map(n => {
-      const sv = servicos.filter(s => s.mesNum === n && !String(s.formaCompra || '').toLowerCase().includes('prazo'));
-      const recM = recebiveis.filter(r => r.status === 'Recebido' && parseInt((r.dataRecebimento || r.dataVencimento || '').split('-')[1], 10) === n);
+      const sv = sForYear.filter(s => {
+        const m = s.data ? parseInt(s.data.split('-')[1], 10) : null;
+        return m === n && !String(s.formaCompra || '').toLowerCase().includes('prazo');
+      });
+      const recM = rForYear.filter(r => {
+        const m = (r.dataRecebimento || r.dataVencimento || '').split('-')[1];
+        return r.status === 'Recebido' && parseInt(m, 10) === n;
+      });
       return sv.reduce((s, x) => s + (parseFloat(x.valorOS) || 0), 0) + recM.reduce((s, x) => s + (parseFloat(x.valorParcela) || 0), 0);
     });
 
     const dataSaidas = months.map(n => {
-      const bm = boletos.filter(b => parseInt((b.dataVencimento || '').split('-')[1], 10) === n);
+      const bm = bForYear.filter(b => {
+        const m = b.dataVencimento ? parseInt(b.dataVencimento.split('-')[1], 10) : null;
+        return m === n;
+      });
       return bm.reduce((s, x) => s + (parseFloat(x.valorBoleto) || 0), 0);
     });
 
     return {
-      labels: months.map(n => MONTHS[n - 1]?.slice(0, 3) || `M${n}`),
+      labels: months.map(n => MONTHS[n - 1].slice(0, 3)),
       datasets: [
         { label: 'Entradas', data: dataEntradas, backgroundColor: 'rgba(20,184,166,.8)', borderRadius: 8 },
         { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
       ]
     };
-  }, [servicos, boletos, recebiveis]);
+  }, [servicos, boletos, recebiveis, yearFilter]);
 
   const chartFormaPgto = useMemo(() => {
-    const pix = servicos.filter(s => String(s.formaCompra || '').toLowerCase().includes('pix')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
-    const cartao = servicos.filter(s => String(s.formaCompra || '').toLowerCase().includes('cart')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
-    const prazo = servicos.filter(s => String(s.formaCompra || '').toLowerCase().includes('prazo')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
+    const sFiltered = dashboardStats.sFiltered;
+    const pix = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('pix')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
+    const cartao = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('cart')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
+    const prazo = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('prazo')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
     return {
       labels: ['Pix', 'Cartão', 'À Prazo'],
       datasets: [{ data: [pix, cartao, prazo], backgroundColor: ['rgba(20,184,166,.85)', 'rgba(59,130,246,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
     };
-  }, [servicos]);
+  }, [dashboardStats]);
 
   const chartRecebiveisStatus = useMemo(() => {
-    const pendente = recebiveis.filter(r => r.status === 'Pendente').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
-    const recebido = recebiveis.filter(r => r.status === 'Recebido').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
+    const rFiltered = dashboardStats.rFiltered;
+    const pendente = rFiltered.filter(r => r.status === 'Pendente').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
+    const recebido = rFiltered.filter(r => r.status === 'Recebido').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
     return {
       labels: ['Pendente', 'Recebido'],
       datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(20,184,166,.85)'], borderWidth: 0 }]
     };
-  }, [recebiveis]);
+  }, [dashboardStats]);
 
   const chartMecanicos = useMemo(() => {
+    const sFiltered = dashboardStats.sFiltered;
     const grouped = {};
-    servicos.forEach(s => {
+    sFiltered.forEach(s => {
       const name = s.mecanico || 'Não informado';
       grouped[name] = (grouped[name] || 0) + (parseFloat(s.valorOS) || 0);
     });
@@ -559,7 +671,7 @@ const AutoGeral = () => {
       labels: sorted.map(s => s[0]),
       datasets: [{ label: 'Faturamento', data: sorted.map(s => s[1]), backgroundColor: 'rgba(139,92,246,.8)', borderRadius: 8 }]
     };
-  }, [servicos]);
+  }, [dashboardStats]);
 
   // ── RENDER HELPERS ──
   const hoje = new Date().toISOString().split('T')[0];
@@ -576,6 +688,13 @@ const AutoGeral = () => {
 
   const renderFilters = (showStatus = false) => (
     <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px' }}>
+      <label>
+        Ano
+        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+          <option value="all">Todos</option>
+          {yearsList.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </label>
       <label>
         Mês
         <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
@@ -673,22 +792,40 @@ const AutoGeral = () => {
               </div>
             </div>
 
+            {/* Filtros do Dashboard */}
+            <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px', marginBottom: '24px' }}>
+              <label>
+                Ano
+                <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+                  <option value="all">Todos</option>
+                  {yearsList.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </label>
+              <label>
+                Mês
+                <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+                  <option value="all">Todos os Meses</option>
+                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+              </label>
+            </div>
+
             {/* Caixa Hero */}
             <div className="ag-caixa-hero">
-              <div className={`ag-caixa-card glass ${caixa.saldo >= 0 ? 'positive' : 'negative'}`}>
+              <div className={`ag-caixa-card glass ${dashboardStats.saldo >= 0 ? 'positive' : 'negative'}`}>
                 <div className="caixa-label">Saldo do Caixa</div>
-                <span className="caixa-value">{fmtMoney.format(caixa.saldo)}</span>
+                <span className="caixa-value">{fmtMoney.format(dashboardStats.saldo)}</span>
                 <div className="caixa-sub">Entradas efetivas − Saídas</div>
               </div>
               <div className="ag-caixa-card glass positive">
                 <div className="caixa-label">Entradas Efetivas</div>
-                <span className="caixa-value">{fmtMoney.format(caixa.entradas)}</span>
+                <span className="caixa-value">{fmtMoney.format(dashboardStats.entradas)}</span>
                 <div className="caixa-sub">À vista + Recebíveis recebidos</div>
               </div>
               <div className="ag-caixa-card glass negative">
                 <div className="caixa-label">Saídas (Boletos)</div>
-                <span className="caixa-value">{fmtMoney.format(caixa.saidas)}</span>
-                <div className="caixa-sub">{boletos.length} boletos</div>
+                <span className="caixa-value">{fmtMoney.format(dashboardStats.saidas)}</span>
+                <div className="caixa-sub">{dashboardStats.bFiltered.length} boletos</div>
               </div>
             </div>
 
@@ -696,33 +833,33 @@ const AutoGeral = () => {
             <div className="ag-kpis">
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Serviços</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalServicos)}</span>
-                <span className="kpi-sub">{servicos.length} lançamentos</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicos)}</span>
+                <span className="kpi-sub">{dashboardStats.sFiltered.length} lançamentos</span>
               </div>
               <div className="ag-kpi glass accent-yellow">
                 <div className="kpi-label">À Vista Recebido</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalServicoVista)}</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicoVista)}</span>
                 <span className="kpi-sub">Pix + Cartão</span>
               </div>
               <div className="ag-kpi glass accent-blue">
                 <div className="kpi-label">Recebíveis Pendentes</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalPendente)}</span>
-                <span className="kpi-sub">{caixa.recebiveisPendentes} parcelas</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalPendente)}</span>
+                <span className="kpi-sub">{dashboardStats.recebiveisPendentes} parcelas</span>
               </div>
               <div className="ag-kpi glass accent-purple">
                 <div className="kpi-label">Recebíveis Recebidos</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalRecebido)}</span>
-                <span className="kpi-sub">{caixa.recebiveisRecebidos} parcelas</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalRecebido)}</span>
+                <span className="kpi-sub">{dashboardStats.recebiveisRecebidos} parcelas</span>
               </div>
               <div className="ag-kpi glass accent-red">
                 <div className="kpi-label">Recebíveis Vencidos</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalVencido)}</span>
-                <span className="kpi-sub">{caixa.recebiveisVencidos} parcelas atrasadas</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalVencido)}</span>
+                <span className="kpi-sub">{dashboardStats.recebiveisVencidos} parcelas atrasadas</span>
               </div>
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Compras</div>
-                <span className="kpi-value">{fmtMoney.format(caixa.totalCompras)}</span>
-                <span className="kpi-sub">{compras.length} registros</span>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalCompras)}</span>
+                <span className="kpi-sub">{dashboardStats.cFiltered.length} registros</span>
               </div>
             </div>
 
