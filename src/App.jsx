@@ -7,6 +7,7 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Cadastros from './pages/Cadastros';
 import AutoGeral from './pages/AutoGeral';
+import Pernambucana from './pages/Pernambucana';
 
 // Protected Route Component to block unauthenticated access
 const ProtectedRoute = ({ children }) => {
@@ -47,19 +48,14 @@ function App() {
               <Route path="/" element={<Landing />} />
               
               {/* Protected routes */}
+              <Route path="/painel" element={<Navigate to="/pernambucana" replace />} />
+              <Route path="/cadastros" element={<Navigate to="/pernambucana" replace />} />
+              
               <Route 
-                path="/painel" 
+                path="/pernambucana" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/cadastros" 
-                element={
-                  <ProtectedRoute>
-                    <Cadastros />
+                    <Pernambucana />
                   </ProtectedRoute>
                 } 
               />

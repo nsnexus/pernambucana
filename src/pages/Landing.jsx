@@ -13,7 +13,8 @@ const Landing = () => {
   });
   
   const [modalOpen, setModalOpen] = useState(false);
-  const [redirectTarget, setRedirectTarget] = useState('/painel');
+  const [redirectTarget, setRedirectTarget] = useState('/pernambucana');
+  const [selectedBrand, setSelectedBrand] = useState('pernambucana'); // 'pernambucana' or 'autogeral'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -35,8 +36,9 @@ const Landing = () => {
     }
   }, [currentUser, navigate, redirectTarget]);
 
-  const openLogin = (target) => {
+  const openLogin = (target, brand) => {
     setRedirectTarget(target);
+    setSelectedBrand(brand);
     if (currentUser) {
       navigate(target);
     } else {
@@ -80,33 +82,48 @@ const Landing = () => {
         </button>
       </header>
 
-      <main className="portal-container" style={{ zIndex: 1 }}>
-        <div className="portal-card glass">
-          <div className="portal-brand">
-            <img src="/assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" className="portal-logo" />
-            <h2>Pernambucana</h2>
-            <p>Centro de Manutenção & Usinagem</p>
-            <span className="portal-badge">Gestão Financeira</span>
-          </div>
-          
-          <div className="portal-divider"></div>
-          
-          <div className="portal-actions">
-            <h3>Selecione a área de acesso</h3>
+      <main className="portal-container" style={{ zIndex: 1, padding: '20px 0' }}>
+        <div className="portal-cards-wrapper">
+          {/* Card 1: Auto Geral */}
+          <div className="portal-brand-card autogeral glass">
+            <div className="portal-brand">
+              <img src="/assets/logo-autogeral.jpg" alt="Auto Geral" className="portal-logo" style={{ background: '#000', padding: '0px', border: 'none' }} />
+              <h2>Auto Geral</h2>
+              <p>Módulo de Peças & Serviços</p>
+              <span className="portal-badge" style={{ background: 'rgba(78, 226, 71, 0.15)', color: '#4ee247' }}>Alto Geral</span>
+            </div>
             
-            <button className="portal-action-btn" onClick={() => openLogin('/painel')}>
-              <div className="btn-icon-wrapper">◈</div>
-              <div className="btn-text-wrapper">
-                <strong>Painel Financeiro</strong>
-                <span>Visualizar KPIs, gráficos e relatórios consolidados da operação.</span>
+            <div className="portal-brand-desc" style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0', lineHeight: '1.5' }}>
+              Gestão financeira de caixa, comissões de mecânicos e recebíveis de serviços à vista e a prazo.
+            </div>
+            
+            <button className="portal-action-btn autogeral-btn" onClick={() => openLogin('/autogeral', 'autogeral')} style={{ width: '100%' }}>
+              <div className="btn-icon-wrapper" style={{ color: '#4ee247' }}>⚡</div>
+              <div className="btn-text-wrapper" style={{ textAlign: 'left' }}>
+                <strong>Acessar Auto Geral</strong>
+                <span>Entrar no painel financeiro Alto Geral</span>
               </div>
             </button>
+          </div>
+
+          {/* Card 2: Pernambucana */}
+          <div className="portal-brand-card pernambucana glass">
+            <div className="portal-brand">
+              <img src="/assets/logo-pernambucana.jpg" alt="Pernambucana" className="portal-logo" />
+              <h2>Pernambucana</h2>
+              <p>Centro de Manutenção & Usinagem</p>
+              <span className="portal-badge">Pernambucana</span>
+            </div>
             
-            <button className="portal-action-btn" onClick={() => openLogin('/cadastros')}>
-              <div className="btn-icon-wrapper">✏</div>
-              <div className="btn-text-wrapper">
-                <strong>Painel de Cadastro</strong>
-                <span>Lançar serviços prestados, compras, despesas, folha e custos.</span>
+            <div className="portal-brand-desc" style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0', lineHeight: '1.5' }}>
+              Painel integrado para Retífica, Peças, Mecânica, Torneadora e Caldeiraria com rateio de despesas.
+            </div>
+            
+            <button className="portal-action-btn" onClick={() => openLogin('/pernambucana', 'pernambucana')} style={{ width: '100%' }}>
+              <div className="btn-icon-wrapper">📊</div>
+              <div className="btn-text-wrapper" style={{ textAlign: 'left' }}>
+                <strong>Acessar Pernambucana</strong>
+                <span>Entrar no portal consolidado setorial</span>
               </div>
             </button>
           </div>
@@ -122,8 +139,14 @@ const Landing = () => {
           <div className="modal-backdrop" onClick={() => setModalOpen(false)}></div>
           <form className="login-card" onSubmit={handleLoginSubmit} id="loginForm" style={{ zIndex: 10 }}>
             <button className="close" type="button" onClick={() => setModalOpen(false)}>×</button>
-            <img src="/assets/logo-pernambucana.jpg" alt="Pernambucana Centro de Manutenção" />
-            <span>Acesso restrito</span>
+            <img 
+              src={selectedBrand === 'autogeral' ? "/assets/logo-autogeral.jpg" : "/assets/logo-pernambucana.jpg"} 
+              alt={selectedBrand === 'autogeral' ? "Auto Geral" : "Pernambucana"} 
+              style={selectedBrand === 'autogeral' ? { background: '#000', padding: '4px', objectFit: 'contain', borderRadius: '14px' } : {}}
+            />
+            <span style={{ fontWeight: 'bold', color: selectedBrand === 'autogeral' ? '#4ee247' : 'var(--blue)' }}>
+              Acesso Restrito — {selectedBrand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}
+            </span>
             <h2>Acesso ao Portal</h2>
             
             <label>
@@ -155,7 +178,7 @@ const Landing = () => {
             
             {errorMsg && <p className="login-error" id="loginError">{errorMsg}</p>}
             
-            <button className="btn primary full" type="submit" disabled={submitting}>
+            <button className="btn primary full" type="submit" disabled={submitting} style={selectedBrand === 'autogeral' ? { background: '#4ee247', color: '#000', fontWeight: 'bold' } : {}}>
               {submitting ? 'Verificando...' : 'Entrar no sistema'}
             </button>
           </form>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme }) => {
+const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme, isPernambucana = false }) => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -73,6 +73,16 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
         <nav className={`topnav-links ${mobileOpen ? 'open' : ''}`}>
           {isAutoGeral ? (
             <>
+              <div className="topnav-divider" />
+              <Link to="/" className="topnav-link" onClick={() => setMobileOpen(false)}>↗ Portal</Link>
+            </>
+          ) : isPernambucana ? (
+            <>
+              {navLink('dashboard', 'Dashboard')}
+              {navLink('servicos', 'Serviços')}
+              {navLink('compras', 'Compras')}
+              {navLink('boletos', 'Boletos')}
+              {navLink('recebiveis', 'Recebíveis')}
               <div className="topnav-divider" />
               <Link to="/" className="topnav-link" onClick={() => setMobileOpen(false)}>↗ Portal</Link>
             </>

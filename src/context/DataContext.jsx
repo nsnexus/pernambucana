@@ -45,54 +45,85 @@ function getDateInfo(dateStr) {
   return { mesNum, mesName };
 }
 
+function addDays(dateStr, days) {
+  let parsedDate;
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split('/');
+    parsedDate = new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0);
+  } else {
+    parsedDate = new Date(dateStr + 'T12:00:00');
+  }
+  if (isNaN(parsedDate.getTime())) {
+    parsedDate = new Date();
+  }
+  parsedDate.setDate(parsedDate.getDate() + days);
+  return parsedDate.toISOString().split('T')[0];
+}
+
 export const DataProvider = ({ children }) => {
   const { currentUser } = useAuth();
   const [servicos, setServicos] = useState([]);
   const [compras, setCompras] = useState([]);
+  const [boletos, setBoletos] = useState([]);
+  const [recebiveis, setRecebiveis] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let servicosUnsubscribe = () => {};
-    let comprasUnsubscribe = () => {};
+    let unsubServs = () => {};
+    let unsubComps = () => {};
+    let unsubBols = () => {};
+    let unsubRecs = () => {};
 
-    let servsLoaded = false;
-    let compsLoaded = false;
+    let loadFlags = { s: false, c: false, b: false, r: false };
+    const checkLoaded = () => {
+      if (loadFlags.s && loadFlags.c && loadFlags.b && loadFlags.r) setLoading(false);
+    };
 
     if (db) {
-      servicosUnsubscribe = onSnapshot(collection(db, 'servicos'), (snapshot) => {
+      unsubServs = onSnapshot(collection(db, 'servicos'), (snap) => {
         const list = [];
-        snapshot.forEach(doc => list.push(doc.data()));
+        snap.forEach(d => list.push(d.data()));
         list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
         setServicos(list);
-        servsLoaded = true;
-        if (servsLoaded && compsLoaded) {
-          setLoading(false);
-        }
-      }, err => {
-        console.error("Erro ao carregar servicos:", err);
-        setLoading(false);
-      });
+        loadFlags.s = true;
+        checkLoaded();
+      }, err => { console.error("Erro servicos:", err); loadFlags.s = true; checkLoaded(); });
 
-      comprasUnsubscribe = onSnapshot(collection(db, 'compras'), (snapshot) => {
+      unsubComps = onSnapshot(collection(db, 'compras'), (snap) => {
         const list = [];
-        snapshot.forEach(doc => list.push(doc.data()));
+        snap.forEach(d => list.push(d.data()));
         list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
         setCompras(list);
-        compsLoaded = true;
-        if (servsLoaded && compsLoaded) {
-          setLoading(false);
-        }
-      }, err => {
-        console.error("Erro ao carregar compras:", err);
-        setLoading(false);
-      });
+        loadFlags.c = true;
+        checkLoaded();
+      }, err => { console.error("Erro compras:", err); loadFlags.c = true; checkLoaded(); });
+
+      unsubBols = onSnapshot(collection(db, 'p_boletos'), (snap) => {
+        const list = [];
+        snap.forEach(d => list.push(d.data()));
+        list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+        setBoletos(list);
+        loadFlags.b = true;
+        checkLoaded();
+      }, err => { console.error("Erro boletos:", err); loadFlags.b = true; checkLoaded(); });
+
+      unsubRecs = onSnapshot(collection(db, 'p_recebiveis'), (snap) => {
+        const list = [];
+        snap.forEach(d => list.push(d.data()));
+        list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+        setRecebiveis(list);
+        loadFlags.r = true;
+        checkLoaded();
+      }, err => { console.error("Erro recebiveis:", err); loadFlags.r = true; checkLoaded(); });
     } else {
       setLoading(false);
     }
 
     return () => {
-      servicosUnsubscribe();
-      comprasUnsubscribe();
+      unsubServs();
+      unsubComps();
+      unsubBols();
+      unsubRecs();
     };
   }, []);
 
@@ -193,25 +224,119 @@ export const DataProvider = ({ children }) => {
           };
           await setDoc(doc(db, 'compras', id), docData);
         });
-      }
     }
   }, [loading, servicos, compras]);
+
+  // Retroactive migration to generate Pernambucana receivables for existing "a prazo" services
+  const migrationRan = React.useRef(false);
+  useEffect(() => {
+    if (loading || servicos.length === 0 || migrationRan.current) return;
+    migrationRan.current = true;
+
+    const fixPending = async () => {
+      let migrated = false;
+      for (const s of servicos) {
+        const pagamento = String(s.pagamento || '').toLowerCase();
+        if (pagamento.includes('prazo')) {
+          const hasRecebivel = recebiveis.some(r => r.servicoId === s.id);
+          if (!hasRecebivel) {
+            const parcelas = s.numParcelas > 0 ? s.numParcelas : 1;
+            const valorParcela = (parseFloat(s.valorTotal) || parseFloat(s.valorOS) || 0) / parcelas;
+            
+            if (s.numParcelas === 0 || !s.numParcelas) {
+              await setDoc(doc(db, 'servicos', s.id), { numParcelas: parcelas }, { merge: true });
+            }
+
+            for (let i = 1; i <= parcelas; i++) {
+              const recId = generateUUID();
+              const dataVenc = addDays(s.data, 30 * i);
+              const recData = {
+                id: recId,
+                servicoId: s.id,
+                os: s.os || '',
+                cliente: s.cliente || '',
+                descricao: s.descricao || '',
+                produtivo: s.produtivo || '',
+                setor: normalizeSector(s.setor),
+                parcela: i,
+                totalParcelas: parcelas,
+                valorParcela: Math.round(valorParcela * 100) / 100,
+                valorTotalOS: parseFloat(s.valorTotal) || parseFloat(s.valorOS) || 0,
+                dataVencimento: dataVenc,
+                mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
+                status: 'Pendente',
+                dataRecebimento: '',
+                criadoEm: new Date().toISOString()
+              };
+              await setDoc(doc(db, 'p_recebiveis', recId), recData);
+            }
+            migrated = true;
+          }
+        }
+      }
+      if (migrated) {
+        console.log("Retroactive Pernambucana receivables generated successfully.");
+      }
+    };
+
+    fixPending();
+  }, [servicos, recebiveis, loading]);
 
   // Operations
   const addServico = async (item) => {
     const id = item.id || generateUUID();
     const dateInfo = getDateInfo(item.data);
+    
+    const pagamento = String(item.pagamento || '').toLowerCase();
+    const isPrazo = pagamento.includes('prazo');
+    let parsedParcelas = parseInt(item.numParcelas) || 0;
+    if (isPrazo && parsedParcelas <= 0) {
+      parsedParcelas = 1;
+    }
+
     const docData = {
       ...item,
       id,
       mes: dateInfo.mesName,
       mesNum: dateInfo.mesNum,
       setor: normalizeSector(item.setor || (currentUser ? currentUser.sector : 'all')),
+      valorTotal: parseFloat(item.valorTotal) || 0,
+      valorUnitario: parseFloat(item.valorUnitario) || 0,
+      numParcelas: parsedParcelas,
       criadoEm: item.criadoEm || new Date().toISOString(),
       atualizadoEm: new Date().toISOString(),
       criadoPor: item.criadoPor || (currentUser ? currentUser.email : '')
     };
     await setDoc(doc(db, 'servicos', id), docData);
+
+    // Auto-generate receivables if "à Prazo"
+    if (isPrazo && parsedParcelas > 0) {
+      const valorParcela = docData.valorTotal / parsedParcelas;
+      for (let i = 1; i <= parsedParcelas; i++) {
+        const recId = generateUUID();
+        const dataVenc = addDays(docData.data, 30 * i);
+        const recData = {
+          id: recId,
+          servicoId: id,
+          os: docData.os || '',
+          cliente: docData.cliente || '',
+          descricao: docData.descricao || '',
+          produtivo: docData.produtivo || '',
+          setor: docData.setor,
+          parcela: i,
+          totalParcelas: parsedParcelas,
+          valorParcela: Math.round(valorParcela * 100) / 100,
+          valorTotalOS: docData.valorTotal,
+          dataVencimento: dataVenc,
+          mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
+          status: 'Pendente',
+          dataRecebimento: '',
+          criadoEm: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'p_recebiveis', recId), recData);
+      }
+    }
+
     return docData;
   };
 
@@ -226,11 +351,63 @@ export const DataProvider = ({ children }) => {
       updateData.mes = dateInfo.mesName;
       updateData.mesNum = dateInfo.mesNum;
     }
+    if ('valorTotal' in data) {
+      updateData.valorTotal = parseFloat(data.valorTotal) || 0;
+    }
+    if ('valorUnitario' in data) {
+      updateData.valorUnitario = parseFloat(data.valorUnitario) || 0;
+    }
     await setDoc(docRef, updateData, { merge: true });
   };
 
   const deleteServico = async (id) => {
     await deleteDoc(doc(db, 'servicos', id));
+    // Delete associated receivables
+    const recsToDelete = recebiveis.filter(r => r.servicoId === id);
+    const promises = recsToDelete.map(r => deleteDoc(doc(db, 'p_recebiveis', r.id)));
+    await Promise.all(promises);
+  };
+
+  const toggleRecebivel = async (id, newStatus) => {
+    const docRef = doc(db, 'p_recebiveis', id);
+    const dataRecebimento = newStatus === 'Recebido' ? new Date().toISOString().split('T')[0] : '';
+    await setDoc(docRef, { status: newStatus, dataRecebimento }, { merge: true });
+  };
+
+  // Boletos CRUD
+  const addBoleto = async (item) => {
+    const id = item.id || generateUUID();
+    const dateInfo = getDateInfo(item.dataVencimento);
+    const docData = {
+      ...item,
+      id,
+      mesVencimento: dateInfo.mesName,
+      valorBoleto: parseFloat(item.valorBoleto) || 0,
+      criadoEm: item.criadoEm || new Date().toISOString(),
+      criadoPor: item.criadoPor || (currentUser ? currentUser.email : '')
+    };
+    await setDoc(doc(db, 'p_boletos', id), docData);
+    return docData;
+  };
+
+  const updateBoleto = async (id, data) => {
+    const docRef = doc(db, 'p_boletos', id);
+    const updateData = {
+      ...data,
+      atualizadoEm: new Date().toISOString()
+    };
+    if (data.dataVencimento) {
+      const dateInfo = getDateInfo(data.dataVencimento);
+      updateData.mesVencimento = dateInfo.mesName;
+    }
+    if ('valorBoleto' in data) {
+      updateData.valorBoleto = parseFloat(data.valorBoleto) || 0;
+    }
+    await setDoc(docRef, updateData, { merge: true });
+  };
+
+  const deleteBoleto = async (id) => {
+    await deleteDoc(doc(db, 'p_boletos', id));
   };
 
   const addCompra = async (item) => {
@@ -601,11 +778,49 @@ export const DataProvider = ({ children }) => {
     return compras.filter(item => currentUser.allowedSectors && currentUser.allowedSectors.includes(normalizeSector(item.setor)));
   };
 
+  const getFilteredBoletos = () => {
+    if (!currentUser) return [];
+    if (currentUser.isAdmin) return boletos;
+    
+    const getBoletoNormalizedSectors = (b) => {
+      if (b.setores && b.setores.length > 0) return b.setores;
+      if (!b.setor) return ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+      const s = String(b.setor).toLowerCase().trim();
+      if (s === 'todos' || s === '5x') return ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+      
+      const parts = s.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+      const secs = [];
+      parts.forEach(p => {
+        if (p === 'm' || p.includes('mecan')) secs.push('Mecanica');
+        else if (p === 'c' || p.includes('calde')) secs.push('Caldeiraria');
+        else if (p === 't' || p.includes('torne')) secs.push('Torneadora');
+        else if (p === 'p' || p.includes('pec')) secs.push('Peças');
+        else if (p === 'r' || p.includes('retif')) secs.push('Retifica');
+      });
+      return secs.length > 0 ? secs : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+    };
+
+    return boletos.filter(b => {
+      const secs = getBoletoNormalizedSectors(b);
+      return secs.some(sec => currentUser.allowedSectors && currentUser.allowedSectors.includes(sec));
+    });
+  };
+
+  const getFilteredRecebiveis = () => {
+    if (!currentUser) return [];
+    if (currentUser.isAdmin) return recebiveis;
+    return recebiveis.filter(r => currentUser.allowedSectors && currentUser.allowedSectors.includes(normalizeSector(r.setor)));
+  };
+
   const value = {
     servicos: getFilteredServicos(),
     compras: getFilteredCompras(),
+    boletos: getFilteredBoletos(),
+    recebiveis: getFilteredRecebiveis(),
     allServicos: servicos,
     allCompras: compras,
+    allBoletos: boletos,
+    allRecebiveis: recebiveis,
     loading,
     hasData,
     addServico,
@@ -614,6 +829,10 @@ export const DataProvider = ({ children }) => {
     addCompra,
     updateCompra,
     deleteCompra,
+    addBoleto,
+    updateBoleto,
+    deleteBoleto,
+    toggleRecebivel,
     clearAll,
     importRawData,
     buildFinancePayload,
