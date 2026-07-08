@@ -355,31 +355,31 @@ const AutoGeral = () => {
         while (cols.length < 14) cols.push('');
         parsedList.push({
           data: parseExcelDate(cols[0]),
-          formaCompra: cleanCell(cols[2]) || 'Pix',
-          nomeCliente: cleanCell(cols[3]),
-          descricaoMaterial: cleanCell(cols[4]),
-          numOS: cleanCell(cols[5]),
-          valorOS: parseExcelNumber(cols[6]),
-          valorServicos: parseExcelNumber(cols[7]),
-          valorPecas: parseExcelNumber(cols[8]),
-          valorMaterial: parseExcelNumber(cols[9]),
-          mecanico: cleanCell(cols[10]),
-          ano: parseInt(cleanCell(cols[11])) || new Date().getFullYear(),
-          numParcelas: parseInt(cleanCell(cols[12])) || 0
+          formaCompra: cleanCell(cols[3]) || 'Pix',
+          nomeCliente: cleanCell(cols[4]),
+          descricaoMaterial: cleanCell(cols[5]),
+          numOS: cleanCell(cols[6]),
+          valorOS: parseExcelNumber(cols[7]),
+          valorServicos: parseExcelNumber(cols[8]),
+          valorPecas: parseExcelNumber(cols[9]),
+          valorMaterial: parseExcelNumber(cols[10]),
+          mecanico: cleanCell(cols[11]),
+          ano: parseInt(cleanCell(cols[12])) || new Date().getFullYear(),
+          numParcelas: parseInt(cleanCell(cols[13])) || 0
         });
       } else if (importType === 'compras') {
         while (cols.length < 12) cols.push('');
         parsedList.push({
           data: parseExcelDate(cols[0]),
-          formaCompra: cleanCell(cols[2]) || 'Pix',
-          nomeCliente: cleanCell(cols[3]),
-          descricaoMaterial: cleanCell(cols[4]),
-          numOS: cleanCell(cols[5]),
-          valorOS: parseExcelNumber(cols[6]),
-          valorPeca: parseExcelNumber(cols[7]),
-          fornecedor: cleanCell(cols[8]),
-          numPedido: cleanCell(cols[9]),
-          categoria: cleanCell(cols[10]) || 'Oficina'
+          formaCompra: cleanCell(cols[3]) || 'Pix',
+          nomeCliente: cleanCell(cols[4]),
+          descricaoMaterial: cleanCell(cols[5]),
+          numOS: cleanCell(cols[6]),
+          valorOS: parseExcelNumber(cols[7]),
+          valorPeca: parseExcelNumber(cols[8]),
+          fornecedor: cleanCell(cols[9]),
+          numPedido: cleanCell(cols[10]),
+          categoria: cleanCell(cols[11]) || 'Oficina'
         });
       } else if (importType === 'boletos') {
         while (cols.length < 7) cols.push('');
