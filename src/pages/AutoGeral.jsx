@@ -600,19 +600,6 @@ const AutoGeral = () => {
     </div>
   );
 
-  // ── FORM FIELD ──
-  const Field = ({ label, type = 'text', value, onChange, options, readOnly, step }) => (
-    <div className="form-group">
-      <label>{label}</label>
-      {options ? (
-        <select value={value} onChange={onChange} disabled={readOnly}>
-          {options.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
-        </select>
-      ) : (
-        <input type={type} value={value} onChange={onChange} readOnly={readOnly} step={step} />
-      )}
-    </div>
-  );
 
   if (loading) {
     return (
@@ -1342,5 +1329,19 @@ const AutoGeral = () => {
     </div>
   );
 };
+
+// ── FORM FIELD ──
+const Field = ({ label, type = 'text', value, onChange, options, readOnly, step }) => (
+  <div className="form-group">
+    <label>{label}</label>
+    {options ? (
+      <select value={value} onChange={onChange} disabled={readOnly}>
+        {options.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
+      </select>
+    ) : (
+      <input type={type} value={value} onChange={onChange} readOnly={readOnly} step={step} />
+    )}
+  </div>
+);
 
 export default AutoGeral;
