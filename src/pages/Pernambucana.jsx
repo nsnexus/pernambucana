@@ -256,6 +256,12 @@ const Pernambucana = () => {
       .filter(c => deptFilter === 'all' || normalizeSector(c.setor) === deptFilter)
       .reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0);
 
+    // 6.1 COMPRAS À VISTA / PIX / CARTÃO (Outflows)
+    const totalComprasVista = cFiltered
+      .filter(c => deptFilter === 'all' || normalizeSector(c.setor) === deptFilter)
+      .filter(c => !String(c.formaCompra || '').toLowerCase().includes('prazo'))
+      .reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0);
+
     // 7. SAÍDAS (BOLETOS A PAGAR - SPLIT PROPORTIONAL TO FILTERED SECTOR)
     let totalBoletos = 0;
     const splitBoletosList = [];
@@ -275,7 +281,7 @@ const Pernambucana = () => {
     });
 
     const entradas = totalServicoVista + totalRecebido;
-    const saidas = totalBoletos;
+    const saidas = totalBoletos + totalComprasVista;
     const saldo = entradas - saidas;
 
     return {
@@ -286,6 +292,7 @@ const Pernambucana = () => {
       totalVencido,
       totalBoletos,
       totalCompras,
+      totalComprasVista,
       entradas,
       saidas,
       saldo,
@@ -978,9 +985,9 @@ const Pernambucana = () => {
                 <span className="kpi-sub">À vista + Recebíveis recebidos</span>
               </div>
               <div className="ag-kpi glass accent-red">
-                <div className="kpi-label">Saídas (Boletos)</div>
+                <div className="kpi-label">Saídas Efetivas</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.saidas)}</span>
-                <span className="kpi-sub">{dashboardStats.splitBoletosList.length} boletos rateados</span>
+                <span className="kpi-sub">Boletos + Compras à Vista</span>
               </div>
             </div>
 
