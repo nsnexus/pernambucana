@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, useAuth } from './AuthContext';
 
@@ -87,10 +87,75 @@ export const AutoGeralProvider = ({ children }) => {
     return () => { unsubServicos(); unsubCompras(); unsubBoletos(); unsubRecebiveis(); };
   }, []);
 
+  // Retroactive migration to generate receivables for existing "a prazo" services with 0 installments/receivables
+  const migrationRan = useRef(false);
+  useEffect(() => {
+    if (loading || servicos.length === 0 || migrationRan.current) return;
+    migrationRan.current = true;
+
+    const fixPending = async () => {
+      let migrated = false;
+      for (const s of servicos) {
+        const forma = String(s.formaCompra || '').toLowerCase();
+        if (forma.includes('prazo')) {
+          // Check if there are any receivables for this service
+          const hasRecebivel = recebiveis.some(r => r.servicoId === s.id);
+          if (!hasRecebivel) {
+            // Re-run receivable generation for this service
+            const parcelas = s.numParcelas > 0 ? s.numParcelas : 1;
+            const valorParcela = s.valorOS / parcelas;
+            
+            // Update the servico document if it had numParcelas = 0
+            if (s.numParcelas === 0) {
+              await setDoc(doc(db, 'ag_servicos', s.id), { numParcelas: parcelas }, { merge: true });
+            }
+
+            for (let i = 1; i <= parcelas; i++) {
+              const recId = generateUUID();
+              const dataVenc = addDays(s.data, 30 * i);
+              const recData = {
+                id: recId,
+                servicoId: s.id,
+                numOS: s.numOS || '',
+                nomeCliente: s.nomeCliente || '',
+                descricao: s.descricaoMaterial || '',
+                mecanico: s.mecanico || '',
+                parcela: i,
+                totalParcelas: parcelas,
+                valorParcela: Math.round(valorParcela * 100) / 100,
+                valorTotalOS: s.valorOS,
+                dataVencimento: dataVenc,
+                mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
+                status: 'Pendente',
+                dataRecebimento: '',
+                criadoEm: new Date().toISOString()
+              };
+              await setDoc(doc(db, 'ag_recebiveis', recId), recData);
+            }
+            migrated = true;
+          }
+        }
+      }
+      if (migrated) {
+        console.log("Retroactive receivables generated successfully.");
+      }
+    };
+
+    fixPending();
+  }, [servicos, recebiveis, loading]);
+
   // ── SERVIÇOS CRUD ──
   const addServico = async (item) => {
     const id = item.id || generateUUID();
     const dateInfo = getDateInfo(item.data);
+    
+    const forma = String(item.formaCompra || '').toLowerCase();
+    const isPrazo = forma.includes('prazo');
+    let parsedParcelas = parseInt(item.numParcelas) || 0;
+    if (isPrazo && parsedParcelas <= 0) {
+      parsedParcelas = 1;
+    }
+
     const docData = {
       ...item,
       id,
@@ -100,7 +165,7 @@ export const AutoGeralProvider = ({ children }) => {
       valorServicos: parseFloat(item.valorServicos) || 0,
       valorPecas: parseFloat(item.valorPecas) || 0,
       valorMaterial: parseFloat(item.valorMaterial) || 0,
-      numParcelas: parseInt(item.numParcelas) || 0,
+      numParcelas: parsedParcelas,
       ano: parseInt(item.ano) || new Date().getFullYear(),
       lancamento: 'Serviços',
       criadoEm: item.criadoEm || new Date().toISOString(),
@@ -109,10 +174,9 @@ export const AutoGeralProvider = ({ children }) => {
     await setDoc(doc(db, 'ag_servicos', id), docData);
 
     // Auto-generate receivables if "à Prazo"
-    const forma = String(docData.formaCompra || '').toLowerCase();
-    if (forma.includes('prazo') && docData.numParcelas > 0) {
-      const valorParcela = docData.valorOS / docData.numParcelas;
-      for (let i = 1; i <= docData.numParcelas; i++) {
+    if (isPrazo && parsedParcelas > 0) {
+      const valorParcela = docData.valorOS / parsedParcelas;
+      for (let i = 1; i <= parsedParcelas; i++) {
         const recId = generateUUID();
         const dataVenc = addDays(docData.data, 30 * i);
         const recData = {
@@ -123,7 +187,7 @@ export const AutoGeralProvider = ({ children }) => {
           descricao: docData.descricaoMaterial || '',
           mecanico: docData.mecanico || '',
           parcela: i,
-          totalParcelas: docData.numParcelas,
+          totalParcelas: parsedParcelas,
           valorParcela: Math.round(valorParcela * 100) / 100,
           valorTotalOS: docData.valorOS,
           dataVencimento: dataVenc,
