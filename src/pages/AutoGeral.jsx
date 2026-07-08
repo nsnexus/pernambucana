@@ -51,12 +51,16 @@ const AutoGeral = () => {
     localStorage.setItem('pernambucana.financeDashboard.theme.v1', whiteTheme ? 'white' : 'black');
   }, [whiteTheme]);
 
+  // Today's date string
+  const hoje = new Date().toISOString().split('T')[0];
+
   // Tabs
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Filters
   const [monthFilter, setMonthFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [dayFilter, setDayFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -158,8 +162,18 @@ const AutoGeral = () => {
   // Money formatter
   const fmtMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // Reset page on tab change
-  useEffect(() => { setCurrentPage(1); setGridEditMode(false); setGridChanges({}); }, [activeTab, monthFilter, yearFilter, searchQuery, statusFilter]);
+  // Reset pagination and filters on tab change
+  useEffect(() => {
+    setCurrentPage(1);
+    setGridEditMode(false);
+    setGridChanges({});
+    setDayFilter('all');
+  }, [activeTab]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [monthFilter, yearFilter, dayFilter, searchQuery, statusFilter]);
 
   // Extract years dynamically from data
   const yearsList = useMemo(() => {
@@ -195,9 +209,10 @@ const AutoGeral = () => {
     
     const rFiltered = recebiveis.filter(r => {
       if (r.status === 'Recebido') {
-        return filterByMonthYear(r, r.dataRecebimento || r.dataVencimento);
+        const fieldName = r.dataRecebimento ? 'dataRecebimento' : 'dataVencimento';
+        return filterByMonthYear(r, fieldName);
       } else {
-        return filterByMonthYear(r, r.dataVencimento);
+        return filterByMonthYear(r, 'dataVencimento');
       }
     });
 
@@ -253,23 +268,32 @@ const AutoGeral = () => {
       const dateStr = item.data || item.dataVencimento;
       const yNum = dateStr ? dateStr.split('-')[0] : '';
       const mNum = item.mesNum || (dateStr ? parseInt(dateStr.split('-')[1], 10) : null);
+      const dNum = dateStr ? parseInt(dateStr.split('-')[2], 10) : null;
       
       const matchMonth = monthFilter === 'all' || String(mNum) === monthFilter;
       const matchYear = yearFilter === 'all' || String(yNum) === yearFilter;
+      const matchDay = dayFilter === 'all' || String(dNum) === dayFilter;
       const q = searchQuery.toLowerCase().trim();
       const matchSearch = !q || Object.values(item).join(' ').toLowerCase().includes(q);
       const extra = extraFilter ? extraFilter(item) : true;
-      return matchMonth && matchYear && matchSearch && extra;
+      return matchMonth && matchYear && matchDay && matchSearch && extra;
     });
   };
 
-  const filteredServicos = useMemo(() => filterList(servicos), [servicos, monthFilter, yearFilter, searchQuery]);
-  const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, yearFilter, searchQuery]);
-  const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, yearFilter, searchQuery]);
+  const filteredServicos = useMemo(() => filterList(servicos), [servicos, monthFilter, yearFilter, dayFilter, searchQuery]);
+  const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, yearFilter, dayFilter, searchQuery]);
+  const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, yearFilter, dayFilter, searchQuery]);
   const filteredRecebiveis = useMemo(() => filterList(recebiveis, (item) => {
     if (statusFilter === 'all') return true;
+    const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
+    if (statusFilter === 'Pendente') {
+      return item.status === 'Pendente' && !isVencido;
+    }
+    if (statusFilter === 'Vencido') {
+      return isVencido;
+    }
     return item.status === statusFilter;
-  }), [recebiveis, monthFilter, yearFilter, searchQuery, statusFilter]);
+  }), [recebiveis, monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, hoje]);
 
   // Pagination helper
   const paginate = (list) => {
@@ -674,8 +698,6 @@ const AutoGeral = () => {
   }, [dashboardStats]);
 
   // ── RENDER HELPERS ──
-  const hoje = new Date().toISOString().split('T')[0];
-
   const renderPagination = (p) => (
     <div className="pagination">
       <span className="pagination-info">{p.total} registros • Página {p.page} de {p.totalPages}</span>
@@ -702,13 +724,23 @@ const AutoGeral = () => {
           {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </select>
       </label>
+      <label>
+        Dia
+        <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)}>
+          <option value="all">Todos</option>
+          {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+            <option key={d} value={d}>{String(d).padStart(2, '0')}</option>
+          ))}
+        </select>
+      </label>
       {showStatus && (
         <label>
           Status
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Todos</option>
-            <option value="Pendente">Pendente</option>
-            <option value="Recebido">Recebido</option>
+            <option value="Pendente">A Vencer</option>
+            <option value="Vencido">Vencidos</option>
+            <option value="Recebido">Recebidos</option>
           </select>
         </label>
       )}
