@@ -53,10 +53,14 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
       <div className="topnav-inner">
         {/* Left: Brand */}
         <Link to="/" className="topnav-brand">
-          <img src="/assets/logo-pernambucana.jpg" alt="Pernambucana" />
+          <img 
+            src={isAutoGeral ? "/assets/logo-autogeral.jpg" : "/assets/logo-pernambucana.jpg"} 
+            alt={isAutoGeral ? "Auto Geral" : "Pernambucana"} 
+            style={isAutoGeral ? { background: '#000', padding: '0px', objectFit: 'contain' } : {}}
+          />
           <div>
-            <strong>Pernambucana</strong>
-            <span>{isAutoGeral ? 'Auto Geral' : isCadastrosPage ? 'Cadastros' : 'Financeiro'}</span>
+            <strong>{isAutoGeral ? 'Auto Geral' : 'Pernambucana'}</strong>
+            <span>{isAutoGeral ? 'Peças e Serviços' : isCadastrosPage ? 'Cadastros' : 'Financeiro'}</span>
           </div>
         </Link>
 

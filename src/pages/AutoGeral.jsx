@@ -554,7 +554,7 @@ const AutoGeral = () => {
           backgroundColor: whiteTheme ? 'rgba(255,255,255,.98)' : 'rgba(13,34,51,.98)',
           titleColor: whiteTheme ? '#092133' : '#fff', bodyColor: whiteTheme ? '#092133' : '#fff',
           borderColor: colors.grid, borderWidth: 1, padding: 10, cornerRadius: 8,
-          callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${fmtMoney.format(ctx.parsed.y ?? ctx.parsed.x ?? ctx.parsed)}` }
+          callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${fmtMoney.format(ctx.raw)}` }
         },
         datalabels: {
           display: true, color: colors.labelColor, font: { family: 'Inter', weight: 'bold', size: 9 },
@@ -577,7 +577,7 @@ const AutoGeral = () => {
         tooltip: {
           backgroundColor: whiteTheme ? 'rgba(255,255,255,.98)' : 'rgba(13,34,51,.98)',
           titleColor: whiteTheme ? '#092133' : '#fff', bodyColor: whiteTheme ? '#092133' : '#fff',
-          callbacks: { label: (ctx) => `${ctx.label}: ${fmtMoney.format(ctx.parsed)}` }
+          callbacks: { label: (ctx) => `${ctx.label}: ${fmtMoney.format(ctx.raw)}` }
         },
         datalabels: {
           display: true, color: '#fff', font: { family: 'Inter', weight: 'bold', size: 10 },
@@ -632,7 +632,7 @@ const AutoGeral = () => {
     return {
       labels: months.map(n => MONTHS[n - 1].slice(0, 3)),
       datasets: [
-        { label: 'Entradas', data: dataEntradas, backgroundColor: 'rgba(20,184,166,.8)', borderRadius: 8 },
+        { label: 'Entradas', data: dataEntradas, backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 },
         { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
       ]
     };
@@ -645,7 +645,7 @@ const AutoGeral = () => {
     const prazo = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('prazo')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
     return {
       labels: ['Pix', 'Cartão', 'À Prazo'],
-      datasets: [{ data: [pix, cartao, prazo], backgroundColor: ['rgba(20,184,166,.85)', 'rgba(59,130,246,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
+      datasets: [{ data: [pix, cartao, prazo], backgroundColor: ['rgba(78,226,71,.85)', 'rgba(59,130,246,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
     };
   }, [dashboardStats]);
 
@@ -655,7 +655,7 @@ const AutoGeral = () => {
     const recebido = rFiltered.filter(r => r.status === 'Recebido').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
     return {
       labels: ['Pendente', 'Recebido'],
-      datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(20,184,166,.85)'], borderWidth: 0 }]
+      datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(78,226,71,.85)'], borderWidth: 0 }]
     };
   }, [dashboardStats]);
 
@@ -669,7 +669,7 @@ const AutoGeral = () => {
     const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 8);
     return {
       labels: sorted.map(s => s[0]),
-      datasets: [{ label: 'Faturamento', data: sorted.map(s => s[1]), backgroundColor: 'rgba(139,92,246,.8)', borderRadius: 8 }]
+      datasets: [{ label: 'Faturamento', data: sorted.map(s => s[1]), backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 }]
     };
   }, [dashboardStats]);
 
@@ -846,7 +846,7 @@ const AutoGeral = () => {
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalPendente)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisPendentes} parcelas</span>
               </div>
-              <div className="ag-kpi glass accent-purple">
+              <div className="ag-kpi glass accent-green">
                 <div className="kpi-label">Recebíveis Recebidos</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalRecebido)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisRecebidos} parcelas</span>

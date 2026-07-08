@@ -90,10 +90,14 @@ body.theme-white .status-badge.vencido {
   opacity: .6;
 }
 
+.painel-layout {
+  --green: #4ee247 !important;
+}
+
 .ag-kpi.accent-yellow::before { background: var(--yellow); }
 .ag-kpi.accent-red::before { background: var(--red); }
 .ag-kpi.accent-blue::before { background: #3b82f6; }
-.ag-kpi.accent-purple::before { background: #8b5cf6; }
+.ag-kpi.accent-green::before { background: var(--green); }
 
 .ag-kpi .kpi-label {
   color: var(--muted);
