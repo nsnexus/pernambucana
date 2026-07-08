@@ -318,8 +318,23 @@ const AutoGeral = () => {
   const parseExcelDate = (v) => {
     const s = String(v ?? '').trim();
     if (!s) return '';
+    // Match standard DD/MM/YYYY or MM/DD/YYYY formats
     const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    if (m) {
+      const p1 = parseInt(m[1], 10);
+      const p2 = parseInt(m[2], 10);
+      const year = m[3];
+      if (p1 > 12) {
+        // If first part is > 12, it must be Day (DD/MM/YYYY)
+        return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+      } else if (p2 > 12) {
+        // If second part is > 12, it must be Day (MM/DD/YYYY)
+        return `${year}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+      } else {
+        // Default to DD/MM/YYYY for ambiguous cases, but standardizing on Year-Month-Day
+        return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+      }
+    }
     return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
   };
 
@@ -328,7 +343,7 @@ const AutoGeral = () => {
     return s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
   };
 
-  const handleImportParse = (text) => {
+  const handleImportParse = (text, type = importType) => {
     setImportText(text);
     if (!text.trim()) { setImportPreview(null); setParsedImportItems([]); return; }
 
@@ -351,7 +366,7 @@ const AutoGeral = () => {
       const cols = lines[i];
       if (cols.length === 1 && cols[0].trim() === '') continue;
 
-      if (importType === 'servicos') {
+      if (type === 'servicos') {
         while (cols.length < 14) cols.push('');
         parsedList.push({
           data: parseExcelDate(cols[0]),
@@ -367,7 +382,7 @@ const AutoGeral = () => {
           ano: parseInt(cleanCell(cols[12])) || new Date().getFullYear(),
           numParcelas: parseInt(cleanCell(cols[13])) || 0
         });
-      } else if (importType === 'compras') {
+      } else if (type === 'compras') {
         while (cols.length < 12) cols.push('');
         parsedList.push({
           data: parseExcelDate(cols[0]),
@@ -381,8 +396,8 @@ const AutoGeral = () => {
           numPedido: cleanCell(cols[10]),
           categoria: cleanCell(cols[11]) || 'Oficina'
         });
-      } else if (importType === 'boletos') {
-        while (cols.length < 7) cols.push('');
+      } else if (type === 'boletos') {
+        while (cols.length < 8) cols.push('');
         parsedList.push({
           nomeFornecedor: cleanCell(cols[1]),
           descricaoMaterial: cleanCell(cols[2]),
@@ -396,7 +411,7 @@ const AutoGeral = () => {
     }
 
     setParsedImportItems(parsedList);
-    const typeLabel = importType === 'servicos' ? 'Serviços' : importType === 'compras' ? 'Compras' : 'Boletos';
+    const typeLabel = type === 'servicos' ? 'Serviços' : type === 'compras' ? 'Compras' : 'Boletos';
     setImportPreview(
       <div style={{ color: 'var(--green)', textAlign: 'left' }}>
         <strong>✔ Formato:</strong> {typeLabel}<br/>
@@ -404,6 +419,15 @@ const AutoGeral = () => {
         <small style={{ color: 'var(--muted)', marginTop: '4px', display: 'block' }}>Clique em "Confirmar Importação" para salvar no Firebase.</small>
       </div>
     );
+  };
+
+  const openImportModal = () => {
+    const defaultType = ['servicos', 'compras', 'boletos'].includes(activeTab) ? activeTab : 'servicos';
+    setImportType(defaultType);
+    setImportText('');
+    setImportPreview(null);
+    setParsedImportItems([]);
+    setImportModal(true);
   };
 
   const confirmImport = async () => {
@@ -590,7 +614,7 @@ const AutoGeral = () => {
             {gridEditMode ? '✓ Sair do Modo Planilha' : '✏️ Modo Planilha'}
           </button>
         )}
-        <button className="btn import" onClick={() => setImportModal(true)} style={{ height: '38px' }}>Importar Excel</button>
+        <button className="btn import" onClick={openImportModal} style={{ height: '38px' }}>Importar Excel</button>
         <button className="btn primary" onClick={() => {
           if (activeTab === 'servicos') openAddServico();
           else if (activeTab === 'compras') openAddCompra();
@@ -1285,7 +1309,7 @@ const AutoGeral = () => {
               <div className="ag-import-type-selector">
                 {['servicos', 'compras', 'boletos'].map(t => (
                   <button key={t} className={`ag-import-type-btn ${importType === t ? 'active' : ''}`}
-                    onClick={() => { setImportType(t); handleImportParse(importText); }}>
+                    onClick={() => { setImportType(t); handleImportParse(importText, t); }}>
                     {t === 'servicos' ? '🔧 Serviços' : t === 'compras' ? '🛒 Compras' : '📄 Boletos'}
                   </button>
                 ))}
@@ -1294,7 +1318,7 @@ const AutoGeral = () => {
                 className="ag-import-area"
                 placeholder="Cole aqui os dados copiados do Excel (Ctrl+V)..."
                 value={importText}
-                onChange={(e) => handleImportParse(e.target.value)}
+                onChange={(e) => handleImportParse(e.target.value, importType)}
               />
               {importPreview && <div style={{ marginTop: '16px' }}>{importPreview}</div>}
             </div>
