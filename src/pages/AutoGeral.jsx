@@ -573,7 +573,7 @@ const AutoGeral = () => {
     return {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: !hideLegend, position: 'bottom', labels: { color: colors.legend, font: { family: 'Inter', weight: '600', size: 11 } } },
+        legend: { display: !hideLegend, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', color: colors.legend, font: { family: 'Inter', weight: '600', size: 11 } } },
         tooltip: {
           backgroundColor: whiteTheme ? 'rgba(255,255,255,.98)' : 'rgba(13,34,51,.98)',
           titleColor: whiteTheme ? '#092133' : '#fff', bodyColor: whiteTheme ? '#092133' : '#fff',
@@ -597,7 +597,7 @@ const AutoGeral = () => {
     return {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: colors.legend, font: { family: 'Inter', weight: '600', size: 10 } } },
+        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', color: colors.legend, font: { family: 'Inter', weight: '600', size: 10 } } },
         tooltip: {
           backgroundColor: whiteTheme ? 'rgba(255,255,255,.98)' : 'rgba(13,34,51,.98)',
           titleColor: whiteTheme ? '#092133' : '#fff', bodyColor: whiteTheme ? '#092133' : '#fff',
@@ -848,16 +848,19 @@ const AutoGeral = () => {
                 <div className="caixa-label">Saldo do Caixa</div>
                 <span className="caixa-value">{fmtMoney.format(dashboardStats.saldo)}</span>
                 <div className="caixa-sub">Entradas efetivas − Saídas</div>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <div className="ag-caixa-card glass positive">
                 <div className="caixa-label">Entradas Efetivas</div>
                 <span className="caixa-value">{fmtMoney.format(dashboardStats.entradas)}</span>
                 <div className="caixa-sub">À vista + Recebíveis recebidos</div>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
               </div>
               <div className="ag-caixa-card glass negative">
                 <div className="caixa-label">Saídas (Boletos)</div>
                 <span className="caixa-value">{fmtMoney.format(dashboardStats.saidas)}</span>
                 <div className="caixa-sub">{dashboardStats.bFiltered.length} boletos</div>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
               </div>
             </div>
 
@@ -867,31 +870,37 @@ const AutoGeral = () => {
                 <div className="kpi-label">Total Serviços</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicos)}</span>
                 <span className="kpi-sub">{dashboardStats.sFiltered.length} lançamentos</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
               </div>
               <div className="ag-kpi glass accent-yellow">
                 <div className="kpi-label">À Vista Recebido</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicoVista)}</span>
                 <span className="kpi-sub">Pix + Cartão</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
               </div>
               <div className="ag-kpi glass accent-blue">
                 <div className="kpi-label">Recebíveis Pendentes</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalPendente)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisPendentes} parcelas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </div>
               <div className="ag-kpi glass accent-green">
                 <div className="kpi-label">Recebíveis Recebidos</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalRecebido)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisRecebidos} parcelas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
               <div className="ag-kpi glass accent-red">
                 <div className="kpi-label">Recebíveis Vencidos</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalVencido)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisVencidos} parcelas atrasadas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Compras</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalCompras)}</span>
                 <span className="kpi-sub">{dashboardStats.cFiltered.length} registros</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               </div>
             </div>
 
@@ -1302,16 +1311,19 @@ const AutoGeral = () => {
                   <div className="kpi-label">Pendentes</div>
                   <span className="kpi-value">{fmtMoney.format(caixa.totalPendente)}</span>
                   <span className="kpi-sub">{caixa.recebiveisPendentes} parcelas</span>
+                  <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
                 <div className="ag-kpi glass">
                   <div className="kpi-label">Recebidos</div>
                   <span className="kpi-value">{fmtMoney.format(caixa.totalRecebido)}</span>
                   <span className="kpi-sub">{caixa.recebiveisRecebidos} parcelas</span>
+                  <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 </div>
                 <div className="ag-kpi glass accent-red">
                   <div className="kpi-label">Vencidos</div>
                   <span className="kpi-value">{fmtMoney.format(caixa.totalVencido)}</span>
                   <span className="kpi-sub">{caixa.recebiveisVencidos} parcelas atrasadas</span>
+                  <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 </div>
               </div>
 

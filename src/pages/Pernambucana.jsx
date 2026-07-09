@@ -876,11 +876,91 @@ const Pernambucana = () => {
     };
   }, [dashboardStats]);
 
+  const chartCaixaMensal = useMemo(() => {
+    const sForYear = allServicos.filter(s => {
+      const y = s.data ? s.data.split('-')[0] : '';
+      const sectorMatch = deptFilter === 'all' || normalizeSector(s.setor) === deptFilter;
+      return (yearFilter === 'all' || y === yearFilter) && sectorMatch;
+    });
+
+    const bForYear = [];
+    allBoletos.forEach(b => {
+      const y = b.dataVencimento ? b.dataVencimento.split('-')[0] : '';
+      if (yearFilter !== 'all' && y !== yearFilter) return;
+
+      const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
+      const valSplit = (parseFloat(b.valorBoleto) || 0) / secs.length;
+
+      if (deptFilter === 'all') {
+        bForYear.push({ ...b, valorSplit: parseFloat(b.valorBoleto) || 0 });
+      } else if (secs.includes(deptFilter)) {
+        bForYear.push({ ...b, valorSplit: valSplit });
+      }
+    });
+
+    const rForYear = allRecebiveis.filter(r => {
+      const dateStr = r.dataRecebimento || r.dataVencimento || '';
+      const y = dateStr ? dateStr.split('-')[0] : '';
+      const sectorMatch = deptFilter === 'all' || normalizeSector(r.setor) === deptFilter;
+      return (yearFilter === 'all' || y === yearFilter) && sectorMatch;
+    });
+
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+
+    const dataEntradas = months.map(n => {
+      const sv = sForYear.filter(s => {
+        const m = s.data ? parseInt(s.data.split('-')[1], 10) : null;
+        return m === n && !String(s.pagamento || '').toLowerCase().includes('prazo');
+      });
+      const recM = rForYear.filter(r => {
+        const m = (r.dataRecebimento || r.dataVencimento || '').split('-')[1];
+        return r.status === 'Recebido' && parseInt(m, 10) === n;
+      });
+      return sv.reduce((sum, x) => sum + (parseFloat(x.valorTotal) || 0), 0) + recM.reduce((sum, x) => sum + (parseFloat(x.valorParcela) || 0), 0);
+    });
+
+    const dataSaidas = months.map(n => {
+      const bm = bForYear.filter(b => {
+        const m = b.dataVencimento ? parseInt(b.dataVencimento.split('-')[1], 10) : null;
+        return m === n;
+      });
+      return bm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0);
+    });
+
+    return {
+      labels: months.map(n => MONTHS[n - 1].slice(0, 3)),
+      datasets: [
+        { label: 'Entradas', data: dataEntradas, backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 },
+        { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
+      ]
+    };
+  }, [allServicos, allBoletos, allRecebiveis, yearFilter, deptFilter]);
+
+  const chartFormaPgto = useMemo(() => {
+    const sFiltered = dashboardStats.sFiltered;
+    const vista = sFiltered.filter(s => !String(s.pagamento || '').toLowerCase().includes('prazo')).reduce((sum, s) => sum + (parseFloat(s.valorTotal) || 0), 0);
+    const prazo = sFiltered.filter(s => String(s.pagamento || '').toLowerCase().includes('prazo')).reduce((sum, s) => sum + (parseFloat(s.valorTotal) || 0), 0);
+    return {
+      labels: ['À Vista', 'À Prazo'],
+      datasets: [{ data: [vista, prazo], backgroundColor: ['rgba(78,226,71,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
+    };
+  }, [dashboardStats]);
+
+  const chartRecebiveisStatus = useMemo(() => {
+    const rFiltered = dashboardStats.rFiltered;
+    const pendente = rFiltered.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+    const recebido = rFiltered.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+    return {
+      labels: ['Pendente', 'Recebido'],
+      datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(78,226,71,.85)'], borderWidth: 0 }]
+    };
+  }, [dashboardStats]);
+
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top', labels: { color: whiteTheme ? '#102033' : '#ffffff', font: { weight: 'bold' } } },
+      legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', color: whiteTheme ? '#102033' : '#ffffff', font: { weight: 'bold' } } },
       datalabels: { display: false },
       tooltip: {
         callbacks: {
@@ -898,7 +978,7 @@ const Pernambucana = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'right', labels: { color: whiteTheme ? '#102033' : '#ffffff', font: { size: 11 } } },
+      legend: { position: 'right', labels: { usePointStyle: true, pointStyle: 'circle', color: whiteTheme ? '#102033' : '#ffffff', font: { size: 11 } } },
       datalabels: {
         formatter: (value, ctx) => {
           const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
@@ -1072,16 +1152,19 @@ const Pernambucana = () => {
                 <div className="kpi-label">Saldo do Caixa</div>
                 <span className="kpi-value" style={dashboardStats.saldo < 0 ? { color: 'var(--red)' } : {}}>{fmtMoney.format(dashboardStats.saldo)}</span>
                 <span className="kpi-sub">Entradas efetivas - Saídas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
               <div className="ag-kpi glass accent-green">
                 <div className="kpi-label">Entradas Efetivas</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.entradas)}</span>
                 <span className="kpi-sub">À vista + Recebíveis recebidos</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
               </div>
               <div className="ag-kpi glass accent-red">
                 <div className="kpi-label">Saídas Efetivas</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.saidas)}</span>
                 <span className="kpi-sub">Boletos + Compras à Vista</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
               </div>
             </div>
 
@@ -1090,60 +1173,89 @@ const Pernambucana = () => {
                 <div className="kpi-label">Total Serviços</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicos)}</span>
                 <span className="kpi-sub">{dashboardStats.sFiltered.length} lançamentos</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
               </div>
               <div className="ag-kpi glass accent-yellow">
                 <div className="kpi-label">À Vista Recebido</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicoVista)}</span>
                 <span className="kpi-sub">Pix + Cartão</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
               </div>
               <div className="ag-kpi glass accent-blue">
                 <div className="kpi-label">Recebíveis Pendentes</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalPendente)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisPendentes} parcelas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </div>
               <div className="ag-kpi glass accent-green">
                 <div className="kpi-label">Recebíveis Recebidos</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalRecebido)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisRecebidos} parcelas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
               <div className="ag-kpi glass accent-red">
                 <div className="kpi-label">Recebíveis Vencidos</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalVencido)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisVencidos} parcelas atrasadas</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Compras</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalCompras)}</span>
                 <span className="kpi-sub">{dashboardStats.cFiltered.length} registros</span>
+                <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               </div>
             </div>
 
-            {/* Dashboard Charts */}
-            <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
-              <div className="chart-card glass" style={{ height: '340px', padding: '20px', borderRadius: '16px' }}>
+            {/* Fluxo Financeiro Geral */}
+            <div className="ag-charts-grid" style={{ marginTop: '20px' }}>
+              <div className="ag-chart-card glass" style={{ gridColumn: 'span 2' }}>
+                <h3>Entradas vs Saídas por Mês</h3>
+                <div style={{ height: '260px', position: 'relative' }}>
+                  <Bar data={chartCaixaMensal} options={barOptions} />
+                </div>
+              </div>
+              <div className="ag-chart-card glass">
+                <h3>Forma de Pagamento</h3>
+                <div style={{ height: '260px', position: 'relative' }}>
+                  <Pie data={chartFormaPgto} options={pieOptions} />
+                </div>
+              </div>
+              <div className="ag-chart-card glass">
+                <h3>Recebíveis por Status</h3>
+                <div style={{ height: '260px', position: 'relative' }}>
+                  <Pie data={chartRecebiveisStatus} options={pieOptions} />
+                </div>
+              </div>
+            </div>
+
+            {/* Divisor Gráficos Detalhados */}
+            <h2 style={{ margin: '30px 0 15px 0', fontSize: '18px', fontWeight: '800', color: 'var(--text)', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Gráficos Detalhados
+            </h2>
+
+            <div className="ag-charts-grid">
+              <div className="ag-chart-card glass">
                 <h3>Receita vs Custos por Setor</h3>
-                <div style={{ height: '260px', marginTop: '10px' }}>
+                <div style={{ height: '260px', position: 'relative' }}>
                   <Bar data={barChartData} options={barOptions} />
                 </div>
               </div>
-
-              <div className="chart-card glass" style={{ height: '340px', padding: '20px', borderRadius: '16px' }}>
+              <div className="ag-chart-card glass">
                 <h3>Despesas com Boletos (Fornecedores)</h3>
-                <div style={{ height: '260px', marginTop: '10px' }}>
+                <div style={{ height: '260px', position: 'relative' }}>
                   <Pie data={despesasPieData} options={pieOptions} />
                 </div>
               </div>
-
-              <div className="chart-card glass" style={{ height: '340px', padding: '20px', borderRadius: '16px' }}>
+              <div className="ag-chart-card glass">
                 <h3>Comissão de Produtivos</h3>
-                <div style={{ height: '260px', marginTop: '10px' }}>
+                <div style={{ height: '260px', position: 'relative' }}>
                   <Bar data={commissionChartData} options={{ ...barOptions, indexAxis: 'y' }} />
                 </div>
               </div>
-
-              <div className="chart-card glass" style={{ height: '340px', padding: '20px', borderRadius: '16px' }}>
+              <div className="ag-chart-card glass">
                 <h3>Faturamento por Tipo de Serviço</h3>
-                <div style={{ height: '260px', marginTop: '10px' }}>
+                <div style={{ height: '260px', position: 'relative' }}>
                   <Bar data={serviceTypeChartData} options={{ ...barOptions, indexAxis: 'y' }} />
                 </div>
               </div>
@@ -1621,6 +1733,40 @@ const Pernambucana = () => {
                 </div>
               </div>
               {renderFilters(true)}
+
+              {(() => {
+                const rFiltered = filteredRecebiveis;
+                const pendente = rFiltered.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+                const pendenteCount = rFiltered.filter(r => r.status === 'Pendente').length;
+                const recebido = rFiltered.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+                const recebidoCount = rFiltered.filter(r => r.status === 'Recebido').length;
+                const hojeStr = new Date().toISOString().split('T')[0];
+                const vencido = rFiltered.filter(r => r.status === 'Pendente' && r.dataVencimento < hojeStr).reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
+                const vencidoCount = rFiltered.filter(r => r.status === 'Pendente' && r.dataVencimento < hojeStr).length;
+
+                return (
+                  <div className="ag-kpis" style={{ marginTop: '20px' }}>
+                    <div className="ag-kpi glass accent-yellow">
+                      <div className="kpi-label">Pendentes</div>
+                      <span className="kpi-value">{fmtMoney.format(pendente)}</span>
+                      <span className="kpi-sub">{pendenteCount} parcelas</span>
+                      <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div className="ag-kpi glass">
+                      <div className="kpi-label">Recebidos</div>
+                      <span className="kpi-value">{fmtMoney.format(recebido)}</span>
+                      <span className="kpi-sub">{recebidoCount} parcelas</span>
+                      <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <div className="ag-kpi glass accent-red">
+                      <div className="kpi-label">Vencidos</div>
+                      <span className="kpi-value">{fmtMoney.format(vencido)}</span>
+                      <span className="kpi-sub">{vencidoCount} parcelas atrasadas</span>
+                      <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
