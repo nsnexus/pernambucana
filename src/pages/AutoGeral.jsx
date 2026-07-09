@@ -43,12 +43,6 @@ const AutoGeral = () => {
     consolidado, rawQueriesActive, enableRawQueries
   } = useAutoGeral();
 
-  useEffect(() => {
-    if (activeTab !== 'dashboard' && enableRawQueries) {
-      enableRawQueries();
-    }
-  }, [activeTab, enableRawQueries]);
-
   // Theme
   const [whiteTheme, setWhiteTheme] = useState(() =>
     localStorage.getItem('pernambucana.financeDashboard.theme.v1') === 'white'
@@ -63,6 +57,12 @@ const AutoGeral = () => {
 
   // Tabs
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard' && enableRawQueries) {
+      enableRawQueries();
+    }
+  }, [activeTab, enableRawQueries]);
 
   // Filters
   const [monthFilter, setMonthFilter] = useState('all');
