@@ -535,3 +535,32 @@ body.theme-white tr.grid-changed-row {
   background: rgba(245, 158, 11, 0.03) !important;
 }
 
+/* Compact spreadsheet-like tables */
+.compact-table {
+  border-collapse: collapse !important;
+}
+
+.compact-table th {
+  font-size: 10px !important;
+  padding: 8px 10px !important;
+  white-space: nowrap !important;
+  font-weight: 800 !important;
+}
+
+.compact-table td {
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Edit mode cell elements */
+.compact-table .ag-grid-input,
+.compact-table select,
+.compact-table input {
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+  height: 28px !important;
+}
+

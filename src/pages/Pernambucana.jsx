@@ -1285,7 +1285,7 @@ const Pernambucana = () => {
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1850px' }}>
                     <thead>
                       <tr>
                         <th style={{ width: '40px', textAlign: 'center' }}>
@@ -1479,7 +1479,7 @@ const Pernambucana = () => {
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1450px' }}>
                     <thead>
                       <tr>
                         <th style={{ width: '40px', textAlign: 'center' }}>
@@ -1627,7 +1627,7 @@ const Pernambucana = () => {
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1250px' }}>
                     <thead>
                       <tr>
                         <th style={{ width: '40px', textAlign: 'center' }}>
@@ -1770,7 +1770,7 @@ const Pernambucana = () => {
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1250px' }}>
                     <thead>
                       <tr>
                         <th>OS</th><th>Setor</th><th>Cliente</th><th>Descrição</th>

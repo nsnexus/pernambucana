@@ -948,7 +948,7 @@ const AutoGeral = () => {
               {renderFilters()}
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1350px' }}>
                     <thead>
                       <tr>
                         <th>Data</th><th>Forma</th><th>Cliente</th><th>Material/Serviço</th>
@@ -1079,7 +1079,7 @@ const AutoGeral = () => {
               {renderFilters()}
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1250px' }}>
                     <thead>
                       <tr>
                         <th>Data</th><th>Forma</th><th>Cliente</th><th>Descrição Material</th>
@@ -1205,7 +1205,7 @@ const AutoGeral = () => {
               {renderFilters()}
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1150px' }}>
                     <thead>
                       <tr>
                         <th>Fornecedor</th><th>Descrição Material</th><th>Valor Boleto</th>
@@ -1329,7 +1329,7 @@ const AutoGeral = () => {
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
-                  <table>
+                  <table className="compact-table" style={{ minWidth: '1150px' }}>
                     <thead>
                       <tr>
                         <th>OS</th><th>Cliente</th><th>Descrição</th><th>Mecânico</th>
