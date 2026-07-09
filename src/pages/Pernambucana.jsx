@@ -1089,12 +1089,22 @@ const Pernambucana = () => {
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Serviços</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicos)}</span>
-                <span className="kpi-sub">{dashboardStats.sFiltered.length} OS lançadas</span>
+                <span className="kpi-sub">{dashboardStats.sFiltered.length} lançamentos</span>
               </div>
               <div className="ag-kpi glass accent-yellow">
+                <div className="kpi-label">À Vista Recebido</div>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalServicoVista)}</span>
+                <span className="kpi-sub">Pix + Cartão</span>
+              </div>
+              <div className="ag-kpi glass accent-blue">
                 <div className="kpi-label">Recebíveis Pendentes</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalPendente)}</span>
                 <span className="kpi-sub">{dashboardStats.recebiveisPendentes} parcelas</span>
+              </div>
+              <div className="ag-kpi glass accent-green">
+                <div className="kpi-label">Recebíveis Recebidos</div>
+                <span className="kpi-value">{fmtMoney.format(dashboardStats.totalRecebido)}</span>
+                <span className="kpi-sub">{dashboardStats.recebiveisRecebidos} parcelas</span>
               </div>
               <div className="ag-kpi glass accent-red">
                 <div className="kpi-label">Recebíveis Vencidos</div>
@@ -1104,7 +1114,7 @@ const Pernambucana = () => {
               <div className="ag-kpi glass">
                 <div className="kpi-label">Total Compras</div>
                 <span className="kpi-value">{fmtMoney.format(dashboardStats.totalCompras)}</span>
-                <span className="kpi-sub">Detalhamento (Sem efeito no Caixa)</span>
+                <span className="kpi-sub">{dashboardStats.cFiltered.length} registros</span>
               </div>
             </div>
 
