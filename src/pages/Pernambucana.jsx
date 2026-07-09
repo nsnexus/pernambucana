@@ -999,12 +999,25 @@ const Pernambucana = () => {
   const renderPagination = (p) => {
     if (gridEditMode) return null;
     return (
-      <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-        <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Mostrando {p.paginated.length} de {p.total} registros</span>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button className="btn ghost-light" onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={p.page === 1}>Anterior</button>
-          <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>Pág. {p.page} de {p.totalPages}</span>
-          <button className="btn ghost-light" onClick={() => setCurrentPage(prev => Math.min(prev + 1, p.totalPages))} disabled={p.page === p.totalPages}>Próxima</button>
+      <div className="pagination">
+        <span className="pagination-info">
+          {p.total} registros • Página {p.page} de {p.totalPages}
+        </span>
+        <div className="pagination-controls">
+          <button 
+            className="btn-page" 
+            disabled={p.page <= 1} 
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          >
+            ← Anterior
+          </button>
+          <button 
+            className="btn-page" 
+            disabled={p.page >= p.totalPages} 
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, p.totalPages))}
+          >
+            Próximo →
+          </button>
         </div>
       </div>
     );
