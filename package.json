@@ -26,6 +26,6 @@
     "wrangler": "4.107.1"
   },
   "overrides": {
-    "esbuild": "npm:esbuild-wasm@0.24.0"
+    "esbuild": "npm:esbuild-wasm@0.21.5"
   }
 }
