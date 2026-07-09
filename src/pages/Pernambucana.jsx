@@ -91,12 +91,21 @@ function parseBoletoSectors(setorStr) {
 const Pernambucana = () => {
   const { currentUser } = useAuth();
   const {
-    allServicos, allCompras, allBoletos, allRecebiveis, loading,
+    allServicos: rawServicos, allCompras: rawCompras, allBoletos: rawBoletos, allRecebiveis: rawRecebiveis, loading,
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
     toggleRecebivel, normalizeSector
   } = useData();
+
+  // Filter out any AltoGeral / external data from Pernambucana context
+  const allServicos = useMemo(() => rawServicos.filter(s => normalizeSector(s.setor) !== 'altogeral'), [rawServicos, normalizeSector]);
+  const allCompras = useMemo(() => rawCompras.filter(c => normalizeSector(c.setor) !== 'altogeral'), [rawCompras, normalizeSector]);
+  const allBoletos = useMemo(() => rawBoletos.filter(b => {
+    const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
+    return secs.some(s => normalizeSector(s) !== 'altogeral');
+  }), [rawBoletos, normalizeSector]);
+  const allRecebiveis = useMemo(() => rawRecebiveis.filter(r => normalizeSector(r.setor) !== 'altogeral'), [rawRecebiveis, normalizeSector]);
 
   // Theme
   const [whiteTheme, setWhiteTheme] = useState(() =>
@@ -125,6 +134,19 @@ const Pernambucana = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
+  // Bulk selection states
+  const [selectedServicos, setSelectedServicos] = useState([]);
+  const [selectedCompras, setSelectedCompras] = useState([]);
+  const [selectedBoletos, setSelectedBoletos] = useState([]);
+
+  // Reset selections on tab/filter changes to avoid deleting wrong/hidden items
+  useEffect(() => {
+    setSelectedServicos([]);
+    setSelectedCompras([]);
+    setSelectedBoletos([]);
+  }, [activeTab, monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, deptFilter]);
+
+
   // Toast
   const [toastMessage, setToastMessage] = useState('');
   const triggerToast = (msg) => { setToastMessage(msg); setTimeout(() => setToastMessage(''), 2600); };
@@ -151,7 +173,7 @@ const Pernambucana = () => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pendente', dataPagamento: '', setores: []
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: []
   });
 
   // Excel paste import modal
@@ -452,7 +474,7 @@ const Pernambucana = () => {
     setBoletoEditId(null);
     setBoletoForm({
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
-      setor: 'Todos', status: 'Pendente', dataPagamento: '', setores: ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria']
+      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria']
     });
     setBoletoModal(true);
   };
@@ -462,8 +484,8 @@ const Pernambucana = () => {
     setBoletoForm({
       dataVencimento: item.dataVencimento || '', fornecedor: item.fornecedor || '',
       descricao: item.descricao || '', valorBoleto: item.valorBoleto || 0,
-      setor: item.setor || 'Todos', status: item.status || 'Pendente',
-      dataPagamento: item.dataPagamento || '', setores: item.setores || parseBoletoSectors(item.setor)
+      setor: item.setor || 'Todos', status: 'Pago',
+      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: item.setores || parseBoletoSectors(item.setor)
     });
     setBoletoModal(true);
   };
@@ -484,7 +506,12 @@ const Pernambucana = () => {
           return s.charAt(0).toUpperCase();
         }).join(',');
       }
-      const dataPayload = { ...boletoForm, setor: sectorLabel };
+      const dataPayload = { 
+        ...boletoForm, 
+        setor: sectorLabel,
+        status: 'Pago',
+        dataPagamento: boletoForm.dataVencimento
+      };
 
       if (boletoEditId) {
         await updateBoleto(boletoEditId, dataPayload);
@@ -527,6 +554,40 @@ const Pernambucana = () => {
       setGridEditMode(false);
       setGridChanges({});
     } catch (err) { alert('Erro: ' + err.message); }
+  };
+
+  // Bulk deletes
+  const handleDeleteSelectedServicos = async () => {
+    if (!window.confirm(`Excluir ${selectedServicos.length} serviços selecionados?`)) return;
+    try {
+      for (const id of selectedServicos) {
+        await deleteServico(id);
+      }
+      setSelectedServicos([]);
+      triggerToast('Registros excluídos com sucesso.');
+    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+  };
+
+  const handleDeleteSelectedCompras = async () => {
+    if (!window.confirm(`Excluir ${selectedCompras.length} compras selecionadas?`)) return;
+    try {
+      for (const id of selectedCompras) {
+        await deleteCompra(id);
+      }
+      setSelectedCompras([]);
+      triggerToast('Registros excluídos com sucesso.');
+    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+  };
+
+  const handleDeleteSelectedBoletos = async () => {
+    if (!window.confirm(`Excluir ${selectedBoletos.length} boletos selecionados?`)) return;
+    try {
+      for (const id of selectedBoletos) {
+        await deleteBoleto(id);
+      }
+      setSelectedBoletos([]);
+      triggerToast('Registros excluídos com sucesso.');
+    } catch (err) { alert('Erro ao excluir: ' + err.message); }
   };
 
   // ── EXCEL PASTE PARSE LOGIC ──
@@ -676,8 +737,8 @@ const Pernambucana = () => {
           valorBoleto: parseExcelNumber(cols[3]),
           setor: rawSetor || 'Todos',
           setores: secsNormalized,
-          status: 'Pendente',
-          dataPagamento: ''
+          status: 'Pago',
+          dataPagamento: parseExcelDate(cols[1])
         });
       }
     }
@@ -766,6 +827,24 @@ const Pernambucana = () => {
     return {
       labels: sorted.map(s => s[0]),
       datasets: [{ label: 'Comissão', data: sorted.map(s => s[1]), backgroundColor: 'rgba(31,182,255,0.7)', borderRadius: 8 }]
+    };
+  }, [dashboardStats]);
+
+  const serviceTypeChartData = useMemo(() => {
+    const grouped = {};
+    dashboardStats.sFiltered.forEach(s => {
+      let type = s.tipoServico || s.descricao || 'Outros';
+      type = type.trim();
+      type = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+      const val = parseFloat(s.valorTotal) || 0;
+      if (val > 0) {
+        grouped[type] = (grouped[type] || 0) + val;
+      }
+    });
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return {
+      labels: sorted.map(x => x[0]),
+      datasets: [{ label: 'Faturamento', data: sorted.map(x => x[1]), backgroundColor: 'rgba(31, 182, 255, 0.75)', borderRadius: 8 }]
     };
   }, [dashboardStats]);
 
@@ -915,6 +994,21 @@ const Pernambucana = () => {
       </label>
 
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        {activeTab === 'servicos' && selectedServicos.length > 0 && (
+          <button className="btn" onClick={handleDeleteSelectedServicos} style={{ background: '#f43f5e', color: '#fff' }}>
+            🗑 Excluir Selecionados ({selectedServicos.length})
+          </button>
+        )}
+        {activeTab === 'compras' && selectedCompras.length > 0 && (
+          <button className="btn" onClick={handleDeleteSelectedCompras} style={{ background: '#f43f5e', color: '#fff' }}>
+            🗑 Excluir Selecionados ({selectedCompras.length})
+          </button>
+        )}
+        {activeTab === 'boletos' && selectedBoletos.length > 0 && (
+          <button className="btn" onClick={handleDeleteSelectedBoletos} style={{ background: '#f43f5e', color: '#fff' }}>
+            🗑 Excluir Selecionados ({selectedBoletos.length})
+          </button>
+        )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
             className="btn ghost-light" 
@@ -1036,6 +1130,13 @@ const Pernambucana = () => {
                   <Bar data={commissionChartData} options={{ ...barOptions, indexAxis: 'y' }} />
                 </div>
               </div>
+
+              <div className="chart-card glass" style={{ height: '340px', padding: '20px', borderRadius: '16px' }}>
+                <h3>Faturamento por Tipo de Serviço</h3>
+                <div style={{ height: '260px', marginTop: '10px' }}>
+                  <Bar data={serviceTypeChartData} options={{ ...barOptions, indexAxis: 'y' }} />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1065,8 +1166,22 @@ const Pernambucana = () => {
                   <table>
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={p.paginated.length > 0 && selectedServicos.length === p.paginated.length} 
+                            onChange={() => {
+                              if (selectedServicos.length === p.paginated.length) {
+                                setSelectedServicos([]);
+                              } else {
+                                setSelectedServicos(p.paginated.map(item => item.id));
+                              }
+                            }}
+                          />
+                        </th>
                         <th>Data</th><th>Setor</th><th>Cliente</th><th>Descrição</th>
-                        <th>OS</th><th>Valor Total</th><th>Pagamento</th><th>Produtivo</th>
+                        <th>Tipo de Serviço</th><th>Qtd</th><th>OS</th><th>Valor Unit.</th>
+                        <th>Valor Total</th><th>Desconto</th><th>Pagamento</th><th>Produtivo</th>
                         <th>Comissão</th><th>Material</th><th>Ações</th>
                       </tr>
                     </thead>
@@ -1076,6 +1191,15 @@ const Pernambucana = () => {
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
                         return (
                           <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedServicos.includes(item.id)} 
+                                onChange={() => {
+                                  setSelectedServicos(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]);
+                                }}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
@@ -1108,6 +1232,25 @@ const Pernambucana = () => {
                             </td>
                             <td>
                               {gridEditMode ? (
+                                <input type="text" value={rowData.tipoServico || ''} onChange={e => handleGridCellChange(item.id, 'tipoServico', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                item.tipoServico || '-'
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
+                                <input type="number" value={rowData.qtd || 1} onChange={e => {
+                                  const newQtd = parseInt(e.target.value) || 1;
+                                  const uVal = parseFloat(rowData.valorUnitario) || 0;
+                                  handleGridCellChange(item.id, 'qtd', newQtd);
+                                  handleGridCellChange(item.id, 'valorTotal', newQtd * uVal);
+                                }} className="ag-grid-input" style={{ width: '60px' }} />
+                              ) : (
+                                item.qtd || 1
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
                                 <input type="text" value={rowData.os || ''} onChange={e => handleGridCellChange(item.id, 'os', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 item.os || '-'
@@ -1115,9 +1258,28 @@ const Pernambucana = () => {
                             </td>
                             <td>
                               {gridEditMode ? (
+                                <input type="number" step="0.01" value={rowData.valorUnitario || 0} onChange={e => {
+                                  const newUnit = parseFloat(e.target.value) || 0;
+                                  const qVal = parseInt(rowData.qtd) || 1;
+                                  handleGridCellChange(item.id, 'valorUnitario', newUnit);
+                                  handleGridCellChange(item.id, 'valorTotal', qVal * newUnit);
+                                }} className="ag-grid-input" />
+                              ) : (
+                                fmtMoney.format(item.valorUnitario || 0)
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.valorTotal || 0} onChange={e => handleGridCellChange(item.id, 'valorTotal', e.target.value)} className="ag-grid-input" style={{ fontWeight: 'bold' }} />
                               ) : (
                                 <strong>{fmtMoney.format(item.valorTotal)}</strong>
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
+                                <input type="number" step="0.01" value={rowData.desconto || 0} onChange={e => handleGridCellChange(item.id, 'desconto', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                fmtMoney.format(item.desconto || 0)
                               )}
                             </td>
                             <td>
@@ -1162,7 +1324,7 @@ const Pernambucana = () => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
+                        <tr><td colSpan="16" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1198,6 +1360,19 @@ const Pernambucana = () => {
                   <table>
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={p.paginated.length > 0 && selectedCompras.length === p.paginated.length} 
+                            onChange={() => {
+                              if (selectedCompras.length === p.paginated.length) {
+                                setSelectedCompras([]);
+                              } else {
+                                setSelectedCompras(p.paginated.map(item => item.id));
+                              }
+                            }}
+                          />
+                        </th>
                         <th>Data</th><th>Setor</th><th>Fornecedor</th><th>Descrição Material</th>
                         <th>Nº OS</th><th>Valor Produto</th><th>Solicitante</th><th>Forma Compra</th>
                         <th>Categoria</th><th>Ações</th>
@@ -1209,6 +1384,15 @@ const Pernambucana = () => {
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
                         return (
                           <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedCompras.includes(item.id)} 
+                                onChange={() => {
+                                  setSelectedCompras(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]);
+                                }}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
@@ -1288,7 +1472,7 @@ const Pernambucana = () => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="10" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhuma compra encontrada.</td></tr>
+                        <tr><td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhuma compra encontrada.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1324,17 +1508,38 @@ const Pernambucana = () => {
                   <table>
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={p.paginated.length > 0 && selectedBoletos.length === p.paginated.length} 
+                            onChange={() => {
+                              if (selectedBoletos.length === p.paginated.length) {
+                                setSelectedBoletos([]);
+                              } else {
+                                setSelectedBoletos(p.paginated.map(item => item.id));
+                              }
+                            }}
+                          />
+                        </th>
                         <th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>Valor Total</th>
-                        <th>Setor(es)</th><th>Status</th><th>Pagamento</th><th>Ações</th>
+                        <th>Setor(es)</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {p.paginated.map(item => {
                         const hasChanges = !!gridChanges[item.id];
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
-                        const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
                         return (
-                          <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''} style={isVencido ? { background: 'rgba(244,63,94,.06)' } : {}}>
+                          <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedBoletos.includes(item.id)} 
+                                onChange={() => {
+                                  setSelectedBoletos(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]);
+                                }}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="date" value={rowData.dataVencimento || ''} onChange={e => handleGridCellChange(item.id, 'dataVencimento', e.target.value)} className="ag-grid-input" />
@@ -1373,19 +1578,6 @@ const Pernambucana = () => {
                               )}
                             </td>
                             <td>
-                              {gridEditMode ? (
-                                <select value={rowData.status || 'Pendente'} onChange={e => handleGridCellChange(item.id, 'status', e.target.value)} className="ag-grid-input">
-                                  <option value="Pendente">Pendente</option>
-                                  <option value="Pago">Pago</option>
-                                </select>
-                              ) : (
-                                <span className={`status-badge ${item.status === 'Pago' ? 'recebido' : isVencido ? 'vencido' : 'pendente'}`}>
-                                  {item.status === 'Pago' ? '✓ Pago' : isVencido ? '⚠ Vencido' : '◌ Pendente'}
-                                </span>
-                              )}
-                            </td>
-                            <td>{item.dataPagamento || '-'}</td>
-                            <td>
                               <div className="ag-table-actions">
                                 {!gridEditMode && <button onClick={() => openEditBoleto(item)}>Editar</button>}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
@@ -1396,7 +1588,7 @@ const Pernambucana = () => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="8" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
+                        <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1476,82 +1668,98 @@ const Pernambucana = () => {
       {servicoModal && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setServicoModal(false)}></div>
-          <form className="modal-card glass" onSubmit={handleServicoSubmit} style={{ maxWidth: '640px' }}>
+          <form className="modal-card glass" onSubmit={handleServicoSubmit} style={{ maxWidth: '680px' }}>
             <h2>{servicoEditId ? 'Editar Serviço' : 'Novo Serviço Setorial'}</h2>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <label>
-                Data
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Data</label>
                 <input type="date" required value={servicoForm.data} onChange={e => setServicoForm(prev => ({ ...prev, data: e.target.value }))} />
-              </label>
-              <label>
-                Setor do Serviço
+              </div>
+              <div className="form-group">
+                <label>Setor do Serviço</label>
                 <select value={servicoForm.setor} onChange={e => setServicoForm(prev => ({ ...prev, setor: e.target.value }))}>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
                 </select>
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Cliente
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Cliente</label>
                 <input type="text" required value={servicoForm.cliente} onChange={e => setServicoForm(prev => ({ ...prev, cliente: e.target.value }))} />
-              </label>
-              <label>
-                Condição de Pagamento
+              </div>
+              <div className="form-group">
+                <label>Condição de Pagamento</label>
                 <select value={servicoForm.pagamento} onChange={e => setServicoForm(prev => ({ ...prev, pagamento: e.target.value }))}>
                   <option value="À vista">À vista</option>
                   <option value="À prazo">À prazo</option>
                 </select>
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.5fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Descrição dos Serviços
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group" style={{ flex: 1.5 }}>
+                <label>Descrição dos Serviços</label>
                 <input type="text" required value={servicoForm.descricao} onChange={e => setServicoForm(prev => ({ ...prev, descricao: e.target.value }))} />
-              </label>
-              <label>
-                OS
-                <input type="text" value={servicoForm.os} onChange={e => setServicoForm(prev => ({ ...prev, os: e.target.value }))} />
-              </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginTop: '12px' }}>
-              <label>
-                Valor Total (Faturamento)
-                <input type="number" step="0.01" required value={servicoForm.valorTotal} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
-              </label>
-              <label>
-                Valor Unitário
-                <input type="number" step="0.01" value={servicoForm.valorUnitario} onChange={e => setServicoForm(prev => ({ ...prev, valorUnitario: parseFloat(e.target.value) || 0 }))} />
-              </label>
-              <label>
-                Material Aplicado
-                <input type="number" step="0.01" value={servicoForm.material} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
-              </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Mecânico/Produtivo
-                <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
-              </label>
-              <label>
-                Comissão (R$)
-                <input type="number" step="0.01" value={servicoForm.valorProdutivo} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
-              </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Tipo de Serviço
+              </div>
+              <div className="form-group" style={{ flex: 0.8 }}>
+                <label>Tipo de Serviço</label>
                 <input type="text" value={servicoForm.tipoServico} onChange={e => setServicoForm(prev => ({ ...prev, tipoServico: e.target.value }))} />
-              </label>
-              <label>
-                Nº de Parcelas (se A Prazo)
+              </div>
+              <div className="form-group" style={{ flex: 0.7 }}>
+                <label>OS</label>
+                <input type="text" value={servicoForm.os} onChange={e => setServicoForm(prev => ({ ...prev, os: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Quantidade</label>
+                <input type="number" value={servicoForm.qtd || 1} onChange={e => {
+                  const newQtd = parseInt(e.target.value) || 1;
+                  const unit = parseFloat(servicoForm.valorUnitario) || 0;
+                  setServicoForm(prev => ({ ...prev, qtd: newQtd, valorTotal: newQtd * unit }));
+                }} />
+              </div>
+              <div className="form-group">
+                <label>Valor Unitário</label>
+                <input type="number" step="0.01" value={servicoForm.valorUnitario} onChange={e => {
+                  const newUnit = parseFloat(e.target.value) || 0;
+                  const qVal = parseInt(servicoForm.qtd) || 1;
+                  setServicoForm(prev => ({ ...prev, valorUnitario: newUnit, valorTotal: qVal * newUnit }));
+                }} />
+              </div>
+              <div className="form-group">
+                <label>Valor Total (Faturamento)</label>
+                <input type="number" step="0.01" required value={servicoForm.valorTotal} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="form-group">
+                <label>Desconto</label>
+                <input type="number" step="0.01" value={servicoForm.desconto} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            </div>
+
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Mecânico/Produtivo</label>
+                <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>Comissão (R$)</label>
+                <input type="number" step="0.01" value={servicoForm.valorProdutivo} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="form-group">
+                <label>Material Aplicado</label>
+                <input type="number" step="0.01" value={servicoForm.material} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            </div>
+
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group" style={{ maxWidth: '50%' }}>
+                <label>Nº de Parcelas (se A Prazo)</label>
                 <input type="number" min="0" value={servicoForm.numParcelas} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
-              </label>
+              </div>
             </div>
 
             <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -1569,68 +1777,68 @@ const Pernambucana = () => {
           <form className="modal-card glass" onSubmit={handleCompraSubmit} style={{ maxWidth: '600px' }}>
             <h2>{compraEditId ? 'Editar Compra' : 'Nova Compra de Peças'}</h2>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <label>
-                Data
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Data</label>
                 <input type="date" required value={compraForm.data} onChange={e => setCompraForm(prev => ({ ...prev, data: e.target.value }))} />
-              </label>
-              <label>
-                Setor
+              </div>
+              <div className="form-group">
+                <label>Setor</label>
                 <select value={compraForm.setor} onChange={e => setCompraForm(prev => ({ ...prev, setor: e.target.value }))}>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
                 </select>
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Fornecedor
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Fornecedor</label>
                 <input type="text" required value={compraForm.fornecedor} onChange={e => setCompraForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
-              </label>
-              <label>
-                Forma de Compra
+              </div>
+              <div className="form-group">
+                <label>Forma de Compra</label>
                 <select value={compraForm.formaCompra} onChange={e => setCompraForm(prev => ({ ...prev, formaCompra: e.target.value }))}>
                   <option value="À vista">À vista</option>
                   <option value="À prazo">À prazo</option>
                 </select>
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.5fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Descrição do Material
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Descrição do Material</label>
                 <input type="text" required value={compraForm.descricao} onChange={e => setCompraForm(prev => ({ ...prev, descricao: e.target.value }))} />
-              </label>
-              <label>
-                Nº OS
+              </div>
+              <div className="form-group">
+                <label>Nº OS</label>
                 <input type="text" value={compraForm.numOS} onChange={e => setCompraForm(prev => ({ ...prev, numOS: e.target.value }))} />
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginTop: '12px' }}>
-              <label>
-                Valor do Produto/Peça
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Valor do Produto/Peça</label>
                 <input type="number" step="0.01" required value={compraForm.valorProduto} onChange={e => setCompraForm(prev => ({ ...prev, valorProduto: parseFloat(e.target.value) || 0 }))} />
-              </label>
-              <label>
-                Solicitante
+              </div>
+              <div className="form-group">
+                <label>Solicitante</label>
                 <input type="text" value={compraForm.solicitante} onChange={e => setCompraForm(prev => ({ ...prev, solicitante: e.target.value }))} />
-              </label>
-              <label>
-                Nº Pedido
+              </div>
+              <div className="form-group">
+                <label>Nº Pedido</label>
                 <input type="text" value={compraForm.numPedido} onChange={e => setCompraForm(prev => ({ ...prev, numPedido: e.target.value }))} />
-              </label>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Categoria
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Categoria</label>
                 <input type="text" value={compraForm.categoria} onChange={e => setCompraForm(prev => ({ ...prev, categoria: e.target.value }))} />
-              </label>
-              <label>
-                Nº de Parcelas (se A Prazo)
+              </div>
+              <div className="form-group">
+                <label>Nº de Parcelas (se A Prazo)</label>
                 <input type="number" min="0" value={compraForm.numParcelas} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
-              </label>
+              </div>
             </div>
 
             <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -1648,35 +1856,27 @@ const Pernambucana = () => {
           <form className="modal-card glass" onSubmit={handleBoletoSubmit} style={{ maxWidth: '580px' }}>
             <h2>{boletoEditId ? 'Editar Boleto' : 'Novo Boleto (Contas/Despesas)'}</h2>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <label>
-                Vencimento
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Vencimento</label>
                 <input type="date" required value={boletoForm.dataVencimento} onChange={e => setBoletoForm(prev => ({ ...prev, dataVencimento: e.target.value }))} />
-              </label>
-              <label>
-                Status
-                <select value={boletoForm.status} onChange={e => setBoletoForm(prev => ({ ...prev, status: e.target.value, dataPagamento: e.target.value === 'Pago' ? hoje : '' }))}>
-                  <option value="Pendente">Pendente</option>
-                  <option value="Pago">Pago</option>
-                </select>
-              </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px', marginTop: '12px' }}>
-              <label>
-                Fornecedor
+              </div>
+              <div className="form-group">
+                <label>Fornecedor</label>
                 <input type="text" required value={boletoForm.fornecedor} onChange={e => setBoletoForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
-              </label>
-              <label>
-                Valor Total (Boleto)
-                <input type="number" step="0.01" required value={boletoForm.valorBoleto} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
-              </label>
+              </div>
             </div>
 
-            <label style={{ marginTop: '12px' }}>
-              Descrição da Despesa
-              <input type="text" required value={boletoForm.descricao} onChange={e => setBoletoForm(prev => ({ ...prev, descricao: e.target.value }))} />
-            </label>
+            <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-group">
+                <label>Valor Total (Boleto)</label>
+                <input type="number" step="0.01" required value={boletoForm.valorBoleto} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="form-group">
+                <label>Descrição da Despesa</label>
+                <input type="text" required value={boletoForm.descricao} onChange={e => setBoletoForm(prev => ({ ...prev, descricao: e.target.value }))} />
+              </div>
+            </div>
 
             {/* Checkbox multi-select for sectors rateio */}
             <div style={{ marginTop: '16px' }}>
@@ -1706,13 +1906,6 @@ const Pernambucana = () => {
               </small>
             </div>
 
-            {boletoForm.status === 'Pago' && (
-              <label style={{ marginTop: '12px' }}>
-                Data do Pagamento
-                <input type="date" value={boletoForm.dataPagamento} onChange={e => setBoletoForm(prev => ({ ...prev, dataPagamento: e.target.value }))} />
-              </label>
-            )}
-
             <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn ghost" type="button" onClick={() => setBoletoModal(false)}>Cancelar</button>
               <button className="btn primary" type="submit" disabled={boletoForm.setores.length === 0}>
@@ -1727,41 +1920,32 @@ const Pernambucana = () => {
       {importModal && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setImportModal(false)}></div>
-          <div className="modal-card glass" style={{ maxWidth: '680px' }}>
-            <h2>Importador de Planilha — Copie e Cole</h2>
-            
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
-              <label style={{ flex: 1 }}>
-                Tipo de Importação
-                <select value={importType} onChange={e => handleImportParse(importText, e.target.value)}>
-                  <option value="servicos">Serviços</option>
-                  <option value="compras">Compras</option>
-                  <option value="boletos">Boletos a Pagar</option>
-                </select>
-              </label>
+          <div className="modal-form-card glass" style={{ zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>Importar do Excel (Ctrl+V)</h3>
+              <button className="close" type="button" onClick={() => setImportModal(false)}>×</button>
             </div>
-
-            <label>
-              Cole as linhas copiadas da planilha Excel aqui (com ou sem cabeçalhos)
-              <textarea 
-                rows="8" 
-                placeholder="Copie as linhas da planilha Excel (CTRL+C) e cole (CTRL+V) nesta caixa..." 
-                value={importText}
-                onChange={e => handleImportParse(e.target.value)}
-                style={{ width: '100%', fontFamily: 'monospace', padding: '10px', fontSize: '11px', borderRadius: '12px', border: '1px solid var(--line)', background: 'rgba(0,0,0,.2)', color: '#fff', resize: 'vertical' }}
-              />
-            </label>
-
-            {importPreview && (
-              <div className="import-preview-box glass" style={{ marginTop: '12px', padding: '12px', borderRadius: '12px', border: '1px solid var(--line)', background: 'rgba(255,255,255,0.03)' }}>
-                {importPreview}
+            <div className="modal-body">
+              <div className="ag-import-type-selector">
+                {['servicos', 'compras', 'boletos'].map(t => (
+                  <button key={t} className={`ag-import-type-btn ${importType === t ? 'active' : ''}`}
+                    onClick={() => { setImportType(t); handleImportParse(importText, t); }}>
+                    {t === 'servicos' ? '🔧 Serviços' : t === 'compras' ? '🛒 Compras' : '📄 Boletos'}
+                  </button>
+                ))}
               </div>
-            )}
-
-            <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button className="btn ghost" onClick={() => setImportModal(false)}>Cancelar</button>
-              <button className="btn primary" onClick={confirmImport} disabled={parsedImportItems.length === 0}>
-                Confirmar Importação
+              <textarea
+                className="ag-import-area"
+                placeholder="Cole aqui os dados copiados do Excel (Ctrl+V)..."
+                value={importText}
+                onChange={(e) => handleImportParse(e.target.value, importType)}
+              />
+              {importPreview && <div style={{ marginTop: '16px' }}>{importPreview}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setImportModal(false)}>Cancelar</button>
+              <button className="btn primary" disabled={parsedImportItems.length === 0} onClick={confirmImport}>
+                Confirmar Importação ({parsedImportItems.length} registros)
               </button>
             </div>
           </div>

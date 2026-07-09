@@ -13,6 +13,7 @@ const Landing = () => {
   });
   
   const [modalOpen, setModalOpen] = useState(false);
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
   const [redirectTarget, setRedirectTarget] = useState('/pernambucana');
   const [selectedBrand, setSelectedBrand] = useState('pernambucana'); // 'pernambucana' or 'autogeral'
   const [email, setEmail] = useState('');
@@ -26,7 +27,7 @@ const Landing = () => {
   }, [whiteTheme]);
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && justLoggedIn) {
       // Auto-redirect AltoGeral users to the dedicated module
       if (currentUser.sector === 'AltoGeral' && !currentUser.isAdmin) {
         navigate('/autogeral');
@@ -34,7 +35,7 @@ const Landing = () => {
         navigate(redirectTarget);
       }
     }
-  }, [currentUser, navigate, redirectTarget]);
+  }, [currentUser, navigate, redirectTarget, justLoggedIn]);
 
   const openLogin = (target, brand) => {
     setRedirectTarget(target);
@@ -58,6 +59,7 @@ const Landing = () => {
 
     try {
       await login(email, password);
+      setJustLoggedIn(true);
     } catch (err) {
       console.error(err);
       setErrorMsg('Login (e-mail) ou senha inválidos.');
