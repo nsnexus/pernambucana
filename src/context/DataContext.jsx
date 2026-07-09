@@ -72,6 +72,17 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentUser) {
+      setServicos([]);
+      setCompras([]);
+      setBoletos([]);
+      setRecebiveis([]);
+      setLoading(true);
+      return;
+    }
+
+    setLoading(true);
+
     let unsubServs = () => {};
     let unsubComps = () => {};
     let unsubBols = () => {};
@@ -128,7 +139,7 @@ export const DataProvider = ({ children }) => {
       unsubBols();
       unsubRecs();
     };
-  }, []);
+  }, [currentUser]);
 
   // Seeding disabled to run in clean production mode
 

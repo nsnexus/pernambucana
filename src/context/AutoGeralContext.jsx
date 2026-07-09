@@ -41,6 +41,17 @@ export const AutoGeralProvider = ({ children }) => {
 
   // Real-time listeners for all 4 collections
   useEffect(() => {
+    if (!currentUser) {
+      setServicos([]);
+      setCompras([]);
+      setBoletos([]);
+      setRecebiveis([]);
+      setLoading(true);
+      return;
+    }
+
+    setLoading(true);
+
     if (!db) { setLoading(false); return; }
 
     let loadFlags = { s: false, c: false, b: false, r: false };
@@ -85,7 +96,7 @@ export const AutoGeralProvider = ({ children }) => {
     }, err => { console.error("AG recebiveis:", err); loadFlags.r = true; checkLoaded(); });
 
     return () => { unsubServicos(); unsubCompras(); unsubBoletos(); unsubRecebiveis(); };
-  }, []);
+  }, [currentUser]);
 
   // Retroactive migration to generate receivables for existing "a prazo" services with 0 installments/receivables
   const migrationRan = useRef(false);
