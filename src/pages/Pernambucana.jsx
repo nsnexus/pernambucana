@@ -1119,7 +1119,12 @@ const Pernambucana = () => {
     maintainAspectRatio: false,
     plugins: {
       legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', color: whiteTheme ? '#102033' : '#ffffff', font: { weight: 'bold' } } },
-      datalabels: { display: false },
+      datalabels: {
+        display: true,
+        color: whiteTheme ? '#102033' : '#ffffff',
+        font: { family: 'Inter', weight: 'bold', size: 9 },
+        formatter: (v) => !v ? '' : v >= 1000 ? `R$ ${(v/1000).toFixed(0)}k` : `R$ ${v.toFixed(0)}`
+      },
       tooltip: {
         callbacks: {
           label: (ctx) => `${ctx.dataset.label}: ${fmtMoney.format(ctx.raw)}`
