@@ -24,5 +24,10 @@
     "@vitejs/plugin-react": "^5.0.1",
     "vite": "^6.0.3",
     "wrangler": "4.107.1"
+  },
+  "overrides": {
+    "vite": {
+      "esbuild": "npm:esbuild-wasm@0.24.0"
+    }
   }
 }

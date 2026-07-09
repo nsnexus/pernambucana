@@ -1141,14 +1141,14 @@ const Pernambucana = () => {
                               {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.valorProdutivo || 0} onChange={e => handleGridCellChange(item.id, 'valorProdutivo', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                fmtMoney.format(item.valorProdutivo || item.valorTot)
+                                fmtMoney.format(parseFloat(item.valorProdutivo) || 0)
                               )}
                             </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.material || 0} onChange={e => handleGridCellChange(item.id, 'material', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                fmtMoney.format(item.material || item.valorMateri)
+                                fmtMoney.format(parseFloat(item.material) || 0)
                               )}
                             </td>
                             <td>
