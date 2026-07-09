@@ -224,6 +224,7 @@ export const DataProvider = ({ children }) => {
           };
           await setDoc(doc(db, 'compras', id), docData);
         });
+      }
     }
   }, [loading, servicos, compras]);
 
