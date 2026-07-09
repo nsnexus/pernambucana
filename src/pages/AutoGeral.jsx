@@ -433,8 +433,8 @@ const AutoGeral = () => {
   const parseExcelDate = (v) => {
     const s = String(v ?? '').trim();
     if (!s) return '';
-    // Match standard DD/MM/YYYY or MM/DD/YYYY formats
-    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    // Match standard DD/MM/YYYY or MM/DD/YYYY or DD.MM.YYYY formats
+    const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
     if (m) {
       const p1 = parseInt(m[1], 10);
       const p2 = parseInt(m[2], 10);

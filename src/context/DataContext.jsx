@@ -50,6 +50,9 @@ function addDays(dateStr, days) {
   if (dateStr.includes('/')) {
     const parts = dateStr.split('/');
     parsedDate = new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0);
+  } else if (dateStr.includes('.')) {
+    const parts = dateStr.split('.');
+    parsedDate = new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0);
   } else {
     parsedDate = new Date(dateStr + 'T12:00:00');
   }

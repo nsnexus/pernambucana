@@ -40,17 +40,17 @@ const DEPT_LABELS = {
   Caldeiraria: 'Caldeiraria'
 };
 
-// Date format parser (YYYY-MM-DD, DD/MM/YYYY, etc.)
+// Date format parser (YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, etc.)
 function parseYearMonth(dateStr) {
   if (!dateStr) return { year: '', month: 0, day: 0 };
   const s = String(dateStr).trim();
   
-  let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  let m = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
   if (m) {
     return { year: m[1], month: parseInt(m[2], 10), day: parseInt(m[3], 10) };
   }
   
-  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
   if (m) {
     const p1 = parseInt(m[1], 10);
     const p2 = parseInt(m[2], 10);
@@ -607,7 +607,7 @@ const Pernambucana = () => {
   const parseExcelDate = (v) => {
     let s = String(v ?? '').trim();
     if (!s) return '';
-    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
     if (m) {
       const p1 = parseInt(m[1], 10);
       const p2 = parseInt(m[2], 10);
@@ -634,11 +634,21 @@ const Pernambucana = () => {
 
     const lines = text.split(/\r?\n/).map(l => l.split('\t')).filter(cols => cols.length > 1 || (cols.length === 1 && cols[0].trim() !== ''));
     let startIndex = 0;
+    
+    const norm = (str) => String(str || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
     const firstRowHasHeaders = lines[0] && lines[0].some(cell => {
-      const c = String(cell || '').trim().toLowerCase();
-      return ['data', 'mês', 'mes', 'forma', 'cliente', 'material', 'fornecedor', 'valor', 'boleto', 'vencimento', 'lançamento'].includes(c);
+      const c = norm(cell);
+      return ['data', 'mes', 'forma', 'cliente', 'material', 'fornecedor', 'valor', 'boleto', 'vencimento', 'lancamento', 'setor', 'os'].includes(c);
     });
-    if (firstRowHasHeaders) startIndex = 1;
+
+    let headerMap = {};
+    if (firstRowHasHeaders) {
+      lines[0].forEach((cell, idx) => {
+        headerMap[norm(cell)] = idx;
+      });
+      startIndex = 1;
+    }
 
     if (lines.length <= startIndex) {
       setImportPreview(<span style={{ color: 'var(--red)' }}>Nenhum dado válido encontrado.</span>);
@@ -651,94 +661,231 @@ const Pernambucana = () => {
       const cols = lines[i];
       if (cols.length === 1 && cols[0].trim() === '') continue;
 
-      if (type === 'servicos') {
-        const colsCount = cols.length;
-        if (colsCount >= 14) {
-          // Format 1 (Retifica, Peças, Mecânica - 16 columns)
-          while (cols.length < 16) cols.push('');
-          const totalVal = parseExcelNumber(cols[10]);
-          const unitVal = parseExcelNumber(cols[9]);
-          const qtyVal = parseExcelNumber(cols[7]) || 1;
-          const pagamento = cleanCell(cols[3]);
-          const isPrazo = pagamento.toLowerCase().includes('prazo');
-
-          parsedList.push({
-            data: parseExcelDate(cols[0]),
-            mes: cleanCell(cols[1]),
-            setor: cleanCell(cols[2]) || 'Retifica',
-            pagamento: isPrazo ? 'À prazo' : 'À vista',
-            codigoServico: cleanCell(cols[4]),
-            cliente: cleanCell(cols[5]) || 'Cliente Importado',
-            descricao: cleanCell(cols[6]),
-            qtd: qtyVal,
-            os: cleanCell(cols[8]),
-            valorUnitario: unitVal || (totalVal / qtyVal) || 0,
-            valorTotal: totalVal || (unitVal * qtyVal) || 0,
-            produtivo: cleanCell(cols[11]),
-            valorProdutivo: parseExcelNumber(cols[12]),
-            desconto: parseExcelNumber(cols[13]),
-            material: parseExcelNumber(cols[14]),
-            tipoServico: cleanCell(cols[15]) || 'Serviços',
-            numParcelas: isPrazo ? 1 : 0
-          });
-        } else {
-          // Format 2 (Torneadora, Caldeiraria - 12 columns)
-          while (cols.length < 12) cols.push('');
-          const totalVal = parseExcelNumber(cols[7]);
-          const servVal = parseExcelNumber(cols[8]);
-          const prodVal = parseExcelNumber(cols[9]);
-          const matVal = parseExcelNumber(cols[10]);
-          const pagamento = cleanCell(cols[3]);
-          const isPrazo = pagamento.toLowerCase().includes('prazo');
-
-          parsedList.push({
-            data: parseExcelDate(cols[0]),
-            mes: cleanCell(cols[1]),
-            setor: cleanCell(cols[2]) || 'Torneadora',
-            pagamento: isPrazo ? 'À prazo' : 'À vista',
-            cliente: cleanCell(cols[4]) || 'Cliente Importado',
-            descricao: cleanCell(cols[5]),
-            os: cleanCell(cols[6]),
-            valorTotal: totalVal || (servVal + prodVal + matVal) || 0,
-            valorServicos: servVal,
-            valorPecas: prodVal,
-            material: matVal,
-            produtivo: cleanCell(cols[11]),
-            numParcelas: isPrazo ? 1 : 0
-          });
+      const getVal = (headerNames, fallbackIndex) => {
+        for (const name of headerNames) {
+          const normName = norm(name);
+          if (headerMap[normName] !== undefined) {
+            return cols[headerMap[normName]];
+          }
         }
-      } else if (type === 'compras') {
-        while (cols.length < 12) cols.push('');
-        const formComp = cleanCell(cols[3]);
-        const isPrazo = formComp.toLowerCase().includes('prazo');
+        if (fallbackIndex !== undefined && fallbackIndex < cols.length) {
+          return cols[fallbackIndex];
+        }
+        return '';
+      };
+
+      if (type === 'servicos') {
+        let dataVal = '';
+        let mesVal = '';
+        let setorVal = '';
+        let pagamentoVal = '';
+        let clienteVal = '';
+        let descricaoVal = '';
+        let osVal = '';
+        let qtdVal = 1;
+        let unitVal = 0;
+        let totalVal = 0;
+        let descontoVal = 0;
+        let produtivoVal = '';
+        let valorProdutivoVal = 0;
+        let materialVal = 0;
+        let tipoServicoVal = 'Serviços';
+
+        if (firstRowHasHeaders) {
+          dataVal = getVal(['data']);
+          mesVal = getVal(['mes']);
+          setorVal = getVal(['setor', 'lancamento', 'departamento']);
+          pagamentoVal = getVal(['pagamento', 'forma de compra', 'forma compra', 'forma']);
+          clienteVal = getVal(['cliente', 'nome do cliente', 'nome cliente']);
+          descricaoVal = getVal(['descricao', 'descricao do material', 'descricao material', 'material/servico']);
+          osVal = getVal(['os', 'nº da os', 'no da os', 'num os', 'nº os', 'no os', 'numero os']);
+          qtdVal = parseExcelNumber(getVal(['qtd', 'quantidade'])) || 1;
+          unitVal = parseExcelNumber(getVal(['valor unit.', 'valor unitario', 'valor unit']));
+          totalVal = parseExcelNumber(getVal(['valor total', 'valor da os', 'valor os', 'total', 'valor']));
+          descontoVal = parseExcelNumber(getVal(['desconto']));
+          produtivoVal = getVal(['produtivo', 'mecanico']);
+          valorProdutivoVal = parseExcelNumber(getVal(['comissao', 'valor produtivo']));
+          materialVal = parseExcelNumber(getVal(['material', 'valor material']));
+          tipoServicoVal = getVal(['tipo de servico', 'tipo servico']) || 'Serviços';
+        } else {
+          const count = cols.length;
+          if (count === 12) {
+            dataVal = cols[0];
+            mesVal = cols[1];
+            setorVal = cols[2];
+            pagamentoVal = cols[3];
+            clienteVal = cols[4];
+            descricaoVal = cols[5];
+            osVal = cols[6];
+            totalVal = parseExcelNumber(cols[7]);
+            unitVal = totalVal;
+            materialVal = parseExcelNumber(cols[10]);
+            produtivoVal = cols[11];
+            tipoServicoVal = setorVal || 'Torneadora';
+          } else if (count === 14) {
+            dataVal = cols[0];
+            setorVal = cols[1];
+            clienteVal = cols[2];
+            descricaoVal = cols[3];
+            tipoServicoVal = cols[4];
+            qtdVal = parseExcelNumber(cols[5]) || 1;
+            osVal = cols[6];
+            unitVal = parseExcelNumber(cols[7]);
+            totalVal = parseExcelNumber(cols[8]);
+            descontoVal = parseExcelNumber(cols[9]);
+            pagamentoVal = cols[10];
+            produtivoVal = cols[11];
+            valorProdutivoVal = parseExcelNumber(cols[12]);
+            materialVal = parseExcelNumber(cols[13]);
+          } else if (count === 15) {
+            dataVal = cols[0];
+            mesVal = cols[1];
+            setorVal = cols[2];
+            clienteVal = cols[3];
+            descricaoVal = cols[4];
+            tipoServicoVal = cols[5];
+            qtdVal = parseExcelNumber(cols[6]) || 1;
+            osVal = cols[7];
+            unitVal = parseExcelNumber(cols[8]);
+            totalVal = parseExcelNumber(cols[9]);
+            descontoVal = parseExcelNumber(cols[10]);
+            pagamentoVal = cols[11];
+            produtivoVal = cols[12];
+            valorProdutivoVal = parseExcelNumber(cols[13]);
+            materialVal = parseExcelNumber(cols[14]);
+          } else {
+            while (cols.length < 16) cols.push('');
+            dataVal = cols[0];
+            mesVal = cols[1];
+            setorVal = cols[2];
+            pagamentoVal = cols[3];
+            clienteVal = cols[5];
+            descricaoVal = cols[6];
+            qtdVal = parseExcelNumber(cols[7]) || 1;
+            osVal = cols[8];
+            unitVal = parseExcelNumber(cols[9]);
+            totalVal = parseExcelNumber(cols[10]);
+            produtivoVal = cols[11];
+            valorProdutivoVal = parseExcelNumber(cols[12]);
+            descontoVal = parseExcelNumber(cols[13]);
+            materialVal = parseExcelNumber(cols[14]);
+            tipoServicoVal = cols[15];
+          }
+        }
+
+        const isPrazo = norm(pagamentoVal).includes('prazo');
+
         parsedList.push({
-          data: parseExcelDate(cols[0]),
-          mes: cleanCell(cols[1]),
-          setor: cleanCell(cols[2]) || 'Mecanica',
+          data: parseExcelDate(dataVal),
+          mes: mesVal || getDateInfo(parseExcelDate(dataVal)).mesName,
+          setor: normalizeSector(setorVal) || 'Retifica',
+          pagamento: isPrazo ? 'À prazo' : 'À vista',
+          cliente: cleanCell(clienteVal) || 'Cliente Importado',
+          descricao: cleanCell(descricaoVal),
+          qtd: qtdVal,
+          os: cleanCell(osVal),
+          valorUnitario: unitVal || (totalVal / qtdVal) || 0,
+          valorTotal: totalVal || (unitVal * qtdVal) || 0,
+          produtivo: cleanCell(produtivoVal),
+          valorProdutivo: valorProdutivoVal || 0,
+          desconto: descontoVal || 0,
+          material: materialVal || 0,
+          tipoServico: cleanCell(tipoServicoVal) || 'Serviços',
+          numParcelas: isPrazo ? 1 : 0
+        });
+      } else if (type === 'compras') {
+        let dataVal = '';
+        let mesVal = '';
+        let setorVal = '';
+        let formaVal = '';
+        let solicitanteVal = '';
+        let descricaoVal = '';
+        let numOSVal = '';
+        let valorOSVal = 0;
+        let valorProdutoVal = 0;
+        let fornecedorVal = '';
+        let numPedidoVal = '';
+        let categoriaVal = 'Almoxarifado';
+
+        if (firstRowHasHeaders) {
+          dataVal = getVal(['data']);
+          mesVal = getVal(['mes']);
+          setorVal = getVal(['setor', 'lancamento']);
+          formaVal = getVal(['forma', 'forma de compra', 'forma compra', 'pagamento']);
+          solicitanteVal = getVal(['solicitante']);
+          descricaoVal = getVal(['descricao', 'descricao do material', 'descricao material']);
+          numOSVal = getVal(['os', 'nº da os', 'no da os', 'num os', 'nº os', 'no os', 'numero os']);
+          valorOSVal = parseExcelNumber(getVal(['valor os', 'valor da os']));
+          valorProdutoVal = parseExcelNumber(getVal(['valor produto', 'valor', 'valor peca', 'valor unitario']));
+          fornecedorVal = getVal(['fornecedor']);
+          numPedidoVal = getVal(['nº pedido', 'no pedido', 'num pedido', 'numero pedido']);
+          categoriaVal = getVal(['categoria']) || 'Almoxarifado';
+        } else {
+          while (cols.length < 12) cols.push('');
+          dataVal = cols[0];
+          mesVal = cols[1];
+          setorVal = cols[2];
+          formaVal = cols[3];
+          solicitanteVal = cols[4];
+          descricaoVal = cols[5];
+          numOSVal = cols[6];
+          valorOSVal = parseExcelNumber(cols[7]);
+          valorProdutoVal = parseExcelNumber(cols[8]);
+          fornecedorVal = cols[9];
+          numPedidoVal = cols[10];
+          categoriaVal = cols[11];
+        }
+
+        const isPrazo = norm(formaVal).includes('prazo');
+
+        parsedList.push({
+          data: parseExcelDate(dataVal),
+          mes: mesVal || getDateInfo(parseExcelDate(dataVal)).mesName,
+          setor: normalizeSector(setorVal) || 'Mecanica',
           formaCompra: isPrazo ? 'À prazo' : 'À vista',
-          solicitante: cleanCell(cols[4]),
-          descricao: cleanCell(cols[5]) || 'Compra Importada',
-          numOS: cleanCell(cols[6]),
-          valorOS: parseExcelNumber(cols[7]),
-          valorProduto: parseExcelNumber(cols[8]),
-          fornecedor: cleanCell(cols[9]),
-          numPedido: cleanCell(cols[10]),
-          categoria: cleanCell(cols[11]) || 'Almoxarifado',
+          solicitante: cleanCell(solicitanteVal),
+          descricao: cleanCell(descricaoVal) || 'Compra Importada',
+          numOS: cleanCell(numOSVal),
+          valorOS: valorOSVal || 0,
+          valorProduto: valorProdutoVal || 0,
+          fornecedor: cleanCell(fornecedorVal),
+          numPedido: cleanCell(numPedidoVal),
+          categoria: cleanCell(categoriaVal) || 'Almoxarifado',
           numParcelas: isPrazo ? 1 : 0
         });
       } else if (type === 'boletos') {
-        while (cols.length < 5) cols.push('');
-        const rawSetor = cleanCell(cols[4]);
-        const secsNormalized = parseBoletoSectors(rawSetor);
+        let mesVencVal = '';
+        let dataVencVal = '';
+        let fornecedorVal = '';
+        let valorBoletoVal = 0;
+        let setorVal = 'Todos';
+
+        if (firstRowHasHeaders) {
+          mesVencVal = getVal(['mes', 'mes vencimento', 'mesvencimento']);
+          dataVencVal = getVal(['data', 'data vencimento', 'datavencimento', 'vencimento']);
+          fornecedorVal = getVal(['fornecedor', 'nome fornecedor']);
+          valorBoletoVal = parseExcelNumber(getVal(['valor', 'valor boleto', 'valorboleto']));
+          setorVal = getVal(['setor', 'setores', 'lancamento']);
+        } else {
+          while (cols.length < 5) cols.push('');
+          mesVencVal = cols[0];
+          dataVencVal = cols[1];
+          fornecedorVal = cols[2];
+          valorBoletoVal = parseExcelNumber(cols[3]);
+          setorVal = cols[4];
+        }
+
+        const secsNormalized = parseBoletoSectors(setorVal);
+
         parsedList.push({
-          mesVencimento: cleanCell(cols[0]),
-          dataVencimento: parseExcelDate(cols[1]),
-          fornecedor: cleanCell(cols[2]),
-          valorBoleto: parseExcelNumber(cols[3]),
-          setor: rawSetor || 'Todos',
+          mesVencimento: cleanCell(mesVencVal),
+          dataVencimento: parseExcelDate(dataVencVal),
+          fornecedor: cleanCell(fornecedorVal),
+          valorBoleto: valorBoletoVal || 0,
+          setor: setorVal || 'Todos',
           setores: secsNormalized,
           status: 'Pago',
-          dataPagamento: parseExcelDate(cols[1])
+          dataPagamento: parseExcelDate(dataVencVal)
         });
       }
     }
