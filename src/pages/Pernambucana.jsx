@@ -99,13 +99,13 @@ const Pernambucana = () => {
   } = useData();
 
   // Filter out any AltoGeral / external data from Pernambucana context
-  const allServicos = useMemo(() => rawServicos.filter(s => normalizeSector(s.setor) !== 'altogeral'), [rawServicos, normalizeSector]);
-  const allCompras = useMemo(() => rawCompras.filter(c => normalizeSector(c.setor) !== 'altogeral'), [rawCompras, normalizeSector]);
+  const allServicos = useMemo(() => rawServicos.filter(s => normalizeSector(s.setor).toLowerCase() !== 'altogeral'), [rawServicos, normalizeSector]);
+  const allCompras = useMemo(() => rawCompras.filter(c => normalizeSector(c.setor).toLowerCase() !== 'altogeral'), [rawCompras, normalizeSector]);
   const allBoletos = useMemo(() => rawBoletos.filter(b => {
     const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
-    return secs.some(s => normalizeSector(s) !== 'altogeral');
+    return secs.some(s => normalizeSector(s).toLowerCase() !== 'altogeral');
   }), [rawBoletos, normalizeSector]);
-  const allRecebiveis = useMemo(() => rawRecebiveis.filter(r => normalizeSector(r.setor) !== 'altogeral'), [rawRecebiveis, normalizeSector]);
+  const allRecebiveis = useMemo(() => rawRecebiveis.filter(r => normalizeSector(r.setor).toLowerCase() !== 'altogeral'), [rawRecebiveis, normalizeSector]);
 
   // Theme
   const [whiteTheme, setWhiteTheme] = useState(() =>
