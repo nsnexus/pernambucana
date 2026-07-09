@@ -1052,6 +1052,13 @@ const Pernambucana = () => {
       return (yearFilter === 'all' || y === yearFilter) && sectorMatch;
     });
 
+    const cForYear = allCompras.filter(c => {
+      const y = c.data ? c.data.split('-')[0] : '';
+      const sectorMatch = deptFilter === 'all' || normalizeSector(c.setor) === deptFilter;
+      const isVista = !String(c.formaCompra || '').toLowerCase().includes('prazo');
+      return (yearFilter === 'all' || y === yearFilter) && sectorMatch && isVista;
+    });
+
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
     const dataEntradas = months.map(n => {
@@ -1071,7 +1078,11 @@ const Pernambucana = () => {
         const m = b.dataVencimento ? parseInt(b.dataVencimento.split('-')[1], 10) : null;
         return m === n;
       });
-      return bm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0);
+      const cm = cForYear.filter(c => {
+        const m = c.data ? parseInt(c.data.split('-')[1], 10) : null;
+        return m === n;
+      });
+      return bm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0) + cm.reduce((sum, x) => sum + (parseFloat(x.valorProduto) || 0), 0);
     });
 
     return {
@@ -1081,7 +1092,7 @@ const Pernambucana = () => {
         { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
       ]
     };
-  }, [allServicos, allBoletos, allRecebiveis, yearFilter, deptFilter]);
+  }, [allServicos, allBoletos, allRecebiveis, allCompras, yearFilter, deptFilter]);
 
   const chartFormaPgto = useMemo(() => {
     const sFiltered = dashboardStats.sFiltered;
