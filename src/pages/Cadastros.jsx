@@ -22,8 +22,15 @@ const Cadastros = () => {
     DEPARTMENTS,
     DEFAULT_DEPT_LABEL,
     MONTHS,
-    normalizeSector
+    normalizeSector,
+    enableRawQueries
   } = useData();
+
+  useEffect(() => {
+    if (enableRawQueries) {
+      enableRawQueries();
+    }
+  }, [enableRawQueries]);
 
   // Theme State
   const [whiteTheme, setWhiteTheme] = useState(() => {

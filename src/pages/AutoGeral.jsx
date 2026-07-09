@@ -39,8 +39,15 @@ const AutoGeral = () => {
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
     toggleRecebivel, deleteRecebivel,
-    importServicosFromExcel, importComprasFromExcel, importBoletosFromExcel
+    importServicosFromExcel, importComprasFromExcel, importBoletosFromExcel,
+    consolidado, rawQueriesActive, enableRawQueries
   } = useAutoGeral();
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard' && enableRawQueries) {
+      enableRawQueries();
+    }
+  }, [activeTab, enableRawQueries]);
 
   // Theme
   const [whiteTheme, setWhiteTheme] = useState(() =>
@@ -192,6 +199,65 @@ const AutoGeral = () => {
 
   // Recalculate Caixa stats dynamically based on month and year filters
   const dashboardStats = useMemo(() => {
+    if (!rawQueriesActive) {
+      let totalServicos = 0;
+      let totalServicoVista = 0;
+      let totalRecebido = 0;
+      let totalPendente = 0;
+      let totalVencido = 0;
+      let totalBoletos = 0;
+      let totalCompras = 0;
+      let entradas = 0;
+      let saidas = 0;
+      let saldo = 0;
+      let recebiveisVencidos = 0;
+      let recebiveisPendentes = 0;
+      let recebiveisRecebidos = 0;
+
+      consolidado.forEach(docData => {
+        const docY = docData.ano;
+        const docM = docData.mesNum;
+        const matchMonth = monthFilter === 'all' || String(docM) === monthFilter;
+        const matchYear = yearFilter === 'all' || String(docY) === yearFilter;
+        
+        if (matchMonth && matchYear) {
+          totalServicos += (docData.totalServicos || 0);
+          totalServicoVista += (docData.totalServicoVista || 0);
+          totalRecebido += (docData.totalRecebido || 0);
+          totalPendente += (docData.totalPendente || 0);
+          totalVencido += (docData.totalVencido || 0);
+          totalBoletos += (docData.totalBoletos || 0);
+          totalCompras += (docData.totalCompras || 0);
+          entradas += (docData.entradas || 0);
+          saidas += (docData.saidas || 0);
+          saldo += (docData.saldo || 0);
+          recebiveisVencidos += (docData.recebiveisVencidosCount || 0);
+          recebiveisPendentes += (docData.recebiveisPendentesCount || 0);
+          recebiveisRecebidos += (docData.recebiveisRecebidosCount || 0);
+        }
+      });
+
+      return {
+        totalServicos,
+        totalServicoVista,
+        totalRecebido,
+        totalPendente,
+        totalVencido,
+        totalBoletos,
+        totalCompras,
+        entradas,
+        saidas,
+        saldo,
+        recebiveisVencidos,
+        recebiveisPendentes,
+        recebiveisRecebidos,
+        sFiltered: [],
+        bFiltered: [],
+        rFiltered: [],
+        cFiltered: []
+      };
+    }
+
     const filterByMonthYear = (item, dateField) => {
       const dateStr = item[dateField];
       if (!dateStr) return false;
@@ -260,7 +326,7 @@ const AutoGeral = () => {
       rFiltered,
       cFiltered
     };
-  }, [servicos, compras, boletos, recebiveis, monthFilter, yearFilter]);
+  }, [servicos, compras, boletos, recebiveis, monthFilter, yearFilter, rawQueriesActive, consolidado]);
 
   // ── FILTERING ──
   const filterList = (list, extraFilter) => {
@@ -616,6 +682,25 @@ const AutoGeral = () => {
 
   // ── CHART DATA ──
   const chartCaixaMensal = useMemo(() => {
+    if (!rawQueriesActive) {
+      const months = Array.from({ length: 12 }, (_, i) => i + 1);
+      const dataEntradas = months.map(n => {
+        const docsForMonth = consolidado.filter(d => parseInt(d.mesNum, 10) === n && (yearFilter === 'all' || String(d.ano) === yearFilter));
+        return docsForMonth.reduce((sum, d) => sum + (d.entradas || 0), 0);
+      });
+      const dataSaidas = months.map(n => {
+        const docsForMonth = consolidado.filter(d => parseInt(d.mesNum, 10) === n && (yearFilter === 'all' || String(d.ano) === yearFilter));
+        return docsForMonth.reduce((sum, d) => sum + (d.saidas || 0), 0);
+      });
+      return {
+        labels: months.map(n => MONTHS[n - 1].slice(0, 3)),
+        datasets: [
+          { label: 'Entradas', data: dataEntradas, backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 },
+          { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
+        ]
+      };
+    }
+
     // Filter arrays by selected year for the monthly overview chart
     const sForYear = servicos.filter(s => {
       const y = s.data ? s.data.split('-')[0] : '';
@@ -660,9 +745,29 @@ const AutoGeral = () => {
         { label: 'Saídas', data: dataSaidas, backgroundColor: 'rgba(244,63,94,.8)', borderRadius: 8 }
       ]
     };
-  }, [servicos, boletos, recebiveis, yearFilter]);
+  }, [servicos, boletos, recebiveis, yearFilter, consolidado, rawQueriesActive]);
 
   const chartFormaPgto = useMemo(() => {
+    if (!rawQueriesActive) {
+      let pix = 0, cartao = 0, prazo = 0;
+      consolidado.forEach(docData => {
+        const docY = docData.ano;
+        const docM = docData.mesNum;
+        const matchMonth = monthFilter === 'all' || String(docM) === monthFilter;
+        const matchYear = yearFilter === 'all' || String(docY) === yearFilter;
+        if (matchMonth && matchYear) {
+          const f = docData.formaPgto || {};
+          pix += (f.pix || 0);
+          cartao += (f.cartao || 0);
+          prazo += (f.prazo || 0);
+        }
+      });
+      return {
+        labels: ['Pix', 'Cartão', 'À Prazo'],
+        datasets: [{ data: [pix, cartao, prazo], backgroundColor: ['rgba(78,226,71,.85)', 'rgba(59,130,246,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
+      };
+    }
+
     const sFiltered = dashboardStats.sFiltered;
     const pix = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('pix')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
     const cartao = sFiltered.filter(s => String(s.formaCompra || '').toLowerCase().includes('cart')).reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
@@ -671,9 +776,28 @@ const AutoGeral = () => {
       labels: ['Pix', 'Cartão', 'À Prazo'],
       datasets: [{ data: [pix, cartao, prazo], backgroundColor: ['rgba(78,226,71,.85)', 'rgba(59,130,246,.85)', 'rgba(245,158,11,.85)'], borderWidth: 0 }]
     };
-  }, [dashboardStats]);
+  }, [dashboardStats, consolidado, monthFilter, yearFilter, rawQueriesActive]);
 
   const chartRecebiveisStatus = useMemo(() => {
+    if (!rawQueriesActive) {
+      let pendente = 0, recebido = 0;
+      consolidado.forEach(docData => {
+        const docY = docData.ano;
+        const docM = docData.mesNum;
+        const matchMonth = monthFilter === 'all' || String(docM) === monthFilter;
+        const matchYear = yearFilter === 'all' || String(docY) === yearFilter;
+        if (matchMonth && matchYear) {
+          const status = docData.recebiveisStatus || {};
+          pendente += (status.pendente || 0);
+          recebido += (status.recebido || 0);
+        }
+      });
+      return {
+        labels: ['Pendente', 'Recebido'],
+        datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(78,226,71,.85)'], borderWidth: 0 }]
+      };
+    }
+
     const rFiltered = dashboardStats.rFiltered;
     const pendente = rFiltered.filter(r => r.status === 'Pendente').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
     const recebido = rFiltered.filter(r => r.status === 'Recebido').reduce((s, r) => s + (parseFloat(r.valorParcela) || 0), 0);
@@ -681,9 +805,30 @@ const AutoGeral = () => {
       labels: ['Pendente', 'Recebido'],
       datasets: [{ data: [pendente, recebido], backgroundColor: ['rgba(245,158,11,.85)', 'rgba(78,226,71,.85)'], borderWidth: 0 }]
     };
-  }, [dashboardStats]);
+  }, [dashboardStats, consolidado, monthFilter, yearFilter, rawQueriesActive]);
 
   const chartMecanicos = useMemo(() => {
+    if (!rawQueriesActive) {
+      const grouped = {};
+      consolidado.forEach(docData => {
+        const docY = docData.ano;
+        const docM = docData.mesNum;
+        const matchMonth = monthFilter === 'all' || String(docM) === monthFilter;
+        const matchYear = yearFilter === 'all' || String(docY) === yearFilter;
+        if (matchMonth && matchYear) {
+          const mecs = docData.mecanicos || {};
+          Object.entries(mecs).forEach(([name, val]) => {
+            grouped[name] = (grouped[name] || 0) + val;
+          });
+        }
+      });
+      const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      return {
+        labels: sorted.map(s => s[0]),
+        datasets: [{ label: 'Faturamento', data: sorted.map(s => s[1]), backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 }]
+      };
+    }
+
     const sFiltered = dashboardStats.sFiltered;
     const grouped = {};
     sFiltered.forEach(s => {
@@ -695,7 +840,7 @@ const AutoGeral = () => {
       labels: sorted.map(s => s[0]),
       datasets: [{ label: 'Faturamento', data: sorted.map(s => s[1]), backgroundColor: 'rgba(78,226,71,.8)', borderRadius: 8 }]
     };
-  }, [dashboardStats]);
+  }, [dashboardStats, consolidado, monthFilter, yearFilter, rawQueriesActive]);
 
   // ── RENDER HELPERS ──
   const renderPagination = (p) => (

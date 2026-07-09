@@ -95,8 +95,14 @@ const Pernambucana = () => {
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
-    toggleRecebivel, normalizeSector
+    toggleRecebivel, normalizeSector, enableRawQueries
   } = useData();
+
+  useEffect(() => {
+    if (enableRawQueries) {
+      enableRawQueries();
+    }
+  }, [enableRawQueries]);
 
   // Filter out any AltoGeral / external data from Pernambucana context
   const allServicos = useMemo(() => rawServicos.filter(s => normalizeSector(s.setor).toLowerCase() !== 'altogeral'), [rawServicos, normalizeSector]);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { db, useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -63,13 +63,311 @@ function addDays(dateStr, days) {
   return parsedDate.toISOString().split('T')[0];
 }
 
+function calculateConsolidationForPeriod(servList, compList) {
+  const payload = {
+    resumo: [],
+    servicos: [],
+    despesas: [],
+    folha: [],
+    produtivos: [],
+    custosFixos: []
+  };
+
+  const groups = {};
+
+  servList.forEach(s => {
+    const sec = normalizeSector(s.setor);
+    const mNum = parseInt(s.mesNum, 10);
+    if (!sec || !mNum) return;
+
+    const key = `${sec}|${mNum}`;
+    if (!groups[key]) {
+      groups[key] = {
+        codigo: '',
+        mesNum: mNum,
+        mes: s.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        receitaPrazo: 0,
+        receitaVista: 0,
+        comprasPrazo: 0,
+        comprasMes: 0,
+        saidasVista: 0,
+        folhaPagamento: 0,
+        custoFixo: 0,
+        imposto: 0,
+        alimentacao: 0,
+        materialOS: 0
+      };
+    }
+
+    const isPrazo = String(s.pagamento).toLowerCase().includes('prazo');
+    const val = parseFloat(s.valorTotal) || 0;
+    if (isPrazo) {
+      groups[key].receitaPrazo += val;
+    } else {
+      groups[key].receitaVista += val;
+    }
+  });
+
+  compList.forEach(c => {
+    const sec = normalizeSector(c.setor);
+    const mNum = parseInt(c.mesNum, 10);
+    if (!sec || !mNum) return;
+
+    const key = `${sec}|${mNum}`;
+    if (!groups[key]) {
+      groups[key] = {
+        codigo: '',
+        mesNum: mNum,
+        mes: c.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        receitaPrazo: 0,
+        receitaVista: 0,
+        comprasPrazo: 0,
+        comprasMes: 0,
+        saidasVista: 0,
+        folhaPagamento: 0,
+        custoFixo: 0,
+        imposto: 0,
+        alimentacao: 0,
+        materialOS: 0
+      };
+    }
+
+    const cat = String(c.categoria).trim();
+    const val = parseFloat(c.valorProduto) || 0;
+
+    if (cat === 'Folha de pagamento') {
+      groups[key].folhaPagamento += parseFloat(c.liquido) || val;
+    } else if (cat === 'Custo fixo') {
+      groups[key].custoFixo += val;
+    } else if (cat === 'Alimentação') {
+      groups[key].alimentacao += val;
+    } else if (cat === 'Material OS') {
+      groups[key].materialOS += val;
+    } else if (cat === 'Imposto') {
+      groups[key].imposto += val;
+    } else if (cat === 'Compras do mês') {
+      groups[key].comprasMes += val;
+    } else if (cat === 'Compras a prazo') {
+      groups[key].comprasPrazo += val;
+    } else if (cat === 'Saídas à vista') {
+      groups[key].saidasVista += val;
+    } else {
+      const isPrazo = String(c.formaCompra).toLowerCase().includes('prazo');
+      if (isPrazo) {
+        groups[key].comprasPrazo += val;
+      } else {
+        groups[key].saidasVista += val;
+      }
+    }
+  });
+
+  Object.keys(groups).forEach(key => {
+    const r = groups[key];
+    const prefix = (r.departamento.charAt(0) || 'A').toUpperCase();
+    r.codigo = `${prefix}${r.mesNum}`;
+    r.entradas = r.receitaPrazo + r.receitaVista;
+    r.retiradas = r.comprasPrazo + r.saidasVista + r.folhaPagamento + r.custoFixo + r.imposto + r.alimentacao;
+    r.resultado = r.entradas - r.retiradas;
+    payload.resumo.push(r);
+  });
+
+  const serviceGroups = {};
+  servList.forEach(s => {
+    const sec = normalizeSector(s.setor);
+    const mNum = parseInt(s.mesNum, 10);
+    const type = s.tipoServico || 'Serviços';
+    const cond = s.pagamento || 'À vista';
+    if (!sec || !mNum) return;
+
+    const key = `${sec}|${mNum}|${type}|${cond}`;
+    if (!serviceGroups[key]) {
+      const prefix = (sec.charAt(0) || 'A').toUpperCase();
+      serviceGroups[key] = {
+        codigo: `${prefix}${mNum}`,
+        mesNum: mNum,
+        mes: s.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        servico: type,
+        condicao: cond,
+        valor: 0
+      };
+    }
+    serviceGroups[key].valor += parseFloat(s.valorTotal) || 0;
+  });
+  payload.servicos = Object.values(serviceGroups).filter(x => x.valor > 0);
+
+  const despesasGroups = {};
+  compList.forEach(c => {
+    const sec = normalizeSector(c.setor);
+    const mNum = parseInt(c.mesNum, 10);
+    if (!sec || !mNum) return;
+
+    let cat = String(c.categoria).trim();
+    const val = parseFloat(c.valorProduto) || 0;
+
+    let mappedCat = cat;
+    let classe = 'Retirada';
+    let entraRes = true;
+
+    if (cat === 'Folha de pagamento') {
+      mappedCat = 'Folha de pagamento';
+    } else if (cat === 'Custo fixo') {
+      mappedCat = 'Custo fixo';
+    } else if (cat === 'Alimentação') {
+      mappedCat = 'Alimentação';
+    } else if (cat === 'Material OS') {
+      mappedCat = 'Material OS';
+      classe = 'Compra complementar';
+      entraRes = false;
+    } else if (cat === 'Imposto') {
+      mappedCat = 'Imposto';
+    } else if (cat === 'Compras do mês') {
+      mappedCat = 'Compras do mês';
+      classe = 'Compra complementar';
+      entraRes = false;
+    } else if (cat === 'Compras a prazo') {
+      mappedCat = 'Compras a prazo';
+    } else if (cat === 'Saídas à vista') {
+      mappedCat = 'Saídas à vista';
+    } else {
+      const isPrazo = String(c.formaCompra).toLowerCase().includes('prazo');
+      mappedCat = isPrazo ? 'Compras a prazo' : 'Saídas à vista';
+    }
+
+    const key = `${sec}|${mNum}|${mappedCat}`;
+    if (!despesasGroups[key]) {
+      const prefix = (sec.charAt(0) || 'A').toUpperCase();
+      despesasGroups[key] = {
+        codigo: `${prefix}${mNum}`,
+        mesNum: mNum,
+        mes: c.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        categoria: mappedCat,
+        valor: 0,
+        classe: classe,
+        entraResultado: entraRes
+      };
+    }
+    despesasGroups[key].valor += val;
+  });
+  payload.despesas = Object.values(despesasGroups).filter(x => x.valor > 0);
+
+  compList.filter(c => c.categoria === 'Folha de pagamento').forEach(c => {
+    const sec = normalizeSector(c.setor);
+    const mNum = parseInt(c.mesNum, 10);
+    const prefix = (sec.charAt(0) || 'A').toUpperCase();
+
+    payload.folha.push({
+      codigo: `${prefix}${mNum}`,
+      mesNum: mNum,
+      mes: c.mes || MONTHS[mNum - 1],
+      departamento: sec,
+      nome: c.funcionario || c.solicitante || 'Funcionário não identificado',
+      bruto: parseFloat(c.bruto) || 0,
+      desconto: parseFloat(c.desconto) || 0,
+      liquido: parseFloat(c.liquido) || parseFloat(c.valorProduto) || 0
+    });
+  });
+
+  const productiveGroups = {};
+  servList.forEach(s => {
+    const sec = normalizeSector(s.setor);
+    const mNum = parseInt(s.mesNum, 10);
+    const name = String(s.produtivo || '').trim();
+    if (!sec || !mNum || !name) return;
+
+    const key = `${sec}|${mNum}|${name}`;
+    if (!productiveGroups[key]) {
+      const prefix = (sec.charAt(0) || 'A').toUpperCase();
+      productiveGroups[key] = {
+        codigo: `${prefix}${mNum}`,
+        mesNum: mNum,
+        mes: s.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        nome: name,
+        prazo: 0,
+        vista: 0,
+        total: 0
+      };
+    }
+
+    const isPrazo = String(s.pagamento).toLowerCase().includes('prazo');
+    const val = parseFloat(s.valorProdutivo) || parseFloat(s.valorTotal) || 0;
+
+    if (isPrazo) {
+      productiveGroups[key].prazo += val;
+    } else {
+      productiveGroups[key].vista += val;
+    }
+    productiveGroups[key].total += val;
+  });
+  payload.produtivos = Object.values(productiveGroups);
+
+  const custosFixosGroups = {};
+  compList.filter(c => c.categoria === 'Custo fixo').forEach(c => {
+    const sec = normalizeSector(c.setor);
+    const mNum = parseInt(c.mesNum, 10);
+    if (!sec || !mNum) return;
+
+    const key = `${sec}|${mNum}`;
+    if (!custosFixosGroups[key]) {
+      const prefix = (sec.charAt(0) || 'A').toUpperCase();
+      custosFixosGroups[key] = {
+        codigo: `${prefix}${mNum}`,
+        mesNum: mNum,
+        mes: c.mes || MONTHS[mNum - 1],
+        departamento: sec,
+        valor: 0
+      };
+    }
+    custosFixosGroups[key].valor += parseFloat(c.valorProduto) || 0;
+  });
+  payload.custosFixos = Object.values(custosFixosGroups);
+
+  return payload;
+}
+
 export const DataProvider = ({ children }) => {
   const { currentUser } = useAuth();
   const [servicos, setServicos] = useState([]);
   const [compras, setCompras] = useState([]);
   const [boletos, setBoletos] = useState([]);
   const [recebiveis, setRecebiveis] = useState([]);
+  const [consolidado, setConsolidado] = useState([]);
+  const [rawQueriesActive, setRawQueriesActive] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const enableRawQueries = React.useCallback(() => {
+    setRawQueriesActive(true);
+  }, []);
+
+  const triggerConsolidationUpdate = async (dateStr) => {
+    if (!dateStr || dateStr.length < 7) return;
+    const yearMonth = dateStr.slice(0, 7);
+    try {
+      const start = `${yearMonth}-01`;
+      const end = `${yearMonth}-31`;
+      const [servsSnap, compsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'servicos'), where('data', '>=', start), where('data', '<=', end))),
+        getDocs(query(collection(db, 'compras'), where('data', '>=', start), where('data', '<=', end)))
+      ]);
+      const monthServs = [];
+      servsSnap.forEach(d => monthServs.push(d.data()));
+      const monthComps = [];
+      compsSnap.forEach(d => monthComps.push(d.data()));
+      const consolidatedData = calculateConsolidationForPeriod(monthServs, monthComps);
+      await setDoc(doc(db, 'p_consolidado_mensal', yearMonth), {
+        id: yearMonth,
+        ...consolidatedData,
+        atualizadoEm: new Date().toISOString()
+      });
+      console.log(`Consolidação mensal Pernambucana atualizada para ${yearMonth}`);
+    } catch (err) {
+      console.error("Erro ao atualizar consolidação mensal:", err);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -77,69 +375,83 @@ export const DataProvider = ({ children }) => {
       setCompras([]);
       setBoletos([]);
       setRecebiveis([]);
+      setConsolidado([]);
       setLoading(true);
       return;
     }
 
     setLoading(true);
 
+    let unsubConsolidado = () => {};
     let unsubServs = () => {};
     let unsubComps = () => {};
     let unsubBols = () => {};
     let unsubRecs = () => {};
 
-    let loadFlags = { s: false, c: false, b: false, r: false };
-    const checkLoaded = () => {
-      if (loadFlags.s && loadFlags.c && loadFlags.b && loadFlags.r) setLoading(false);
-    };
-
     if (db) {
-      unsubServs = onSnapshot(collection(db, 'servicos'), (snap) => {
+      unsubConsolidado = onSnapshot(collection(db, 'p_consolidado_mensal'), (snap) => {
         const list = [];
         snap.forEach(d => list.push(d.data()));
-        list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
-        setServicos(list);
-        loadFlags.s = true;
-        checkLoaded();
-      }, err => { console.error("Erro servicos:", err); loadFlags.s = true; checkLoaded(); });
+        setConsolidado(list);
+        if (!rawQueriesActive) {
+          setLoading(false);
+        }
+      }, err => { console.error("Erro consolidado:", err); if (!rawQueriesActive) setLoading(false); });
 
-      unsubComps = onSnapshot(collection(db, 'compras'), (snap) => {
-        const list = [];
-        snap.forEach(d => list.push(d.data()));
-        list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
-        setCompras(list);
-        loadFlags.c = true;
-        checkLoaded();
-      }, err => { console.error("Erro compras:", err); loadFlags.c = true; checkLoaded(); });
+      if (rawQueriesActive) {
+        let loadFlags = { s: false, c: false, b: false, r: false };
+        const checkLoaded = () => {
+          if (loadFlags.s && loadFlags.c && loadFlags.b && loadFlags.r) setLoading(false);
+        };
 
-      unsubBols = onSnapshot(collection(db, 'p_boletos'), (snap) => {
-        const list = [];
-        snap.forEach(d => list.push(d.data()));
-        list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
-        setBoletos(list);
-        loadFlags.b = true;
-        checkLoaded();
-      }, err => { console.error("Erro boletos:", err); loadFlags.b = true; checkLoaded(); });
+        unsubServs = onSnapshot(collection(db, 'servicos'), (snap) => {
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
+          setServicos(list);
+          loadFlags.s = true;
+          checkLoaded();
+        }, err => { console.error("Erro servicos:", err); loadFlags.s = true; checkLoaded(); });
 
-      unsubRecs = onSnapshot(collection(db, 'p_recebiveis'), (snap) => {
-        const list = [];
-        snap.forEach(d => list.push(d.data()));
-        list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
-        setRecebiveis(list);
-        loadFlags.r = true;
-        checkLoaded();
-      }, err => { console.error("Erro recebiveis:", err); loadFlags.r = true; checkLoaded(); });
+        unsubComps = onSnapshot(collection(db, 'compras'), (snap) => {
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => new Date(b.criadoEm || b.data) - new Date(a.criadoEm || a.data));
+          setCompras(list);
+          loadFlags.c = true;
+          checkLoaded();
+        }, err => { console.error("Erro compras:", err); loadFlags.c = true; checkLoaded(); });
+
+        unsubBols = onSnapshot(collection(db, 'p_boletos'), (snap) => {
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+          setBoletos(list);
+          loadFlags.b = true;
+          checkLoaded();
+        }, err => { console.error("Erro boletos:", err); loadFlags.b = true; checkLoaded(); });
+
+        unsubRecs = onSnapshot(collection(db, 'p_recebiveis'), (snap) => {
+          const list = [];
+          snap.forEach(d => list.push(d.data()));
+          list.sort((a, b) => new Date(a.dataVencimento) - new Date(b.dataVencimento));
+          setRecebiveis(list);
+          loadFlags.r = true;
+          checkLoaded();
+        }, err => { console.error("Erro recebiveis:", err); loadFlags.r = true; checkLoaded(); });
+      }
     } else {
       setLoading(false);
     }
 
     return () => {
+      unsubConsolidado();
       unsubServs();
       unsubComps();
       unsubBols();
       unsubRecs();
     };
-  }, [currentUser]);
+  }, [currentUser, rawQueriesActive]);
 
   // Seeding disabled to run in clean production mode
 
@@ -198,6 +510,15 @@ export const DataProvider = ({ children }) => {
     fixPending();
   }, [servicos, recebiveis, loading]);
 
+  const consolidationMigrationRan = React.useRef(false);
+  useEffect(() => {
+    if (loading || consolidado.length > 0 || !rawQueriesActive || consolidationMigrationRan.current) return;
+    if (servicos.length > 0 || compras.length > 0) {
+      consolidationMigrationRan.current = true;
+      runConsolidationMigration();
+    }
+  }, [loading, consolidado, rawQueriesActive, servicos, compras]);
+
   // Operations
   const addServico = async (item) => {
     const id = item.id || generateUUID();
@@ -253,10 +574,14 @@ export const DataProvider = ({ children }) => {
       }
     }
 
+    await triggerConsolidationUpdate(docData.data);
     return docData;
   };
 
   const updateServico = async (id, data) => {
+    const oldDoc = servicos.find(s => s.id === id);
+    const oldDate = oldDoc?.data;
+
     const dateInfo = data.data ? getDateInfo(data.data) : null;
     const docRef = doc(db, 'servicos', id);
     const updateData = {
@@ -274,14 +599,22 @@ export const DataProvider = ({ children }) => {
       updateData.valorUnitario = parseFloat(data.valorUnitario) || 0;
     }
     await setDoc(docRef, updateData, { merge: true });
+
+    if (oldDate) await triggerConsolidationUpdate(oldDate);
+    if (data.data) await triggerConsolidationUpdate(data.data);
   };
 
   const deleteServico = async (id) => {
+    const oldDoc = servicos.find(s => s.id === id);
+    const oldDate = oldDoc?.data;
+
     await deleteDoc(doc(db, 'servicos', id));
     // Delete associated receivables
     const recsToDelete = recebiveis.filter(r => r.servicoId === id);
     const promises = recsToDelete.map(r => deleteDoc(doc(db, 'p_recebiveis', r.id)));
     await Promise.all(promises);
+
+    if (oldDate) await triggerConsolidationUpdate(oldDate);
   };
 
   const toggleRecebivel = async (id, newStatus) => {
@@ -349,10 +682,14 @@ export const DataProvider = ({ children }) => {
       criadoPor: item.criadoPor || (currentUser ? currentUser.email : '')
     };
     await setDoc(doc(db, 'compras', id), docData);
+    await triggerConsolidationUpdate(docData.data);
     return docData;
   };
 
   const updateCompra = async (id, data) => {
+    const oldDoc = compras.find(c => c.id === id);
+    const oldDate = oldDoc?.data;
+
     const dateInfo = data.data ? getDateInfo(data.data) : null;
     const docRef = doc(db, 'compras', id);
     const updateData = {
@@ -364,10 +701,18 @@ export const DataProvider = ({ children }) => {
       updateData.mesNum = dateInfo.mesNum;
     }
     await setDoc(docRef, updateData, { merge: true });
+
+    if (oldDate) await triggerConsolidationUpdate(oldDate);
+    if (data.data) await triggerConsolidationUpdate(data.data);
   };
 
   const deleteCompra = async (id) => {
+    const oldDoc = compras.find(c => c.id === id);
+    const oldDate = oldDoc?.data;
+
     await deleteDoc(doc(db, 'compras', id));
+
+    if (oldDate) await triggerConsolidationUpdate(oldDate);
   };
 
   const clearAll = async () => {
@@ -406,258 +751,23 @@ export const DataProvider = ({ children }) => {
       custosFixos: []
     };
 
-    const groups = {};
-
-    servicos.forEach(s => {
-      const sec = normalizeSector(s.setor);
-      const mNum = parseInt(s.mesNum, 10);
-      if (!sec || !mNum) return;
-
-      const key = `${sec}|${mNum}`;
-      if (!groups[key]) {
-        groups[key] = {
-          codigo: '',
-          mesNum: mNum,
-          mes: s.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          receitaPrazo: 0,
-          receitaVista: 0,
-          comprasPrazo: 0,
-          comprasMes: 0,
-          saidasVista: 0,
-          folhaPagamento: 0,
-          custoFixo: 0,
-          imposto: 0,
-          alimentacao: 0,
-          materialOS: 0
-        };
-      }
-
-      const isPrazo = String(s.pagamento).toLowerCase().includes('prazo');
-      const val = parseFloat(s.valorTotal) || 0;
-      if (isPrazo) {
-        groups[key].receitaPrazo += val;
-      } else {
-        groups[key].receitaVista += val;
-      }
+    // Combine monthly consolidations
+    consolidado.forEach(docData => {
+      payload.resumo.push(...(docData.resumo || []));
+      payload.servicos.push(...(docData.servicos || []));
+      payload.despesas.push(...(docData.despesas || []));
+      payload.folha.push(...(docData.folha || []));
+      payload.produtivos.push(...(docData.produtivos || []));
+      payload.custosFixos.push(...(docData.custosFixos || []));
     });
 
-    compras.forEach(c => {
-      const sec = normalizeSector(c.setor);
-      const mNum = parseInt(c.mesNum, 10);
-      if (!sec || !mNum) return;
-
-      const key = `${sec}|${mNum}`;
-      if (!groups[key]) {
-        groups[key] = {
-          codigo: '',
-          mesNum: mNum,
-          mes: c.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          receitaPrazo: 0,
-          receitaVista: 0,
-          comprasPrazo: 0,
-          comprasMes: 0,
-          saidasVista: 0,
-          folhaPagamento: 0,
-          custoFixo: 0,
-          imposto: 0,
-          alimentacao: 0,
-          materialOS: 0
-        };
-      }
-
-      const cat = String(c.categoria).trim();
-      const val = parseFloat(c.valorProduto) || 0;
-
-      if (cat === 'Folha de pagamento') {
-        groups[key].folhaPagamento += parseFloat(c.liquido) || val;
-      } else if (cat === 'Custo fixo') {
-        groups[key].custoFixo += val;
-      } else if (cat === 'Alimentação') {
-        groups[key].alimentacao += val;
-      } else if (cat === 'Material OS') {
-        groups[key].materialOS += val;
-      } else if (cat === 'Imposto') {
-        groups[key].imposto += val;
-      } else if (cat === 'Compras do mês') {
-        groups[key].comprasMes += val;
-      } else if (cat === 'Compras a prazo') {
-        groups[key].comprasPrazo += val;
-      } else if (cat === 'Saídas à vista') {
-        groups[key].saidasVista += val;
-      } else {
-        const isPrazo = String(c.formaCompra).toLowerCase().includes('prazo');
-        if (isPrazo) {
-          groups[key].comprasPrazo += val;
-        } else {
-          groups[key].saidasVista += val;
-        }
-      }
-    });
-
-    Object.keys(groups).forEach(key => {
-      const r = groups[key];
-      const prefix = (r.departamento.charAt(0) || 'A').toUpperCase();
-      r.codigo = `${prefix}${r.mesNum}`;
-      r.entradas = r.receitaPrazo + r.receitaVista;
-      r.retiradas = r.comprasPrazo + r.saidasVista + r.folhaPagamento + r.custoFixo + r.imposto + r.alimentacao;
-      r.resultado = r.entradas - r.retiradas;
-      payload.resumo.push(r);
-    });
-
-    const serviceGroups = {};
-    servicos.forEach(s => {
-      const sec = normalizeSector(s.setor);
-      const mNum = parseInt(s.mesNum, 10);
-      const type = s.tipoServico || 'Serviços';
-      const cond = s.pagamento || 'À vista';
-      if (!sec || !mNum) return;
-
-      const key = `${sec}|${mNum}|${type}|${cond}`;
-      if (!serviceGroups[key]) {
-        const prefix = (sec.charAt(0) || 'A').toUpperCase();
-        serviceGroups[key] = {
-          codigo: `${prefix}${mNum}`,
-          mesNum: mNum,
-          mes: s.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          servico: type,
-          condicao: cond,
-          valor: 0
-        };
-      }
-      serviceGroups[key].valor += parseFloat(s.valorTotal) || 0;
-    });
-    payload.servicos = Object.values(serviceGroups).filter(x => x.valor > 0);
-
-    const despesasGroups = {};
-    compras.forEach(c => {
-      const sec = normalizeSector(c.setor);
-      const mNum = parseInt(c.mesNum, 10);
-      if (!sec || !mNum) return;
-
-      let cat = String(c.categoria).trim();
-      const val = parseFloat(c.valorProduto) || 0;
-
-      let mappedCat = cat;
-      let classe = 'Retirada';
-      let entraRes = true;
-
-      if (cat === 'Folha de pagamento') {
-        mappedCat = 'Folha de pagamento';
-      } else if (cat === 'Custo fixo') {
-        mappedCat = 'Custo fixo';
-      } else if (cat === 'Alimentação') {
-        mappedCat = 'Alimentação';
-      } else if (cat === 'Material OS') {
-        mappedCat = 'Material OS';
-        classe = 'Compra complementar';
-        entraRes = false;
-      } else if (cat === 'Imposto') {
-        mappedCat = 'Imposto';
-      } else if (cat === 'Compras do mês') {
-        mappedCat = 'Compras do mês';
-        classe = 'Compra complementar';
-        entraRes = false;
-      } else if (cat === 'Compras a prazo') {
-        mappedCat = 'Compras a prazo';
-      } else if (cat === 'Saídas à vista') {
-        mappedCat = 'Saídas à vista';
-      } else {
-        const isPrazo = String(c.formaCompra).toLowerCase().includes('prazo');
-        mappedCat = isPrazo ? 'Compras a prazo' : 'Saídas à vista';
-      }
-
-      const key = `${sec}|${mNum}|${mappedCat}`;
-      if (!despesasGroups[key]) {
-        const prefix = (sec.charAt(0) || 'A').toUpperCase();
-        despesasGroups[key] = {
-          codigo: `${prefix}${mNum}`,
-          mesNum: mNum,
-          mes: c.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          categoria: mappedCat,
-          valor: 0,
-          classe: classe,
-          entraResultado: entraRes
-        };
-      }
-      despesasGroups[key].valor += val;
-    });
-    payload.despesas = Object.values(despesasGroups).filter(x => x.valor > 0);
-
-    compras.filter(c => c.categoria === 'Folha de pagamento').forEach(c => {
-      const sec = normalizeSector(c.setor);
-      const mNum = parseInt(c.mesNum, 10);
-      const prefix = (sec.charAt(0) || 'A').toUpperCase();
-
-      payload.folha.push({
-        codigo: `${prefix}${mNum}`,
-        mesNum: mNum,
-        mes: c.mes || MONTHS[mNum - 1],
-        departamento: sec,
-        nome: c.funcionario || c.solicitante || 'Funcionário não identificado',
-        bruto: parseFloat(c.bruto) || 0,
-        desconto: parseFloat(c.desconto) || 0,
-        liquido: parseFloat(c.liquido) || parseFloat(c.valorProduto) || 0
-      });
-    });
-
-    const productiveGroups = {};
-    servicos.forEach(s => {
-      const sec = normalizeSector(s.setor);
-      const mNum = parseInt(s.mesNum, 10);
-      const name = String(s.produtivo || '').trim();
-      if (!sec || !mNum || !name) return;
-
-      const key = `${sec}|${mNum}|${name}`;
-      if (!productiveGroups[key]) {
-        const prefix = (sec.charAt(0) || 'A').toUpperCase();
-        productiveGroups[key] = {
-          codigo: `${prefix}${mNum}`,
-          mesNum: mNum,
-          mes: s.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          nome: name,
-          prazo: 0,
-          vista: 0,
-          total: 0
-        };
-      }
-
-      const isPrazo = String(s.pagamento).toLowerCase().includes('prazo');
-      const val = parseFloat(s.valorProdutivo) || parseFloat(s.valorTotal) || 0;
-
-      if (isPrazo) {
-        productiveGroups[key].prazo += val;
-      } else {
-        productiveGroups[key].vista += val;
-      }
-      productiveGroups[key].total += val;
-    });
-    payload.produtivos = Object.values(productiveGroups);
-
-    const custosFixosGroups = {};
-    compras.filter(c => c.categoria === 'Custo fixo').forEach(c => {
-      const sec = normalizeSector(c.setor);
-      const mNum = parseInt(c.mesNum, 10);
-      if (!sec || !mNum) return;
-
-      const key = `${sec}|${mNum}`;
-      if (!custosFixosGroups[key]) {
-        const prefix = (sec.charAt(0) || 'A').toUpperCase();
-        custosFixosGroups[key] = {
-          codigo: `${prefix}${mNum}`,
-          mesNum: mNum,
-          mes: c.mes || MONTHS[mNum - 1],
-          departamento: sec,
-          valor: 0
-        };
-      }
-      custosFixosGroups[key].valor += parseFloat(c.valorProduto) || 0;
-    });
-    payload.custosFixos = Object.values(custosFixosGroups);
+    // Sort summary arrays to keep chronological order
+    payload.resumo.sort((a, b) => a.mesNum - b.mesNum);
+    payload.servicos.sort((a, b) => a.mesNum - b.mesNum);
+    payload.despesas.sort((a, b) => a.mesNum - b.mesNum);
+    payload.folha.sort((a, b) => a.mesNum - b.mesNum);
+    payload.produtivos.sort((a, b) => a.mesNum - b.mesNum);
+    payload.custosFixos.sort((a, b) => a.mesNum - b.mesNum);
 
     const allDepts = Array.from(new Set(payload.resumo.map(r => r.departamento)));
     const extraDepts = allDepts.filter(d => !DEPARTMENTS.includes(d));
@@ -679,7 +789,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const hasData = () => {
-    return servicos.length > 0 || compras.length > 0;
+    return consolidado.length > 0 || servicos.length > 0;
   };
 
   const getFilteredServicos = () => {
@@ -728,6 +838,43 @@ export const DataProvider = ({ children }) => {
     return recebiveis.filter(r => currentUser.allowedSectors && currentUser.allowedSectors.includes(normalizeSector(r.setor)));
   };
 
+  const runConsolidationMigration = async () => {
+    try {
+      console.log("Iniciando migração de consolidação Pernambucana...");
+      const [servsSnap, compsSnap] = await Promise.all([
+        getDocs(collection(db, 'servicos')),
+        getDocs(collection(db, 'compras'))
+      ]);
+      
+      const allS = [];
+      servsSnap.forEach(d => allS.push(d.data()));
+      const allC = [];
+      compsSnap.forEach(d => allC.push(d.data()));
+      
+      const months = new Set();
+      allS.forEach(s => { if (s.data && s.data.length >= 7) months.add(s.data.slice(0, 7)); });
+      allC.forEach(c => { if (c.data && c.data.length >= 7) months.add(c.data.slice(0, 7)); });
+      
+      for (const yearMonth of months) {
+        const monthServs = allS.filter(s => s.data && s.data.startsWith(yearMonth));
+        const monthComps = allC.filter(c => c.data && c.data.startsWith(yearMonth));
+        
+        const consolidatedData = calculateConsolidationForPeriod(monthServs, monthComps);
+        await setDoc(doc(db, 'p_consolidado_mensal', yearMonth), {
+          id: yearMonth,
+          ...consolidatedData,
+          atualizadoEm: new Date().toISOString()
+        });
+        console.log(`Pernambucana: Consolidação gerada para ${yearMonth}`);
+      }
+      console.log("Migração de consolidação Pernambucana concluída com sucesso!");
+      return true;
+    } catch (err) {
+      console.error("Erro na migração Pernambucana:", err);
+      return false;
+    }
+  };
+
   const value = {
     servicos: getFilteredServicos(),
     compras: getFilteredCompras(),
@@ -737,6 +884,10 @@ export const DataProvider = ({ children }) => {
     allCompras: compras,
     allBoletos: boletos,
     allRecebiveis: recebiveis,
+    consolidado,
+    rawQueriesActive,
+    enableRawQueries,
+    runConsolidationMigration,
     loading,
     hasData,
     addServico,
