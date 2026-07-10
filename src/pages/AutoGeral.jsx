@@ -56,7 +56,9 @@ const AutoGeral = () => {
   const hoje = new Date().toISOString().split('T')[0];
 
   // Tabs
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    return currentUser?.isAdmin ? 'dashboard' : 'servicos';
+  });
 
   useEffect(() => {
     if (activeTab !== 'dashboard' && enableRawQueries) {
@@ -894,6 +896,17 @@ const AutoGeral = () => {
         <input type="search" placeholder="Buscar por OS, cliente, mecânico..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
       </label>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        {activeTab === 'boletos' && (
+          <button 
+            className="btn" 
+            type="button"
+            onClick={() => window.print()}
+            style={{ height: '38px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+            title="Imprimir todos os boletos filtrados"
+          >
+            🖨️ Imprimir
+          </button>
+        )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
             className={`btn ghost ${gridEditMode ? 'active' : ''}`}
@@ -946,12 +959,12 @@ const AutoGeral = () => {
         {/* Tab Navigation */}
         <div className="tab-nav">
           {[
-            { key: 'dashboard', label: '📊 Dashboard' },
+            currentUser?.isAdmin && { key: 'dashboard', label: '📊 Dashboard' },
             { key: 'servicos', label: '🔧 Serviços' },
             { key: 'compras', label: '🛒 Compras' },
             { key: 'boletos', label: '📄 Boletos a Pagar' },
             { key: 'recebiveis', label: '💰 Recebíveis' }
-          ].map(t => (
+          ].filter(Boolean).map(t => (
             <button key={t.key} className={`tab-btn ${activeTab === t.key ? 'active' : ''}`} onClick={() => { setActiveTab(t.key); setCurrentPage(1); }}>
               {t.label}
             </button>
@@ -959,7 +972,7 @@ const AutoGeral = () => {
         </div>
 
         {/* ═══ DASHBOARD ═══ */}
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && currentUser?.isAdmin && (
           <div>
             <div className="ag-section-header">
               <div>
@@ -1348,6 +1361,51 @@ const AutoGeral = () => {
                 </div>
               </div>
               {renderFilters()}
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Auto Geral — Relatório de Boletos a Pagar</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredBoletos.length} |{' '}
+                    <strong>Total a Pagar:</strong> {fmtMoney.format(filteredBoletos.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Fornecedor</th>
+                      <th>Descrição Material</th>
+                      <th>Valor Boleto</th>
+                      <th>Valor OS</th>
+                      <th>Cliente</th>
+                      <th>Vencimento</th>
+                      <th>Mês</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBoletos.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.nomeFornecedor || '-'}</td>
+                        <td>{item.descricaoMaterial || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorOS)}</td>
+                        <td>{item.nomeCliente || '-'}</td>
+                        <td>{item.dataVencimento || '-'}</td>
+                        <td>{item.mesVencimento || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
                   <table className="compact-table">
@@ -1689,7 +1747,18 @@ const Field = ({ label, type = 'text', value, onChange, options, readOnly, step 
         {options.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
       </select>
     ) : (
-      <input type={type} value={value} onChange={onChange} readOnly={readOnly} step={step} />
+      <input 
+        type={type} 
+        value={type === 'number' && value === 0 ? '' : value} 
+        onChange={onChange} 
+        readOnly={readOnly} 
+        step={step} 
+        onFocus={(e) => {
+          if (type === 'number') {
+            e.target.select();
+          }
+        }}
+      />
     )}
   </div>
 );

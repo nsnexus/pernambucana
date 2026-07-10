@@ -78,7 +78,7 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
             </>
           ) : isPernambucana ? (
             <>
-              {navLink('dashboard', 'Dashboard')}
+              {currentUser?.isAdmin && navLink('dashboard', 'Dashboard')}
               {navLink('servicos', 'Serviços')}
               {navLink('compras', 'Compras')}
               {navLink('boletos', 'Boletos')}

@@ -8,3 +8,97 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* --- PRINT STYLES --- */
+.print-only-container {
+  display: none;
+}
+
+@media print {
+  /* Hide all screen interface elements */
+  .topnav, 
+  .tab-nav, 
+  .ag-filters, 
+  .pagination, 
+  .details, 
+  .ag-section-header, 
+  .grid-save-bar, 
+  .toast, 
+  .bg-grid, 
+  .orb {
+    display: none !important;
+  }
+  
+  /* Reset body and layout container styling for printing */
+  body, 
+  .painel-layout, 
+  .main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  
+  /* Show print container */
+  .print-only-container {
+    display: block !important;
+    width: 100% !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    padding: 10px 0;
+  }
+
+  .print-header {
+    margin-bottom: 24px;
+    border-bottom: 2px solid #333333;
+    padding-bottom: 12px;
+  }
+
+  .print-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 22px;
+    color: #000000;
+  }
+
+  .print-header p {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #333333;
+  }
+
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 12px;
+  }
+
+  .print-table th, 
+  .print-table td {
+    border: 1px solid #cccccc !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    text-align: left;
+    color: #000000 !important;
+  }
+
+  .print-table th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table tr:nth-child(even) {
+    background-color: #f9fafb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table td.text-right {
+    text-align: right !important;
+  }
+}
+

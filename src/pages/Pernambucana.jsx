@@ -126,7 +126,9 @@ const Pernambucana = () => {
   const hoje = new Date().toISOString().split('T')[0];
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    return currentUser?.isAdmin ? 'dashboard' : 'servicos';
+  });
 
   // Filters
   const [monthFilter, setMonthFilter] = useState('all');
@@ -1256,6 +1258,17 @@ const Pernambucana = () => {
       </label>
 
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        {activeTab === 'boletos' && (
+          <button 
+            className="btn" 
+            type="button"
+            onClick={() => window.print()}
+            style={{ height: '38px', backgroundColor: '#1fb6ff', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+            title="Imprimir todos os boletos filtrados"
+          >
+            🖨️ Imprimir
+          </button>
+        )}
         {activeTab === 'servicos' && selectedServicos.length > 0 && (
           <button className="btn" onClick={handleDeleteSelectedServicos} style={{ background: '#f43f5e', color: '#fff' }}>
             🗑 Excluir Selecionados ({selectedServicos.length})
@@ -1316,7 +1329,7 @@ const Pernambucana = () => {
         {toastMessage && <div className="toast">{toastMessage}</div>}
 
         {/* ═══ DASHBOARD TAB ═══ */}
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && currentUser?.isAdmin && (
           <div>
             <div className="ag-section-header">
               <div>
@@ -1807,6 +1820,47 @@ const Pernambucana = () => {
                 </div>
               )}
 
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Pernambucana — Relatório de Boletos a Pagar</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {deptFilter !== 'all' ? ` | Setor: ${DEPT_LABELS[deptFilter] || deptFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredBoletos.length} |{' '}
+                    <strong>Total a Pagar:</strong> {fmtMoney.format(filteredBoletos.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Vencimento</th>
+                      <th>Fornecedor</th>
+                      <th>Descrição</th>
+                      <th>Valor Total</th>
+                      <th>Setor(es)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBoletos.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.dataVencimento || '-'}</td>
+                        <td>{item.fornecedor || '-'}</td>
+                        <td>{item.descricao || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
+                        <td>{item.setor || 'Todos'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
                   <table className="compact-table">
@@ -2054,7 +2108,7 @@ const Pernambucana = () => {
             <div className="form-grid" style={{ marginTop: '12px' }}>
               <div className="form-group">
                 <label>Quantidade</label>
-                <input type="number" value={servicoForm.qtd || 1} onChange={e => {
+                <input type="number" value={servicoForm.qtd || 1} onFocus={e => e.target.select()} onChange={e => {
                   const newQtd = parseInt(e.target.value) || 1;
                   const unit = parseFloat(servicoForm.valorUnitario) || 0;
                   setServicoForm(prev => ({ ...prev, qtd: newQtd, valorTotal: newQtd * unit }));
@@ -2062,7 +2116,7 @@ const Pernambucana = () => {
               </div>
               <div className="form-group">
                 <label>Valor Unitário</label>
-                <input type="number" step="0.01" value={servicoForm.valorUnitario} onChange={e => {
+                <input type="number" step="0.01" value={servicoForm.valorUnitario === 0 ? '' : servicoForm.valorUnitario} onFocus={e => e.target.select()} onChange={e => {
                   const newUnit = parseFloat(e.target.value) || 0;
                   const qVal = parseInt(servicoForm.qtd) || 1;
                   setServicoForm(prev => ({ ...prev, valorUnitario: newUnit, valorTotal: qVal * newUnit }));
@@ -2070,11 +2124,11 @@ const Pernambucana = () => {
               </div>
               <div className="form-group">
                 <label>Valor Total (Faturamento)</label>
-                <input type="number" step="0.01" required value={servicoForm.valorTotal} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" required value={servicoForm.valorTotal === 0 ? '' : servicoForm.valorTotal} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="form-group">
                 <label>Desconto</label>
-                <input type="number" step="0.01" value={servicoForm.desconto} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" value={servicoForm.desconto === 0 ? '' : servicoForm.desconto} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
               </div>
             </div>
 
@@ -2085,18 +2139,18 @@ const Pernambucana = () => {
               </div>
               <div className="form-group">
                 <label>Comissão (R$)</label>
-                <input type="number" step="0.01" value={servicoForm.valorProdutivo} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" value={servicoForm.valorProdutivo === 0 ? '' : servicoForm.valorProdutivo} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="form-group">
                 <label>Material Aplicado</label>
-                <input type="number" step="0.01" value={servicoForm.material} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" value={servicoForm.material === 0 ? '' : servicoForm.material} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
               </div>
             </div>
 
             <div className="form-grid" style={{ marginTop: '12px' }}>
               <div className="form-group" style={{ maxWidth: '50%' }}>
                 <label>Nº de Parcelas (se A Prazo)</label>
-                <input type="number" min="0" value={servicoForm.numParcelas} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
 
@@ -2156,7 +2210,7 @@ const Pernambucana = () => {
             <div className="form-grid" style={{ marginTop: '12px' }}>
               <div className="form-group">
                 <label>Valor do Produto/Peça</label>
-                <input type="number" step="0.01" required value={compraForm.valorProduto} onChange={e => setCompraForm(prev => ({ ...prev, valorProduto: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" required value={compraForm.valorProduto === 0 ? '' : compraForm.valorProduto} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, valorProduto: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="form-group">
                 <label>Solicitante</label>
@@ -2175,7 +2229,7 @@ const Pernambucana = () => {
               </div>
               <div className="form-group">
                 <label>Nº de Parcelas (se A Prazo)</label>
-                <input type="number" min="0" value={compraForm.numParcelas} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                <input type="number" min="0" value={compraForm.numParcelas === 0 ? '' : compraForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
 
@@ -2208,7 +2262,7 @@ const Pernambucana = () => {
             <div className="form-grid" style={{ marginTop: '12px' }}>
               <div className="form-group">
                 <label>Valor Total (Boleto)</label>
-                <input type="number" step="0.01" required value={boletoForm.valorBoleto} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
+                <input type="number" step="0.01" required value={boletoForm.valorBoleto === 0 ? '' : boletoForm.valorBoleto} onFocus={e => e.target.select()} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="form-group">
                 <label>Descrição da Despesa</label>
