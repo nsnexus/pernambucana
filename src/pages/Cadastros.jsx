@@ -834,6 +834,10 @@ const Cadastros = () => {
                   <label>Condição de Pagamento</label>
                   <select value={servicoForm.pagamento} onChange={(e) => setServicoForm(f => ({ ...f, pagamento: e.target.value }))}>
                     <option value="À vista">À vista</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    <option value="Cartão de Débito">Cartão de Débito</option>
                     <option value="À prazo">À prazo</option>
                   </select>
                 </div>
@@ -999,6 +1003,10 @@ const Cadastros = () => {
                       <label>Forma de Pagamento</label>
                       <select value={compraForm.formaCompra} onChange={(e) => setCompraForm(f => ({ ...f, formaCompra: e.target.value }))}>
                         <option value="À vista">À vista</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Cartão de Crédito">Cartão de Crédito</option>
+                        <option value="Cartão de Débito">Cartão de Débito</option>
                         <option value="À prazo">À prazo</option>
                       </select>
                     </div>

@@ -1132,6 +1132,8 @@ const AutoGeral = () => {
                                 <select value={rowData.formaCompra || 'Pix'} onChange={e => handleGridCellChange(item.id, 'formaCompra', e.target.value)} className="ag-grid-input">
                                   <option value="Pix">Pix</option>
                                   <option value="Cartão de Crédito">Cartão de Crédito</option>
+                                  <option value="Cartão de Débito">Cartão de Débito</option>
+                                  <option value="Dinheiro">Dinheiro</option>
                                   <option value="à Prazo">à Prazo</option>
                                 </select>
                               ) : (
@@ -1262,6 +1264,9 @@ const AutoGeral = () => {
                               {gridEditMode ? (
                                 <select value={rowData.formaCompra || 'Pix'} onChange={e => handleGridCellChange(item.id, 'formaCompra', e.target.value)} className="ag-grid-input">
                                   <option value="Pix">Pix</option>
+                                  <option value="Cartão de Crédito">Cartão de Crédito</option>
+                                  <option value="Cartão de Débito">Cartão de Débito</option>
+                                  <option value="Dinheiro">Dinheiro</option>
                                   <option value="à Prazo">à Prazo</option>
                                 </select>
                               ) : (
@@ -1595,7 +1600,7 @@ const AutoGeral = () => {
             <div className="modal-body">
               <div className="form-grid">
                 <Field label="Data" type="date" value={servicoForm.data} onChange={e => setServicoForm({...servicoForm, data: e.target.value})} />
-                <Field label="Forma de Compra" value={servicoForm.formaCompra} onChange={e => setServicoForm({...servicoForm, formaCompra: e.target.value})} options={['Pix', 'Cartão de Crédito', 'à Prazo']} />
+                <Field label="Forma de Compra" value={servicoForm.formaCompra} onChange={e => setServicoForm({...servicoForm, formaCompra: e.target.value})} options={['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'à Prazo']} />
                 <Field label="Nome do Cliente" value={servicoForm.nomeCliente} onChange={e => setServicoForm({...servicoForm, nomeCliente: e.target.value})} />
                 <Field label="Descrição do Material" value={servicoForm.descricaoMaterial} onChange={e => setServicoForm({...servicoForm, descricaoMaterial: e.target.value})} />
                 <Field label="Nº da OS" value={servicoForm.numOS} onChange={e => setServicoForm({...servicoForm, numOS: e.target.value})} />
@@ -1633,7 +1638,7 @@ const AutoGeral = () => {
             <div className="modal-body">
               <div className="form-grid">
                 <Field label="Data" type="date" value={compraForm.data} onChange={e => setCompraForm({...compraForm, data: e.target.value})} />
-                <Field label="Forma de Compra" value={compraForm.formaCompra} onChange={e => setCompraForm({...compraForm, formaCompra: e.target.value})} options={['Pix', 'à Prazo']} />
+                <Field label="Forma de Compra" value={compraForm.formaCompra} onChange={e => setCompraForm({...compraForm, formaCompra: e.target.value})} options={['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'à Prazo']} />
                 <Field label="Nome do Cliente" value={compraForm.nomeCliente} onChange={e => setCompraForm({...compraForm, nomeCliente: e.target.value})} />
                 <Field label="Descrição do Material" value={compraForm.descricaoMaterial} onChange={e => setCompraForm({...compraForm, descricaoMaterial: e.target.value})} />
                 <Field label="Nº da OS" value={compraForm.numOS} onChange={e => setCompraForm({...compraForm, numOS: e.target.value})} />

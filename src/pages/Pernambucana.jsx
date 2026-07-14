@@ -1603,6 +1603,10 @@ const Pernambucana = () => {
                               {gridEditMode ? (
                                 <select value={rowData.pagamento || 'À vista'} onChange={e => handleGridCellChange(item.id, 'pagamento', e.target.value)} className="ag-grid-input">
                                   <option value="À vista">À vista</option>
+                                  <option value="Pix">Pix</option>
+                                  <option value="Dinheiro">Dinheiro</option>
+                                  <option value="Cartão de Crédito">Cartão de Crédito</option>
+                                  <option value="Cartão de Débito">Cartão de Débito</option>
                                   <option value="À prazo">À prazo</option>
                                 </select>
                               ) : (
@@ -1765,6 +1769,10 @@ const Pernambucana = () => {
                               {gridEditMode ? (
                                 <select value={rowData.formaCompra || 'À vista'} onChange={e => handleGridCellChange(item.id, 'formaCompra', e.target.value)} className="ag-grid-input">
                                   <option value="À vista">À vista</option>
+                                  <option value="Pix">Pix</option>
+                                  <option value="Dinheiro">Dinheiro</option>
+                                  <option value="Cartão de Crédito">Cartão de Crédito</option>
+                                  <option value="Cartão de Débito">Cartão de Débito</option>
                                   <option value="À prazo">À prazo</option>
                                 </select>
                               ) : (
@@ -2060,101 +2068,95 @@ const Pernambucana = () => {
       {servicoModal && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setServicoModal(false)}></div>
-          <form className="modal-card glass" onSubmit={handleServicoSubmit} style={{ maxWidth: '680px' }}>
-            <h2>{servicoEditId ? 'Editar Serviço' : 'Novo Serviço Setorial'}</h2>
+          <form className="modal-form-card glass" onSubmit={handleServicoSubmit} style={{ zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>{servicoEditId ? 'Editar Serviço' : 'Novo Serviço Setorial'}</h3>
+              <button className="close" type="button" onClick={() => setServicoModal(false)}>×</button>
+            </div>
             
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Data</label>
-                <input type="date" required value={servicoForm.data} onChange={e => setServicoForm(prev => ({ ...prev, data: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Setor do Serviço</label>
-                <select value={servicoForm.setor} onChange={e => setServicoForm(prev => ({ ...prev, setor: e.target.value }))}>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Cliente</label>
-                <input type="text" required value={servicoForm.cliente} onChange={e => setServicoForm(prev => ({ ...prev, cliente: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Condição de Pagamento</label>
-                <select value={servicoForm.pagamento} onChange={e => setServicoForm(prev => ({ ...prev, pagamento: e.target.value }))}>
-                  <option value="À vista">À vista</option>
-                  <option value="À prazo">À prazo</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group" style={{ flex: 1.5 }}>
-                <label>Descrição dos Serviços</label>
-                <input type="text" required value={servicoForm.descricao} onChange={e => setServicoForm(prev => ({ ...prev, descricao: e.target.value }))} />
-              </div>
-              <div className="form-group" style={{ flex: 0.8 }}>
-                <label>Tipo de Serviço</label>
-                <input type="text" value={servicoForm.tipoServico} onChange={e => setServicoForm(prev => ({ ...prev, tipoServico: e.target.value }))} />
-              </div>
-              <div className="form-group" style={{ flex: 0.7 }}>
-                <label>OS</label>
-                <input type="text" value={servicoForm.os} onChange={e => setServicoForm(prev => ({ ...prev, os: e.target.value }))} />
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Quantidade</label>
-                <input type="number" value={servicoForm.qtd || 1} onFocus={e => e.target.select()} onChange={e => {
-                  const newQtd = parseInt(e.target.value) || 1;
-                  const unit = parseFloat(servicoForm.valorUnitario) || 0;
-                  setServicoForm(prev => ({ ...prev, qtd: newQtd, valorTotal: newQtd * unit }));
-                }} />
-              </div>
-              <div className="form-group">
-                <label>Valor Unitário</label>
-                <input type="number" step="0.01" value={servicoForm.valorUnitario === 0 ? '' : servicoForm.valorUnitario} onFocus={e => e.target.select()} onChange={e => {
-                  const newUnit = parseFloat(e.target.value) || 0;
-                  const qVal = parseInt(servicoForm.qtd) || 1;
-                  setServicoForm(prev => ({ ...prev, valorUnitario: newUnit, valorTotal: qVal * newUnit }));
-                }} />
-              </div>
-              <div className="form-group">
-                <label>Valor Total (Faturamento)</label>
-                <input type="number" step="0.01" required value={servicoForm.valorTotal === 0 ? '' : servicoForm.valorTotal} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="form-group">
-                <label>Desconto</label>
-                <input type="number" step="0.01" value={servicoForm.desconto === 0 ? '' : servicoForm.desconto} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Mecânico/Produtivo</label>
-                <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Comissão (R$)</label>
-                <input type="number" step="0.01" value={servicoForm.valorProdutivo === 0 ? '' : servicoForm.valorProdutivo} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="form-group">
-                <label>Material Aplicado</label>
-                <input type="number" step="0.01" value={servicoForm.material === 0 ? '' : servicoForm.material} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Data</label>
+                  <input type="date" required value={servicoForm.data} onChange={e => setServicoForm(prev => ({ ...prev, data: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Setor do Serviço</label>
+                  <select value={servicoForm.setor} onChange={e => setServicoForm(prev => ({ ...prev, setor: e.target.value }))}>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Cliente</label>
+                  <input type="text" required value={servicoForm.cliente} onChange={e => setServicoForm(prev => ({ ...prev, cliente: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Condição de Pagamento</label>
+                  <select value={servicoForm.pagamento} onChange={e => setServicoForm(prev => ({ ...prev, pagamento: e.target.value }))}>
+                    <option value="À vista">À vista</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    <option value="Cartão de Débito">Cartão de Débito</option>
+                    <option value="À prazo">À prazo</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1.5 }}>
+                  <label>Descrição dos Serviços</label>
+                  <input type="text" required value={servicoForm.descricao} onChange={e => setServicoForm(prev => ({ ...prev, descricao: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ flex: 0.8 }}>
+                  <label>Tipo de Serviço</label>
+                  <input type="text" value={servicoForm.tipoServico} onChange={e => setServicoForm(prev => ({ ...prev, tipoServico: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ flex: 0.7 }}>
+                  <label>OS</label>
+                  <input type="text" value={servicoForm.os} onChange={e => setServicoForm(prev => ({ ...prev, os: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Quantidade</label>
+                  <input type="number" value={servicoForm.qtd || 1} onFocus={e => e.target.select()} onChange={e => {
+                    const newQtd = parseInt(e.target.value) || 1;
+                    const unit = parseFloat(servicoForm.valorUnitario) || 0;
+                    setServicoForm(prev => ({ ...prev, qtd: newQtd, valorTotal: newQtd * unit }));
+                  }} />
+                </div>
+                <div className="form-group">
+                  <label>Valor Unitário</label>
+                  <input type="number" step="0.01" value={servicoForm.valorUnitario === 0 ? '' : servicoForm.valorUnitario} onFocus={e => e.target.select()} onChange={e => {
+                    const newUnit = parseFloat(e.target.value) || 0;
+                    const qVal = parseInt(servicoForm.qtd) || 1;
+                    setServicoForm(prev => ({ ...prev, valorUnitario: newUnit, valorTotal: qVal * newUnit }));
+                  }} />
+                </div>
+                <div className="form-group">
+                  <label>Valor Total (Faturamento)</label>
+                  <input type="number" step="0.01" required value={servicoForm.valorTotal === 0 ? '' : servicoForm.valorTotal} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Desconto</label>
+                  <input type="number" step="0.01" value={servicoForm.desconto === 0 ? '' : servicoForm.desconto} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Mecânico/Produtivo</label>
+                  <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Comissão (R$)</label>
+                  <input type="number" step="0.01" value={servicoForm.valorProdutivo === 0 ? '' : servicoForm.valorProdutivo} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Material Aplicado</label>
+                  <input type="number" step="0.01" value={servicoForm.material === 0 ? '' : servicoForm.material} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Nº de Parcelas (se A Prazo)</label>
+                  <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                </div>
               </div>
             </div>
 
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group" style={{ maxWidth: '50%' }}>
-                <label>Nº de Parcelas (se A Prazo)</label>
-                <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
-              </div>
-            </div>
-
-            <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setServicoModal(false)}>Cancelar</button>
               <button className="btn primary" type="submit">Confirmar</button>
             </div>
@@ -2166,74 +2168,71 @@ const Pernambucana = () => {
       {compraModal && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setCompraModal(false)}></div>
-          <form className="modal-card glass" onSubmit={handleCompraSubmit} style={{ maxWidth: '600px' }}>
-            <h2>{compraEditId ? 'Editar Compra' : 'Nova Compra de Peças'}</h2>
+          <form className="modal-form-card glass" onSubmit={handleCompraSubmit} style={{ zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>{compraEditId ? 'Editar Compra' : 'Nova Compra de Peças'}</h3>
+              <button className="close" type="button" onClick={() => setCompraModal(false)}>×</button>
+            </div>
             
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Data</label>
-                <input type="date" required value={compraForm.data} onChange={e => setCompraForm(prev => ({ ...prev, data: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Setor</label>
-                <select value={compraForm.setor} onChange={e => setCompraForm(prev => ({ ...prev, setor: e.target.value }))}>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Fornecedor</label>
-                <input type="text" required value={compraForm.fornecedor} onChange={e => setCompraForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Forma de Compra</label>
-                <select value={compraForm.formaCompra} onChange={e => setCompraForm(prev => ({ ...prev, formaCompra: e.target.value }))}>
-                  <option value="À vista">À vista</option>
-                  <option value="À prazo">À prazo</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Descrição do Material</label>
-                <input type="text" required value={compraForm.descricao} onChange={e => setCompraForm(prev => ({ ...prev, descricao: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Nº OS</label>
-                <input type="text" value={compraForm.numOS} onChange={e => setCompraForm(prev => ({ ...prev, numOS: e.target.value }))} />
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Valor do Produto/Peça</label>
-                <input type="number" step="0.01" required value={compraForm.valorProduto === 0 ? '' : compraForm.valorProduto} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, valorProduto: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="form-group">
-                <label>Solicitante</label>
-                <input type="text" value={compraForm.solicitante} onChange={e => setCompraForm(prev => ({ ...prev, solicitante: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Nº Pedido</label>
-                <input type="text" value={compraForm.numPedido} onChange={e => setCompraForm(prev => ({ ...prev, numPedido: e.target.value }))} />
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Categoria</label>
-                <input type="text" value={compraForm.categoria} onChange={e => setCompraForm(prev => ({ ...prev, categoria: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Nº de Parcelas (se A Prazo)</label>
-                <input type="number" min="0" value={compraForm.numParcelas === 0 ? '' : compraForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Data</label>
+                  <input type="date" required value={compraForm.data} onChange={e => setCompraForm(prev => ({ ...prev, data: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Setor</label>
+                  <select value={compraForm.setor} onChange={e => setCompraForm(prev => ({ ...prev, setor: e.target.value }))}>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Fornecedor</label>
+                  <input type="text" required value={compraForm.fornecedor} onChange={e => setCompraForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Forma de Compra</label>
+                  <select value={compraForm.formaCompra} onChange={e => setCompraForm(prev => ({ ...prev, formaCompra: e.target.value }))}>
+                    <option value="À vista">À vista</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    <option value="Cartão de Débito">Cartão de Débito</option>
+                    <option value="À prazo">À prazo</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Descrição do Material</label>
+                  <input type="text" required value={compraForm.descricao} onChange={e => setCompraForm(prev => ({ ...prev, descricao: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Nº OS</label>
+                  <input type="text" value={compraForm.numOS} onChange={e => setCompraForm(prev => ({ ...prev, numOS: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Valor do Produto/Peça</label>
+                  <input type="number" step="0.01" required value={compraForm.valorProduto === 0 ? '' : compraForm.valorProduto} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, valorProduto: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Solicitante</label>
+                  <input type="text" value={compraForm.solicitante} onChange={e => setCompraForm(prev => ({ ...prev, solicitante: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Nº Pedido</label>
+                  <input type="text" value={compraForm.numPedido} onChange={e => setCompraForm(prev => ({ ...prev, numPedido: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Categoria</label>
+                  <input type="text" value={compraForm.categoria} onChange={e => setCompraForm(prev => ({ ...prev, categoria: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Nº de Parcelas (se A Prazo)</label>
+                  <input type="number" min="0" value={compraForm.numParcelas === 0 ? '' : compraForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                </div>
               </div>
             </div>
 
-            <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setCompraModal(false)}>Cancelar</button>
               <button className="btn primary" type="submit">Confirmar</button>
             </div>
@@ -2245,60 +2244,62 @@ const Pernambucana = () => {
       {boletoModal && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setBoletoModal(false)}></div>
-          <form className="modal-card glass" onSubmit={handleBoletoSubmit} style={{ maxWidth: '580px' }}>
-            <h2>{boletoEditId ? 'Editar Boleto' : 'Novo Boleto (Contas/Despesas)'}</h2>
+          <form className="modal-form-card glass" onSubmit={handleBoletoSubmit} style={{ zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>{boletoEditId ? 'Editar Boleto' : 'Novo Boleto (Contas/Despesas)'}</h3>
+              <button className="close" type="button" onClick={() => setBoletoModal(false)}>×</button>
+            </div>
             
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Vencimento</label>
-                <input type="date" required value={boletoForm.dataVencimento} onChange={e => setBoletoForm(prev => ({ ...prev, dataVencimento: e.target.value }))} />
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Vencimento</label>
+                  <input type="date" required value={boletoForm.dataVencimento} onChange={e => setBoletoForm(prev => ({ ...prev, dataVencimento: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Fornecedor</label>
+                  <input type="text" required value={boletoForm.fornecedor} onChange={e => setBoletoForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Valor Total (Boleto)</label>
+                  <input type="number" step="0.01" required value={boletoForm.valorBoleto === 0 ? '' : boletoForm.valorBoleto} onFocus={e => e.target.select()} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group">
+                  <label>Descrição da Despesa</label>
+                  <input type="text" required value={boletoForm.descricao} onChange={e => setBoletoForm(prev => ({ ...prev, descricao: e.target.value }))} />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Fornecedor</label>
-                <input type="text" required value={boletoForm.fornecedor} onChange={e => setBoletoForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
+
+              {/* Checkbox multi-select for sectors rateio */}
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Setores Beneficiados (Divisão de Custo / Rateio)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  {DEPARTMENTS.map(d => {
+                    const checked = boletoForm.setores.includes(d);
+                    return (
+                      <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={() => {
+                            const list = checked 
+                              ? boletoForm.setores.filter(x => x !== d)
+                              : [...boletoForm.setores, d];
+                            setBoletoForm(prev => ({ ...prev, setores: list }));
+                          }}
+                        />
+                        {DEPT_LABELS[d]}
+                      </label>
+                    );
+                  })}
+                </div>
+                <small style={{ color: 'var(--muted)', marginTop: '6px', display: 'block' }}>
+                  O custo de {fmtMoney.format(boletoForm.valorBoleto)} será dividido igualmente em: {fmtMoney.format(boletoForm.valorBoleto / (boletoForm.setores.length || 1))} para cada um dos {boletoForm.setores.length} setores selecionados.
+                </small>
               </div>
             </div>
 
-            <div className="form-grid" style={{ marginTop: '12px' }}>
-              <div className="form-group">
-                <label>Valor Total (Boleto)</label>
-                <input type="number" step="0.01" required value={boletoForm.valorBoleto === 0 ? '' : boletoForm.valorBoleto} onFocus={e => e.target.select()} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="form-group">
-                <label>Descrição da Despesa</label>
-                <input type="text" required value={boletoForm.descricao} onChange={e => setBoletoForm(prev => ({ ...prev, descricao: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Checkbox multi-select for sectors rateio */}
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Setores Beneficiados (Divisão de Custo / Rateio)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                {DEPARTMENTS.map(d => {
-                  const checked = boletoForm.setores.includes(d);
-                  return (
-                    <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={checked} 
-                        onChange={() => {
-                          const list = checked 
-                            ? boletoForm.setores.filter(x => x !== d)
-                            : [...boletoForm.setores, d];
-                          setBoletoForm(prev => ({ ...prev, setores: list }));
-                        }}
-                      />
-                      {DEPT_LABELS[d]}
-                    </label>
-                  );
-                })}
-              </div>
-              <small style={{ color: 'var(--muted)', marginTop: '6px', display: 'block' }}>
-                O custo de {fmtMoney.format(boletoForm.valorBoleto)} será dividido igualmente em: {fmtMoney.format(boletoForm.valorBoleto / (boletoForm.setores.length || 1))} para cada um dos {boletoForm.setores.length} setores selecionados.
-              </small>
-            </div>
-
-            <div className="modal-actions-btns" style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setBoletoModal(false)}>Cancelar</button>
               <button className="btn primary" type="submit" disabled={boletoForm.setores.length === 0}>
                 Confirmar
