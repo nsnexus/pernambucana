@@ -217,6 +217,11 @@ const Pernambucana = () => {
   const [importPreview, setImportPreview] = useState(null);
   const [parsedImportItems, setParsedImportItems] = useState([]);
 
+  // Duplicate check modal state
+  const [duplicateModal, setDuplicateModal] = useState(false);
+  const [duplicateTab, setDuplicateTab] = useState('servicos');
+  const [selectedDuplicates, setSelectedDuplicates] = useState([]);
+
   // Spreadsheet view mode (Excel style direct grid edit)
   const [gridEditMode, setGridEditMode] = useState(false);
   const [gridChanges, setGridChanges] = useState({});
@@ -245,6 +250,95 @@ const Pernambucana = () => {
 
   // Format currency
   const fmtMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Get duplicate groups for each tab
+  const getDuplicateGroups = useMemo(() => {
+    const getServicosDuplicates = () => {
+      const groups = {};
+      allServicos.forEach(s => {
+        const clienteNorm = String(s.cliente || '').trim().toLowerCase();
+        const valorNorm = parseFloat(s.valorTotal) || 0;
+        const refNorm = String(s.os ? s.os : (s.descricao || '')).trim().toLowerCase();
+        const key = `${s.data || ''}|${clienteNorm}|${valorNorm}|${refNorm}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+      });
+      return Object.values(groups).filter(g => g.length > 1);
+    };
+
+    const getComprasDuplicates = () => {
+      const groups = {};
+      allCompras.forEach(c => {
+        const fornecedorNorm = String(c.fornecedor || '').trim().toLowerCase();
+        const valorNorm = parseFloat(c.valorProduto) || 0;
+        const descNorm = String(c.descricao || '').trim().toLowerCase();
+        const key = `${c.data || ''}|${fornecedorNorm}|${valorNorm}|${descNorm}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(c);
+      });
+      return Object.values(groups).filter(g => g.length > 1);
+    };
+
+    const getBoletosDuplicates = () => {
+      const groups = {};
+      allBoletos.forEach(b => {
+        const fornecedorNorm = String(b.fornecedor || '').trim().toLowerCase();
+        const valorNorm = parseFloat(b.valorBoleto) || 0;
+        const descNorm = String(b.descricao || '').trim().toLowerCase();
+        const key = `${b.dataVencimento || ''}|${fornecedorNorm}|${valorNorm}|${descNorm}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(b);
+      });
+      return Object.values(groups).filter(g => g.length > 1);
+    };
+
+    return {
+      servicos: getServicosDuplicates(),
+      compras: getComprasDuplicates(),
+      boletos: getBoletosDuplicates()
+    };
+  }, [allServicos, allCompras, allBoletos]);
+
+  // Pre-select duplicates when modal opens or active sub-tab switches
+  useEffect(() => {
+    if (!duplicateModal) {
+      setSelectedDuplicates([]);
+      return;
+    }
+    const groups = getDuplicateGroups[duplicateTab] || [];
+    const toSelect = [];
+    groups.forEach(group => {
+      const sortedGroup = [...group].sort((a, b) => {
+        const dateA = a.criadoEm ? new Date(a.criadoEm) : new Date(0);
+        const dateB = b.criadoEm ? new Date(b.criadoEm) : new Date(0);
+        return dateA - dateB;
+      });
+      for (let i = 1; i < sortedGroup.length; i++) {
+        toSelect.push(sortedGroup[i].id);
+      }
+    });
+    setSelectedDuplicates(toSelect);
+  }, [duplicateTab, duplicateModal]);
+
+  const handleDeleteSelectedDuplicates = async () => {
+    if (selectedDuplicates.length === 0) return;
+    if (!window.confirm(`Tem certeza que deseja excluir os ${selectedDuplicates.length} registros duplicados selecionados? Esta ação é irreversível.`)) return;
+
+    try {
+      if (duplicateTab === 'servicos') {
+        await Promise.all(selectedDuplicates.map(id => deleteServico(id)));
+      } else if (duplicateTab === 'compras') {
+        await Promise.all(selectedDuplicates.map(id => deleteCompra(id)));
+      } else if (duplicateTab === 'boletos') {
+        await Promise.all(selectedDuplicates.map(id => deleteBoleto(id)));
+      }
+      triggerToast(`${selectedDuplicates.length} registros excluídos com sucesso.`);
+      setSelectedDuplicates([]);
+    } catch (error) {
+      console.error("Erro ao excluir duplicados:", error);
+      alert("Ocorreu um erro ao excluir alguns registros. Por favor, tente novamente.");
+    }
+  };
 
   // Generate dynamic years dropdown options
   const yearsList = useMemo(() => {
@@ -1374,6 +1468,16 @@ const Pernambucana = () => {
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button className="btn primary" onClick={openImportModal} title="Importar dados copiados do Excel">Importar Excel</button>
+        )}
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
+          <button 
+            className="btn" 
+            onClick={() => setDuplicateModal(true)} 
+            title="Checar dados duplicados nas planilhas"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+          >
+            🔍 Checar Duplicados
+          </button>
         )}
         {activeTab === 'servicos' && <button className="btn" onClick={openAddServico}>+ Novo</button>}
         {activeTab === 'compras' && <button className="btn" onClick={openAddCompra}>+ Novo</button>}
@@ -2590,6 +2694,134 @@ const Pernambucana = () => {
               <button className="btn ghost" type="button" onClick={() => setImportModal(false)}>Cancelar</button>
               <button className="btn primary" disabled={parsedImportItems.length === 0} onClick={confirmImport}>
                 Confirmar Importação ({parsedImportItems.length} registros)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Checker Modal */}
+      {duplicateModal && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setDuplicateModal(false)}></div>
+          <div className="modal-form-card glass" style={{ zIndex: 10, width: 'min(900px, 95vw)', maxHeight: '85vh' }}>
+            <div className="modal-header">
+              <h3>🔍 Detector de Dados Duplicados</h3>
+              <button className="close" type="button" onClick={() => setDuplicateModal(false)}>×</button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px 16px', borderRadius: '8px', color: '#f87171', fontSize: '13px' }}>
+                <strong>Atenção:</strong> A exclusão de registros duplicados é permanente. Ao excluir um serviço, todos os recebíveis associados a ele também serão excluídos automaticamente.
+              </div>
+
+              {/* Tab Selector Inside Modal */}
+              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '8px' }}>
+                {[
+                  { key: 'servicos', label: `🔧 Serviços (${getDuplicateGroups.servicos.length} grupos)` },
+                  { key: 'compras', label: `🛒 Compras (${getDuplicateGroups.compras.length} grupos)` },
+                  { key: 'boletos', label: `📄 Boletos (${getDuplicateGroups.boletos.length} grupos)` }
+                ].map(t => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className={`btn ${duplicateTab === t.key ? 'primary' : 'ghost'}`}
+                    style={{ padding: '6px 12px', fontSize: '13px' }}
+                    onClick={() => setDuplicateTab(t.key)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Duplicate List */}
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
+                {(getDuplicateGroups[duplicateTab] || []).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)' }}>
+                    Nenhum registro duplicado encontrado para esta categoria.
+                  </div>
+                ) : (
+                  (getDuplicateGroups[duplicateTab] || []).map((group, gIdx) => {
+                    const first = group[0];
+                    let headerText = '';
+                    if (duplicateTab === 'servicos') {
+                      headerText = `${first.cliente || 'Sem Cliente'} - ${first.data ? first.data.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorTotal)})`;
+                    } else if (duplicateTab === 'compras') {
+                      headerText = `${first.fornecedor || 'Sem Fornecedor'} - ${first.data ? first.data.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorProduto)})`;
+                    } else {
+                      headerText = `${first.fornecedor || 'Sem Fornecedor'} - ${first.dataVencimento ? first.dataVencimento.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorBoleto)})`;
+                    }
+
+                    const sortedGroup = [...group].sort((a, b) => {
+                      const dateA = a.criadoEm ? new Date(a.criadoEm) : new Date(0);
+                      const dateB = b.criadoEm ? new Date(b.criadoEm) : new Date(0);
+                      return dateA - dateB;
+                    });
+
+                    return (
+                      <div key={gIdx} className="glass" style={{ border: '1px solid var(--line)', borderRadius: '12px', padding: '12px', background: 'rgba(255,255,255,0.02)' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>Grupo #{gIdx + 1}: {headerText}</span>
+                          <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--muted)' }}>{sortedGroup.length} ocorrências</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {sortedGroup.map((item, itemIdx) => {
+                            const isSelected = selectedDuplicates.includes(item.id);
+                            const createdDate = item.criadoEm ? new Date(item.criadoEm).toLocaleString('pt-BR') : 'Desconhecida';
+                            const createdBy = item.criadoPor || 'Desconhecido';
+                            
+                            let detail = '';
+                            if (duplicateTab === 'servicos') {
+                              detail = `OS: ${item.os || 'Sem OS'} | Desc: ${item.descricao || 'Sem descrição'} | Setor: ${DEPT_LABELS[item.setor] || item.setor || 'N/A'}`;
+                            } else if (duplicateTab === 'compras') {
+                              detail = `OS: ${item.numOS || 'Sem OS'} | Desc: ${item.descricao || 'Sem descrição'} | Setor: ${item.setor || 'N/A'}`;
+                            } else {
+                              detail = `Desc: ${item.descricao || 'Sem descrição'} | Setor: ${item.setor || 'Todos'}`;
+                            }
+
+                            return (
+                              <label
+                                key={item.id}
+                                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '6px', background: isSelected ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255,255,255,0.01)', border: isSelected ? '1px dashed rgba(239, 68, 68, 0.3)' : '1px solid transparent', cursor: 'pointer' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedDuplicates(prev => [...prev, item.id]);
+                                    } else {
+                                      setSelectedDuplicates(prev => prev.filter(id => id !== item.id));
+                                    }
+                                  }}
+                                />
+                                <div style={{ flex: 1, fontSize: '13px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                                    <span style={{ fontWeight: '500' }}>{itemIdx === 0 ? '🟢 Manter' : '🔴 Excluir (Duplicata)'}</span>
+                                    <span style={{ color: 'var(--muted)', fontSize: '11px' }}>Criado em {createdDate} por {createdBy}</span>
+                                  </div>
+                                  <div style={{ color: 'var(--muted)', fontSize: '12px' }}>{detail}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setDuplicateModal(false)}>Fechar</button>
+              <button 
+                className="btn" 
+                style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none' }}
+                disabled={selectedDuplicates.length === 0} 
+                onClick={handleDeleteSelectedDuplicates}
+              >
+                🗑️ Excluir Selecionados ({selectedDuplicates.length})
               </button>
             </div>
           </div>
