@@ -88,6 +88,28 @@ function parseBoletoSectors(setorStr) {
   return secs.length > 0 ? secs : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
 }
 
+// Normalized split parser for compras
+function parseCompraSectors(setorStr) {
+  if (!setorStr) return ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+  const s = String(setorStr).trim().toLowerCase();
+  
+  if (s === 'todos' || s === '5x') {
+    return ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+  }
+  
+  const parts = s.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  const secs = [];
+  parts.forEach(p => {
+    if (p === 'm' || p.includes('mecan')) secs.push('Mecanica');
+    else if (p === 'c' || p.includes('calde')) secs.push('Caldeiraria');
+    else if (p === 't' || p.includes('torne')) secs.push('Torneadora');
+    else if (p === 'p' || p.includes('pec')) secs.push('Peças');
+    else if (p === 'r' || p.includes('retif')) secs.push('Retifica');
+  });
+  
+  return secs.length > 0 ? secs : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+}
+
 const Pernambucana = () => {
   const { currentUser } = useAuth();
   const {
@@ -106,7 +128,10 @@ const Pernambucana = () => {
 
   // Filter out any AltoGeral / external data from Pernambucana context
   const allServicos = useMemo(() => rawServicos.filter(s => normalizeSector(s.setor).toLowerCase() !== 'altogeral'), [rawServicos, normalizeSector]);
-  const allCompras = useMemo(() => rawCompras.filter(c => normalizeSector(c.setor).toLowerCase() !== 'altogeral'), [rawCompras, normalizeSector]);
+  const allCompras = useMemo(() => rawCompras.filter(c => {
+    const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+    return secs.some(s => normalizeSector(s).toLowerCase() !== 'altogeral');
+  }), [rawCompras, normalizeSector]);
   const allBoletos = useMemo(() => rawBoletos.filter(b => {
     const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
     return secs.some(s => normalizeSector(s).toLowerCase() !== 'altogeral');
@@ -174,7 +199,8 @@ const Pernambucana = () => {
   const [compraForm, setCompraForm] = useState({
     data: '', formaCompra: 'À vista', solicitante: '', descricao: '',
     numOS: '', valorOS: 0, valorProduto: 0, fornecedor: '',
-    numPedido: '', categoria: 'Almoxarifado', setor: 'Mecanica', numParcelas: 0
+    numPedido: '', categoria: 'Almoxarifado', setor: 'Mecanica', numParcelas: 0,
+    setores: []
   });
 
   const [boletoModal, setBoletoModal] = useState(false);
@@ -281,16 +307,34 @@ const Pernambucana = () => {
     const recebiveisVencidosList = recebiveisPendentesList.filter(r => r.dataVencimento < hojeStr);
     const totalVencido = recebiveisVencidosList.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0);
 
-    // 6. COMPRAS (internal detail, doesn't reduce cash flow)
-    const totalCompras = cFiltered
-      .filter(c => deptFilter === 'all' || normalizeSector(c.setor) === deptFilter)
-      .reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0);
+    // 6. COMPRAS (internal detail, doesn't reduce cash flow - SPLIT PROPORTIONAL TO FILTERED SECTOR)
+    let totalCompras = 0;
+    const splitComprasList = [];
+    cFiltered.forEach(c => {
+      const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+      const valSplit = (parseFloat(c.valorProduto) || 0) / secs.length;
+      if (deptFilter === 'all') {
+        totalCompras += parseFloat(c.valorProduto) || 0;
+        splitComprasList.push({ ...c, valorSplit: parseFloat(c.valorProduto) || 0 });
+      } else if (secs.includes(deptFilter)) {
+        totalCompras += valSplit;
+        splitComprasList.push({ ...c, valorSplit: valSplit });
+      }
+    });
 
-    // 6.1 COMPRAS À VISTA / PIX / CARTÃO (Outflows)
-    const totalComprasVista = cFiltered
-      .filter(c => deptFilter === 'all' || normalizeSector(c.setor) === deptFilter)
+    // 6.1 COMPRAS À VISTA / PIX / CARTÃO (Outflows - SPLIT PROPORTIONAL TO FILTERED SECTOR)
+    let totalComprasVista = 0;
+    cFiltered
       .filter(c => !String(c.formaCompra || '').toLowerCase().includes('prazo'))
-      .reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0);
+      .forEach(c => {
+        const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+        const valSplit = (parseFloat(c.valorProduto) || 0) / secs.length;
+        if (deptFilter === 'all') {
+          totalComprasVista += parseFloat(c.valorProduto) || 0;
+        } else if (secs.includes(deptFilter)) {
+          totalComprasVista += valSplit;
+        }
+      });
 
     // 7. SAÍDAS (BOLETOS A PAGAR - SPLIT PROPORTIONAL TO FILTERED SECTOR)
     let totalBoletos = 0;
@@ -333,7 +377,8 @@ const Pernambucana = () => {
       cFiltered,
       bFiltered,
       rFiltered,
-      splitBoletosList
+      splitBoletosList,
+      splitComprasList
     };
   }, [allServicos, allCompras, allBoletos, allRecebiveis, monthFilter, yearFilter, deptFilter]);
 
@@ -343,7 +388,7 @@ const Pernambucana = () => {
       // Perms sector lock check
       const sec = normalizeSector(item.setor);
       if (currentUser && !currentUser.isAdmin && currentUser.allowedSectors && !currentUser.allowedSectors.includes(sec)) {
-        // For boletos, check if any allowed sector is in the list
+        // For items with multiple sectors, check if any allowed sector is in the list
         if (item.setores) {
           const allowedMatch = item.setores.some(s => currentUser.allowedSectors.includes(s));
           if (!allowedMatch) return false;
@@ -446,7 +491,8 @@ const Pernambucana = () => {
     setCompraForm({
       data: hoje, formaCompra: 'À vista', solicitante: '', descricao: '',
       numOS: '', valorOS: 0, valorProduto: 0, fornecedor: '',
-      numPedido: '', categoria: 'Almoxarifado', setor: deptFilter !== 'all' ? deptFilter : 'Mecanica', numParcelas: 0
+      numPedido: '', categoria: 'Almoxarifado', setor: deptFilter !== 'all' ? deptFilter : 'Mecanica', numParcelas: 0,
+      setores: deptFilter !== 'all' ? [deptFilter] : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria']
     });
     setCompraModal(true);
   };
@@ -459,7 +505,8 @@ const Pernambucana = () => {
       numOS: item.numOS || '', valorOS: item.valorOS || 0,
       valorProduto: item.valorProduto || 0, fornecedor: item.fornecedor || '',
       numPedido: item.numPedido || '', categoria: item.categoria || 'Almoxarifado',
-      setor: item.setor || 'Mecanica', numParcelas: item.numParcelas || 0
+      setor: item.setor || 'Mecanica', numParcelas: item.numParcelas || 0,
+      setores: item.setores || parseCompraSectors(item.setor)
     });
     setCompraModal(true);
   };
@@ -467,11 +514,29 @@ const Pernambucana = () => {
   const handleCompraSubmit = async (e) => {
     e.preventDefault();
     try {
+      let sectorLabel = 'Todos';
+      if (compraForm.setores.length === 1) {
+        sectorLabel = compraForm.setores[0];
+      } else if (compraForm.setores.length < 5) {
+        sectorLabel = compraForm.setores.map(s => {
+          if (s === 'Mecanica') return 'M';
+          if (s === 'Retifica') return 'R';
+          if (s === 'Peças') return 'P';
+          if (s === 'Torneadora') return 'T';
+          if (s === 'Caldeiraria') return 'C';
+          return s.charAt(0).toUpperCase();
+        }).join(',');
+      }
+      const dataPayload = { 
+        ...compraForm, 
+        setor: sectorLabel 
+      };
+
       if (compraEditId) {
-        await updateCompra(compraEditId, compraForm);
+        await updateCompra(compraEditId, dataPayload);
         triggerToast('Compra atualizada.');
       } else {
-        await addCompra(compraForm);
+        await addCompra(dataPayload);
         triggerToast('Compra adicionada.');
       }
       setCompraModal(false);
@@ -553,6 +618,14 @@ const Pernambucana = () => {
         if ('valorOS' in changes) changes.valorOS = parseFloat(changes.valorOS) || 0;
         if ('valorProduto' in changes) changes.valorProduto = parseFloat(changes.valorProduto) || 0;
         if ('valorBoleto' in changes) changes.valorBoleto = parseFloat(changes.valorBoleto) || 0;
+
+        if ('setor' in changes) {
+          if (activeTab === 'boletos') {
+            changes.setores = parseBoletoSectors(changes.setor);
+          } else if (activeTab === 'compras') {
+            changes.setores = parseCompraSectors(changes.setor);
+          }
+        }
 
         if (activeTab === 'servicos') await updateServico(id, changes);
         else if (activeTab === 'compras') await updateCompra(id, changes);
@@ -845,11 +918,13 @@ const Pernambucana = () => {
         }
 
         const isPrazo = norm(formaVal).includes('prazo');
+        const secsNormalized = parseCompraSectors(setorVal);
 
         parsedList.push({
           data: parseExcelDate(dataVal),
           mes: mesVal || getDateInfo(parseExcelDate(dataVal)).mesName,
-          setor: normalizeSector(setorVal) || 'Mecanica',
+          setor: setorVal || 'Todos',
+          setores: secsNormalized,
           formaCompra: isPrazo ? 'À prazo' : 'À vista',
           solicitante: cleanCell(solicitanteVal),
           descricao: cleanCell(descricaoVal) || 'Compra Importada',
@@ -955,8 +1030,12 @@ const Pernambucana = () => {
     });
 
     dashboardStats.cFiltered.forEach(c => {
-      const sec = normalizeSector(c.setor);
-      if (comprasByDept[sec] !== undefined) comprasByDept[sec] += (parseFloat(c.valorProduto) || 0);
+      const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+      const valSplit = (parseFloat(c.valorProduto) || 0) / secs.length;
+      secs.forEach(s => {
+        const sec = normalizeSector(s);
+        if (comprasByDept[sec] !== undefined) comprasByDept[sec] += valSplit;
+      });
     });
 
     const labels = DEPARTMENTS.map(d => DEPT_LABELS[d]);
@@ -1819,9 +1898,7 @@ const Pernambucana = () => {
                             </td>
                             <td>
                               {gridEditMode ? (
-                                <select value={rowData.setor || 'Mecanica'} onChange={e => handleGridCellChange(item.id, 'setor', e.target.value)} className="ag-grid-input">
-                                  {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                                </select>
+                                <input type="text" placeholder="Ex: M,T ou Todos" value={rowData.setor || ''} onChange={e => handleGridCellChange(item.id, 'setor', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 DEPT_LABELS[item.setor] || item.setor
                               )}
@@ -2331,12 +2408,6 @@ const Pernambucana = () => {
                   <input type="date" required value={compraForm.data} onChange={e => setCompraForm(prev => ({ ...prev, data: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label>Setor</label>
-                  <select value={compraForm.setor} onChange={e => setCompraForm(prev => ({ ...prev, setor: e.target.value }))}>
-                    {DEPARTMENTS.map(d => <option key={d} value={d}>{DEPT_LABELS[d]}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
                   <label>Fornecedor</label>
                   <input type="text" required value={compraForm.fornecedor} onChange={e => setCompraForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
                 </div>
@@ -2380,11 +2451,41 @@ const Pernambucana = () => {
                   <input type="number" min="0" value={compraForm.numParcelas === 0 ? '' : compraForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setCompraForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
                 </div>
               </div>
+
+              {/* Checkbox multi-select for sectors rateio */}
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Setores Beneficiados (Divisão de Custo / Rateio)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  {DEPARTMENTS.map(d => {
+                    const checked = compraForm.setores.includes(d);
+                    return (
+                      <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={() => {
+                            const list = checked 
+                              ? compraForm.setores.filter(x => x !== d)
+                              : [...compraForm.setores, d];
+                            setCompraForm(prev => ({ ...prev, setores: list }));
+                          }}
+                        />
+                        {DEPT_LABELS[d]}
+                      </label>
+                    );
+                  })}
+                </div>
+                <small style={{ color: 'var(--muted)', marginTop: '6px', display: 'block' }}>
+                  O custo de {fmtMoney.format(compraForm.valorProduto)} será dividido igualmente em: {fmtMoney.format(compraForm.valorProduto / (compraForm.setores.length || 1))} para cada um dos {compraForm.setores.length} setores selecionados.
+                </small>
+              </div>
             </div>
 
             <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setCompraModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">Confirmar</button>
+              <button className="btn primary" type="submit" disabled={compraForm.setores.length === 0}>
+                Confirmar
+              </button>
             </div>
           </form>
         </div>
