@@ -896,13 +896,13 @@ const AutoGeral = () => {
         <input type="search" placeholder="Buscar por OS, cliente, mecânico..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
       </label>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-        {activeTab === 'boletos' && (
+        {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
             className="btn" 
             type="button"
             onClick={() => window.print()}
             style={{ height: '38px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-            title="Imprimir todos os boletos filtrados"
+            title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
             🖨️ Imprimir
           </button>
@@ -1104,6 +1104,57 @@ const AutoGeral = () => {
                 </div>
               </div>
               {renderFilters()}
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Auto Geral — Relatório de Serviços</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredServicos.length} |{' '}
+                    <strong>Valor Total:</strong> {fmtMoney.format(filteredServicos.reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Forma</th>
+                      <th>Cliente</th>
+                      <th>Material/Serviço</th>
+                      <th>OS</th>
+                      <th>Valor OS</th>
+                      <th>Serviços</th>
+                      <th>Peças</th>
+                      <th>Material</th>
+                      <th>Mecânico</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredServicos.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.data || '-'}</td>
+                        <td>{item.formaCompra || '-'}</td>
+                        <td>{item.nomeCliente || '-'}</td>
+                        <td>{item.descricaoMaterial || '-'}</td>
+                        <td>{item.numOS || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorOS)}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorServicos)}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorPecas)}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorMaterial)}</td>
+                        <td>{item.mecanico || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
                   <table className="compact-table">
@@ -1237,6 +1288,57 @@ const AutoGeral = () => {
                 </div>
               </div>
               {renderFilters()}
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Auto Geral — Relatório de Compras</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredCompras.length} |{' '}
+                    <strong>Valor Total:</strong> {fmtMoney.format(filteredCompras.reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Forma</th>
+                      <th>Cliente</th>
+                      <th>Descrição Material</th>
+                      <th>OS</th>
+                      <th>Valor OS</th>
+                      <th>Valor Peça</th>
+                      <th>Fornecedor</th>
+                      <th>Nº Pedido</th>
+                      <th>Categoria</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompras.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.data || '-'}</td>
+                        <td>{item.formaCompra || '-'}</td>
+                        <td>{item.nomeCliente || '-'}</td>
+                        <td>{item.descricaoMaterial || '-'}</td>
+                        <td>{item.numOS || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorOS)}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorPeca)}</td>
+                        <td>{item.fornecedor || '-'}</td>
+                        <td>{item.numPedido || '-'}</td>
+                        <td>{item.categoria || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
                   <table className="compact-table">
@@ -1533,6 +1635,59 @@ const AutoGeral = () => {
                   <span className="kpi-sub">{caixa.recebiveisVencidos} parcelas atrasadas</span>
                   <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 </div>
+              </div>
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Auto Geral — Relatório de Recebíveis</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredRecebiveis.length} |{' '}
+                    <strong>Total Recebido:</strong> {fmtMoney.format(filteredRecebiveis.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))} |{' '}
+                    <strong>Total Pendente:</strong> {fmtMoney.format(filteredRecebiveis.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))} |{' '}
+                    <strong>Total Geral:</strong> {fmtMoney.format(filteredRecebiveis.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>OS</th>
+                      <th>Cliente</th>
+                      <th>Descrição</th>
+                      <th>Mecânico</th>
+                      <th>Parcela</th>
+                      <th>Valor Parcela</th>
+                      <th>Vencimento</th>
+                      <th>Status</th>
+                      <th>Recebido Em</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecebiveis.map(item => {
+                      const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.numOS || '-'}</td>
+                          <td>{item.nomeCliente || '-'}</td>
+                          <td>{item.descricao || '-'}</td>
+                          <td>{item.mecanico || '-'}</td>
+                          <td>{item.parcela}/{item.totalParcelas}</td>
+                          <td className="text-right">{fmtMoney.format(item.valorParcela)}</td>
+                          <td>{item.dataVencimento || '-'}</td>
+                          <td>{isVencido ? 'Vencido' : item.status}</td>
+                          <td>{item.dataRecebimento || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>

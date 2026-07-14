@@ -1258,13 +1258,13 @@ const Pernambucana = () => {
       </label>
 
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-        {activeTab === 'boletos' && (
+        {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
             className="btn" 
             type="button"
             onClick={() => window.print()}
             style={{ height: '38px', backgroundColor: '#1fb6ff', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-            title="Imprimir todos os boletos filtrados"
+            title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
             🖨️ Imprimir
           </button>
@@ -1478,6 +1478,53 @@ const Pernambucana = () => {
                 </div>
               )}
 
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Pernambucana — Relatório de Serviços</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {deptFilter !== 'all' ? ` | Setor: ${DEPT_LABELS[deptFilter] || deptFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredServicos.length} |{' '}
+                    <strong>Valor Total:</strong> {fmtMoney.format(filteredServicos.reduce((sum, s) => sum + (parseFloat(s.valorTotal) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Setor</th>
+                      <th>Cliente</th>
+                      <th>Descrição</th>
+                      <th>Tipo de Serviço</th>
+                      <th>OS</th>
+                      <th>Valor Total</th>
+                      <th>Forma Pgto.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredServicos.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.data || '-'}</td>
+                        <td>{DEPT_LABELS[item.setor] || item.setor || '-'}</td>
+                        <td>{item.cliente || '-'}</td>
+                        <td>{item.descricao || '-'}</td>
+                        <td>{item.tipoServico || '-'}</td>
+                        <td>{item.os || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorTotal)}</td>
+                        <td>{item.pagamento || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
                   <table className="compact-table">
@@ -1675,6 +1722,55 @@ const Pernambucana = () => {
                   <button className="btn" onClick={saveGridChanges}>Salvar Alterações</button>
                 </div>
               )}
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Pernambucana — Relatório de Compras</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {deptFilter !== 'all' ? ` | Setor: ${DEPT_LABELS[deptFilter] || deptFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredCompras.length} |{' '}
+                    <strong>Valor Total:</strong> {fmtMoney.format(filteredCompras.reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Setor</th>
+                      <th>Fornecedor</th>
+                      <th>Descrição Material</th>
+                      <th>Nº OS</th>
+                      <th>Valor Produto</th>
+                      <th>Solicitante</th>
+                      <th>Forma Compra</th>
+                      <th>Categoria</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompras.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.data || '-'}</td>
+                        <td>{DEPT_LABELS[item.setor] || item.setor || '-'}</td>
+                        <td>{item.fornecedor || '-'}</td>
+                        <td>{item.descricao || '-'}</td>
+                        <td>{item.numOS || '-'}</td>
+                        <td className="text-right">{fmtMoney.format(item.valorProduto)}</td>
+                        <td>{item.solicitante || '-'}</td>
+                        <td>{item.formaCompra || '-'}</td>
+                        <td>{item.categoria || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
@@ -2011,6 +2107,60 @@ const Pernambucana = () => {
                   </div>
                 );
               })()}
+
+              {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
+              <div className="print-only-container">
+                <div className="print-header">
+                  <h2>Pernambucana — Relatório de Recebíveis</h2>
+                  <p>
+                    <strong>Filtros Ativos:</strong>{' '}
+                    {yearFilter !== 'all' ? `Ano: ${yearFilter}` : 'Todos os Anos'}
+                    {monthFilter !== 'all' ? ` | Mês: ${MONTHS[parseInt(monthFilter) - 1]}` : ''}
+                    {dayFilter !== 'all' ? ` | Dia: ${dayFilter}` : ''}
+                    {deptFilter !== 'all' ? ` | Setor: ${DEPT_LABELS[deptFilter] || deptFilter}` : ''}
+                    {searchQuery ? ` | Busca: "${searchQuery}"` : ''}
+                  </p>
+                  <p>
+                    <strong>Registros:</strong> {filteredRecebiveis.length} |{' '}
+                    <strong>Total Recebido:</strong> {fmtMoney.format(filteredRecebiveis.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))} |{' '}
+                    <strong>Total Pendente:</strong> {fmtMoney.format(filteredRecebiveis.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))} |{' '}
+                    <strong>Total Geral:</strong> {fmtMoney.format(filteredRecebiveis.reduce((sum, r) => sum + (parseFloat(r.valorParcela) || 0), 0))}
+                  </p>
+                </div>
+                <table className="print-table">
+                  <thead>
+                    <tr>
+                      <th>OS</th>
+                      <th>Setor</th>
+                      <th>Cliente</th>
+                      <th>Descrição</th>
+                      <th>Parcela</th>
+                      <th>Valor Parcela</th>
+                      <th>Vencimento</th>
+                      <th>Status</th>
+                      <th>Recebido Em</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecebiveis.map(item => {
+                      const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.os || '-'}</td>
+                          <td>{DEPT_LABELS[item.setor] || item.setor || '-'}</td>
+                          <td>{item.cliente || '-'}</td>
+                          <td>{item.descricao || '-'}</td>
+                          <td>{item.parcela}/{item.totalParcelas}</td>
+                          <td className="text-right">{fmtMoney.format(item.valorParcela)}</td>
+                          <td>{item.dataVencimento || '-'}</td>
+                          <td>{isVencido ? 'Vencido' : item.status}</td>
+                          <td>{item.dataRecebimento || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
               <section className="details glass" style={{ padding: '20px', borderRadius: '16px', marginTop: '20px' }}>
                 <div className="table-wrap" style={{ overflowX: 'auto' }}>
