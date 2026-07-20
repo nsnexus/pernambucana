@@ -100,7 +100,7 @@ const AutoGeral = () => {
   const [boletoModal, setBoletoModal] = useState(false);
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
-    nomeFornecedor: '', descricaoMaterial: '', valorBoleto: 0,
+    nomeFornecedor: '', descricaoMaterial: '', numOS: '', valorBoleto: 0,
     valorOS: 0, nomeCliente: '', dataVencimento: '', mesVencimento: ''
   });
 
@@ -548,7 +548,7 @@ const AutoGeral = () => {
   const openAddBoleto = () => {
     setBoletoEditId(null);
     setBoletoForm({
-      nomeFornecedor: '', descricaoMaterial: '', valorBoleto: 0,
+      nomeFornecedor: '', descricaoMaterial: '', numOS: '', valorBoleto: 0,
       valorOS: 0, nomeCliente: '', dataVencimento: '', mesVencimento: ''
     });
     setBoletoModal(true);
@@ -558,7 +558,7 @@ const AutoGeral = () => {
     setBoletoEditId(item.id);
     setBoletoForm({
       nomeFornecedor: item.nomeFornecedor || '', descricaoMaterial: item.descricaoMaterial || '',
-      valorBoleto: item.valorBoleto || 0, valorOS: item.valorOS || 0,
+      numOS: item.numOS || '', valorBoleto: item.valorBoleto || 0, valorOS: item.valorOS || 0,
       nomeCliente: item.nomeCliente || '', dataVencimento: item.dataVencimento || '',
       mesVencimento: item.mesVencimento || ''
     });
@@ -674,7 +674,7 @@ const AutoGeral = () => {
           categoria: cleanCell(cols[11]) || 'Oficina'
         });
       } else if (type === 'boletos') {
-        while (cols.length < 8) cols.push('');
+        while (cols.length < 9) cols.push('');
         parsedList.push({
           nomeFornecedor: cleanCell(cols[1]),
           descricaoMaterial: cleanCell(cols[2]),
@@ -682,7 +682,8 @@ const AutoGeral = () => {
           valorOS: parseExcelNumber(cols[4]),
           nomeCliente: cleanCell(cols[5]),
           dataVencimento: parseExcelDate(cols[6]),
-          mesVencimento: cleanCell(cols[7]) || ''
+          mesVencimento: cleanCell(cols[7]) || '',
+          numOS: cleanCell(cols[8]) || ''
         });
       }
     }
@@ -1594,6 +1595,7 @@ const AutoGeral = () => {
                     <tr>
                       <th>Fornecedor</th>
                       <th>Descrição Material</th>
+                      <th>Nº OS</th>
                       <th>Valor Boleto</th>
                       <th>Valor OS</th>
                       <th>Cliente</th>
@@ -1606,6 +1608,7 @@ const AutoGeral = () => {
                       <tr key={item.id}>
                         <td>{item.nomeFornecedor || '-'}</td>
                         <td>{item.descricaoMaterial || '-'}</td>
+                        <td>{item.numOS || '-'}</td>
                         <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
                         <td className="text-right">{fmtMoney.format(item.valorOS)}</td>
                         <td>{item.nomeCliente || '-'}</td>
@@ -1622,7 +1625,7 @@ const AutoGeral = () => {
                   <table className="compact-table">
                     <thead>
                       <tr>
-                        <th>Fornecedor</th><th>Descrição Material</th><th>Valor Boleto</th>
+                        <th>Fornecedor</th><th>Descrição Material</th><th>Nº OS</th><th>Valor Boleto</th>
                         <th>Valor OS</th><th>Cliente</th><th>Vencimento</th><th>Mês</th><th>Ações</th>
                       </tr>
                     </thead>
@@ -1644,6 +1647,13 @@ const AutoGeral = () => {
                                 <input type="text" value={rowData.descricaoMaterial || ''} onChange={e => handleGridCellChange(item.id, 'descricaoMaterial', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 item.descricaoMaterial || '-'
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
+                                <input type="text" value={rowData.numOS || ''} onChange={e => handleGridCellChange(item.id, 'numOS', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                item.numOS || '-'
                               )}
                             </td>
                             <td>
@@ -1695,7 +1705,7 @@ const AutoGeral = () => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="8" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
+                        <tr><td colSpan="9" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1929,6 +1939,7 @@ const AutoGeral = () => {
               <div className="form-grid">
                 <Field label="Nome do Fornecedor" value={boletoForm.nomeFornecedor} onChange={e => setBoletoForm({...boletoForm, nomeFornecedor: e.target.value})} />
                 <Field label="Descrição do Material" value={boletoForm.descricaoMaterial} onChange={e => setBoletoForm({...boletoForm, descricaoMaterial: e.target.value})} />
+                <Field label="Nº da OS" value={boletoForm.numOS} onChange={e => setBoletoForm({...boletoForm, numOS: e.target.value})} />
                 <Field label="Valor do Boleto" type="number" step="0.01" value={boletoForm.valorBoleto} onChange={e => setBoletoForm({...boletoForm, valorBoleto: parseFloat(e.target.value) || 0})} />
                 <Field label="Valor da OS" type="number" step="0.01" value={boletoForm.valorOS} onChange={e => setBoletoForm({...boletoForm, valorOS: parseFloat(e.target.value) || 0})} />
                 <Field label="Nome do Cliente" value={boletoForm.nomeCliente} onChange={e => setBoletoForm({...boletoForm, nomeCliente: e.target.value})} />
@@ -2072,7 +2083,7 @@ const AutoGeral = () => {
                             } else if (duplicateTab === 'compras') {
                               detail = `OS: ${item.numOS || 'Sem OS'} | Desc: ${item.descricaoMaterial || 'Sem descrição'} | Categoria: ${item.categoria || 'N/A'}`;
                             } else {
-                              detail = `Desc: ${item.descricaoMaterial || 'Sem descrição'} | OS Relacionada: ${item.valorOS ? `OS #${item.valorOS}` : 'Não'}`;
+                              detail = `Nº OS: ${item.numOS || 'Sem OS'} | Desc: ${item.descricaoMaterial || 'Sem descrição'} | Cliente: ${item.nomeCliente || 'N/A'}`;
                             }
 
                             return (
