@@ -77,7 +77,8 @@ export const AuthProvider = ({ children }) => {
         if (
           email.includes('rejanebrito') || 
           email.includes('rubensbrito') || 
-          email.includes('financeiro')
+          email.includes('financeiro') ||
+          email.includes('gestao')
         ) {
           sector = 'all';
           isAdmin = true;
