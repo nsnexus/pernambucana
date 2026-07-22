@@ -129,6 +129,28 @@ const Landing = () => {
               </div>
             </button>
           </div>
+
+          {/* Card 3: Gestão de Arquivos */}
+          <div className="portal-brand-card arquivos glass" style={{ border: '1px solid rgba(0, 229, 255, 0.2)' }}>
+            <div className="portal-brand">
+              <div className="portal-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', fontSize: '32px' }}>📁</div>
+              <h2>Gestão de Arquivos</h2>
+              <p>Segurança, Meio Ambiente e Adm</p>
+              <span className="portal-badge" style={{ background: 'rgba(0, 229, 255, 0.15)', color: '#00e5ff' }}>Documentos</span>
+            </div>
+            
+            <div className="portal-brand-desc" style={{ color: 'var(--muted)', fontSize: '13px', margin: '20px 0', lineHeight: '1.5' }}>
+              Cadastre, visualize e baixe todos os documentos normativos, licenças, folha de pagamento e evidências.
+            </div>
+            
+            <button className="portal-action-btn" onClick={() => openLogin('/arquivos', 'arquivos')} style={{ width: '100%', border: '1px solid rgba(0, 229, 255, 0.3)', background: 'rgba(0, 229, 255, 0.05)' }}>
+              <div className="btn-icon-wrapper" style={{ color: '#00e5ff' }}>📄</div>
+              <div className="btn-text-wrapper" style={{ textAlign: 'left' }}>
+                <strong style={{ color: '#00e5ff' }}>Acessar Arquivos</strong>
+                <span>Entrar no repositório documental</span>
+              </div>
+            </button>
+          </div>
         </div>
       </main>
 
@@ -146,8 +168,8 @@ const Landing = () => {
               alt={selectedBrand === 'autogeral' ? "Auto Geral" : "Pernambucana"} 
               style={selectedBrand === 'autogeral' ? { background: '#000', padding: '4px', objectFit: 'contain', borderRadius: '14px' } : {}}
             />
-            <span style={{ fontWeight: 'bold', color: selectedBrand === 'autogeral' ? '#4ee247' : 'var(--blue)' }}>
-              Acesso Restrito — {selectedBrand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}
+            <span style={{ fontWeight: 'bold', color: selectedBrand === 'autogeral' ? '#4ee247' : selectedBrand === 'arquivos' ? '#00e5ff' : 'var(--blue)' }}>
+              Acesso Restrito — {selectedBrand === 'autogeral' ? 'Auto Geral' : selectedBrand === 'arquivos' ? 'Gestão de Arquivos' : 'Pernambucana'}
             </span>
             <h2>Acesso ao Portal</h2>
             
