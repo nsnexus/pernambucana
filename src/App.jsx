@@ -8,7 +8,6 @@ import Dashboard from './pages/Dashboard';
 import Cadastros from './pages/Cadastros';
 import AutoGeral from './pages/AutoGeral';
 import Pernambucana from './pages/Pernambucana';
-import Arquivos from './pages/Arquivos';
 import AdminGateway from './components/AdminGateway';
 
 // Protected Route Component to block unauthenticated access
@@ -64,14 +63,7 @@ function App() {
                 } 
               />
               
-              <Route 
-                path="/arquivos" 
-                element={
-                  <ProtectedRoute>
-                    <Arquivos />
-                  </ProtectedRoute>
-                } 
-              />
+
               
               {/* Auto Geral — módulo dedicado */}
               <Route 
