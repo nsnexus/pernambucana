@@ -197,13 +197,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         filePath: filePath,
         fileUrl: downloadURL,
         funcionarioId: fileForm.funcionarioId || null,
+        dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null,
         brand,
         uploadedBy: currentUser?.email || 'Desconhecido',
         createdAt: serverTimestamp()
       });
 
       setFileModalOpen(false);
-      setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '' });
+      setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
       fetchData();
       alert('Arquivo cadastrado com sucesso!');
     } catch (error) {
