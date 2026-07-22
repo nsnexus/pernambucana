@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
+import { IconEdit, IconTrash } from '../components/Icons';
 import * as XLSX from 'xlsx';
 import '../styles/cadastros.css';
 
@@ -656,8 +657,14 @@ const Cadastros = () => {
                         <td>{item.pagamento}</td>
                         <td>{item.produtivo || '-'}</td>
                         <td>
-                          <button className="btn mini ghost" onClick={() => openEditServico(item)} style={{ marginRight: '6px' }}>Editar</button>
-                          <button className="btn mini bad" onClick={() => handleDeleteServico(item.id)}>Excluir</button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn icon-only edit" title="Editar Serviço" onClick={() => openEditServico(item)}>
+                              <IconEdit />
+                            </button>
+                            <button className="btn icon-only danger" title="Excluir Serviço" onClick={() => handleDeleteServico(item.id)}>
+                              <IconTrash />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -697,8 +704,14 @@ const Cadastros = () => {
                         <td><strong>{fmtMoney.format(item.valorProduto)}</strong></td>
                         <td>{item.formaCompra}</td>
                         <td>
-                          <button className="btn mini ghost" onClick={() => openEditCompra(item)} style={{ marginRight: '6px' }}>Editar</button>
-                          <button className="btn mini bad" onClick={() => handleDeleteCompra(item.id)}>Excluir</button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn icon-only edit" title="Editar Lançamento" onClick={() => openEditCompra(item)}>
+                              <IconEdit />
+                            </button>
+                            <button className="btn icon-only danger" title="Excluir Lançamento" onClick={() => handleDeleteCompra(item.id)}>
+                              <IconTrash />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -732,8 +745,14 @@ const Cadastros = () => {
                         <td>{fmtMoney.format(item.desconto)}</td>
                         <td><strong>{fmtMoney.format(item.liquido)}</strong></td>
                         <td>
-                          <button className="btn mini ghost" onClick={() => openEditCompra(item)} style={{ marginRight: '6px' }}>Editar</button>
-                          <button className="btn mini bad" onClick={() => handleDeleteCompra(item.id)}>Excluir</button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn icon-only edit" title="Editar Holerite" onClick={() => openEditCompra(item)}>
+                              <IconEdit />
+                            </button>
+                            <button className="btn icon-only danger" title="Excluir Holerite" onClick={() => handleDeleteCompra(item.id)}>
+                              <IconTrash />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -763,8 +782,14 @@ const Cadastros = () => {
                         <td>{item.descricao || '-'}</td>
                         <td><strong>{fmtMoney.format(item.valorProduto)}</strong></td>
                         <td>
-                          <button className="btn mini ghost" onClick={() => openEditCompra(item)} style={{ marginRight: '6px' }}>Editar</button>
-                          <button className="btn mini bad" onClick={() => handleDeleteCompra(item.id)}>Excluir</button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn icon-only edit" title="Editar Custo Fixo" onClick={() => openEditCompra(item)}>
+                              <IconEdit />
+                            </button>
+                            <button className="btn icon-only danger" title="Excluir Custo Fixo" onClick={() => handleDeleteCompra(item.id)}>
+                              <IconTrash />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

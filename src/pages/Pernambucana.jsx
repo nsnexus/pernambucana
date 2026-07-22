@@ -1868,9 +1868,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                             </td>
                             <td>
                               <div className="ag-table-actions">
-                                {!gridEditMode && <button onClick={() => openEditServico(item)}>Editar</button>}
+                                {!gridEditMode && (
+                                  <button className="btn icon-only edit" title="Editar Serviço" onClick={() => openEditServico(item)}>
+                                    <IconEdit />
+                                  </button>
+                                )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="delete" onClick={() => { if (window.confirm('Excluir serviço?')) deleteServico(item.id).then(() => triggerToast('Excluído.')); }}>Excluir</button>
+                                <button className="btn icon-only danger" title="Excluir Serviço" onClick={() => { if (window.confirm('Excluir serviço?')) deleteServico(item.id).then(() => triggerToast('Excluído.')); }}>
+                                  <IconTrash />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -2067,9 +2073,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                             </td>
                             <td>
                               <div className="ag-table-actions">
-                                {!gridEditMode && <button onClick={() => openEditCompra(item)}>Editar</button>}
+                                {!gridEditMode && (
+                                  <button className="btn icon-only edit" title="Editar Compra" onClick={() => openEditCompra(item)}>
+                                    <IconEdit />
+                                  </button>
+                                )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="delete" onClick={() => { if (window.confirm('Excluir compra?')) deleteCompra(item.id).then(() => triggerToast('Excluído.')); }}>Excluir</button>
+                                <button className="btn icon-only danger" title="Excluir Compra" onClick={() => { if (window.confirm('Excluir compra?')) deleteCompra(item.id).then(() => triggerToast('Excluído.')); }}>
+                                  <IconTrash />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -2224,9 +2236,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                             </td>
                             <td>
                               <div className="ag-table-actions">
-                                {!gridEditMode && <button onClick={() => openEditBoleto(item)}>Editar</button>}
+                                {!gridEditMode && (
+                                  <button className="btn icon-only edit" title="Editar Boleto" onClick={() => openEditBoleto(item)}>
+                                    <IconEdit />
+                                  </button>
+                                )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="delete" onClick={() => { if (window.confirm('Excluir boleto?')) deleteBoleto(item.id).then(() => triggerToast('Excluído.')); }}>Excluir</button>
+                                <button className="btn icon-only danger" title="Excluir Boleto" onClick={() => { if (window.confirm('Excluir boleto?')) deleteBoleto(item.id).then(() => triggerToast('Excluído.')); }}>
+                                  <IconTrash />
+                                </button>
                               </div>
                             </td>
                           </tr>
