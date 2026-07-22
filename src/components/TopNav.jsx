@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme, isPernambucana = false }) => {
+const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme, isPernambucana = false, onBackToGateway }) => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -73,6 +73,11 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
         <nav className={`topnav-links ${mobileOpen ? 'open' : ''}`}>
           {isAutoGeral ? (
             <>
+              {currentUser?.isAdmin && navLink('dashboard', 'Dashboard')}
+              {navLink('servicos', 'Serviços')}
+              {navLink('compras', 'Compras')}
+              {navLink('boletos', 'Boletos a Pagar')}
+              {navLink('recebiveis', 'Recebíveis')}
               <div className="topnav-divider" />
               <Link to="/" className="topnav-link" onClick={() => setMobileOpen(false)}>↗ Portal</Link>
             </>
@@ -123,6 +128,18 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
             </div>
             <span className="topnav-email">{currentUser?.email}</span>
           </div>
+
+          {onBackToGateway && (
+            <button 
+              className="btn ghost" 
+              onClick={onBackToGateway}
+              title="Alternar entre Painel Financeiro e Administrativo"
+              type="button"
+              style={{ padding: '6px 12px', height: '36px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              🔄 Painéis
+            </button>
+          )}
 
           <button 
             className="topnav-theme-toggle" 

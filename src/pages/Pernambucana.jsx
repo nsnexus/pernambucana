@@ -1505,6 +1505,7 @@ const Pernambucana = () => {
         isPernambucana={true}
         whiteTheme={whiteTheme}
         setWhiteTheme={setWhiteTheme}
+        onBackToGateway={onBackToGateway}
       />
 
       <main className="main">

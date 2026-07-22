@@ -31,7 +31,7 @@ ChartJS.register(
   ChartDataLabels
 );
 
-const AutoGeral = () => {
+const AutoGeral = ({ onBackToGateway }) => {
   const { currentUser } = useAuth();
   const {
     servicos, compras, boletos, recebiveis, loading, caixa, MONTHS,
@@ -1058,24 +1058,10 @@ const AutoGeral = () => {
         whiteTheme={whiteTheme}
         setWhiteTheme={setWhiteTheme}
         isAutoGeral={true}
+        onBackToGateway={onBackToGateway}
       />
 
       <main className="main">
-        {/* Tab Navigation */}
-        <div className="tab-nav">
-          {[
-            currentUser?.isAdmin && { key: 'dashboard', label: '📊 Dashboard' },
-            { key: 'servicos', label: '🔧 Serviços' },
-            { key: 'compras', label: '🛒 Compras' },
-            { key: 'boletos', label: '📄 Boletos a Pagar' },
-            { key: 'recebiveis', label: '💰 Recebíveis' }
-          ].filter(Boolean).map(t => (
-            <button key={t.key} className={`tab-btn ${activeTab === t.key ? 'active' : ''}`} onClick={() => { setActiveTab(t.key); setCurrentPage(1); }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
         {/* ═══ DASHBOARD ═══ */}
         {activeTab === 'dashboard' && currentUser?.isAdmin && (
           <div>

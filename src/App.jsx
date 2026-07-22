@@ -9,6 +9,7 @@ import Cadastros from './pages/Cadastros';
 import AutoGeral from './pages/AutoGeral';
 import Pernambucana from './pages/Pernambucana';
 import Arquivos from './pages/Arquivos';
+import AdminGateway from './components/AdminGateway';
 
 // Protected Route Component to block unauthenticated access
 const ProtectedRoute = ({ children }) => {
@@ -56,7 +57,9 @@ function App() {
                 path="/pernambucana" 
                 element={
                   <ProtectedRoute>
-                    <Pernambucana />
+                    <AdminGateway brand="pernambucana">
+                      <Pernambucana />
+                    </AdminGateway>
                   </ProtectedRoute>
                 } 
               />
@@ -75,7 +78,9 @@ function App() {
                 path="/autogeral" 
                 element={
                   <AutoGeralRoute>
-                    <AutoGeral />
+                    <AdminGateway brand="autogeral">
+                      <AutoGeral />
+                    </AdminGateway>
                   </AutoGeralRoute>
                 } 
               />
