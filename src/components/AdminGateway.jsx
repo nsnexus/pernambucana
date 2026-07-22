@@ -34,7 +34,7 @@ const AdminGateway = ({ children, brand }) => {
           alt={brand} 
           style={{ height: '70px', marginBottom: '24px', borderRadius: isAutoGeral ? '14px' : '0', objectFit: 'contain', background: isAutoGeral ? '#000' : 'transparent', padding: isAutoGeral ? '4px' : '0' }} 
         />
-        <h2 style={{ color: '#fff', marginBottom: '8px', fontSize: '24px' }}>Acesso Administrativo</h2>
+        <h2 style={{ color: 'var(--text, #111)', marginBottom: '8px', fontSize: '24px' }}>Acesso Administrativo</h2>
         <p style={{ color: 'var(--muted)', marginBottom: '32px', fontSize: '15px' }}>
           Selecione qual módulo da <strong>{isAutoGeral ? 'Auto Geral' : 'Pernambucana'}</strong> você deseja acessar:
         </p>
@@ -42,15 +42,19 @@ const AdminGateway = ({ children, brand }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <button 
             className="btn primary" 
-            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: isAutoGeral ? '#4ee247' : '', color: isAutoGeral ? '#000' : '' }}
+            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: isAutoGeral ? '#4ee247' : '', color: isAutoGeral ? '#000' : '', transition: 'all 0.2s', transform: 'scale(1)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
             onClick={() => setChoice('financeiro')}
           >
             <span style={{ fontSize: '20px' }}>📊</span> Painel Financeiro
           </button>
           
           <button 
-            className="btn" 
-            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: 'rgba(0, 229, 255, 0.1)', color: '#00e5ff', border: '1px solid rgba(0, 229, 255, 0.3)' }}
+            className="btn ghost" 
+            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: 'rgba(0, 229, 255, 0.1)', color: '#00b8d4', border: '1px solid rgba(0, 229, 255, 0.3)', transition: 'all 0.2s', transform: 'scale(1)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(0, 229, 255, 0.1)' }}
             onClick={() => setChoice('administrativo')}
           >
             <span style={{ fontSize: '20px' }}>📁</span> Painel Administrativo

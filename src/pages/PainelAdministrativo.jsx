@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 const CATEGORIES = {
@@ -31,6 +31,12 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   
   // Efetivo Form State
   const [efetivoForm, setEfetivoForm] = useState({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+  const [editingEfetivoId, setEditingEfetivoId] = useState(null);
+
+  // Filters State
+  const [filterName, setFilterName] = useState('');
+  const [filterFunc, setFilterFunc] = useState('');
+  const [filterDate, setFilterDate] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -76,25 +82,36 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const handleCatSwitch = (cat) => {
     setActiveCat(cat);
     setActiveSub(CATEGORIES[cat][0]);
+    setFilterName('');
+    setFilterFunc('');
+    setFilterDate('');
   };
 
   // ═══ EFETIVO ACTIONS ═══
   const handleSaveEfetivo = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'efetivos'), {
-        ...efetivoForm,
-        brand,
-        createdBy: currentUser?.email,
-        createdAt: serverTimestamp()
-      });
+      if (editingEfetivoId) {
+        await updateDoc(doc(db, 'efetivos', editingEfetivoId), {
+          ...efetivoForm
+        });
+        alert('Funcionário atualizado com sucesso!');
+      } else {
+        await addDoc(collection(db, 'efetivos'), {
+          ...efetivoForm,
+          brand,
+          createdBy: currentUser?.email,
+          createdAt: serverTimestamp()
+        });
+        alert('Funcionário cadastrado com sucesso!');
+      }
       setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+      setEditingEfetivoId(null);
       setEfetivoModalOpen(false);
       fetchData();
-      alert('Funcionário cadastrado com sucesso!');
     } catch (err) {
       console.error("Erro ao salvar efetivo:", err);
-      alert("Erro ao cadastrar funcionário.");
+      alert("Erro ao salvar funcionário.");
     }
   };
 
@@ -106,6 +123,19 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     } catch (err) {
       console.error("Erro:", err);
     }
+  };
+
+  const handleEditEfetivo = (ef) => {
+    setEfetivoForm({
+      nome: ef.nome || '',
+      dataNascimento: ef.dataNascimento || '',
+      cpf: ef.cpf || '',
+      endereco: ef.endereco || '',
+      telefone: ef.telefone || '',
+      pix: ef.pix || ''
+    });
+    setEditingEfetivoId(ef.id);
+    setEfetivoModalOpen(true);
   };
 
   // ═══ FILE ACTIONS ═══
@@ -173,7 +203,21 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   // ═══ RENDERERS ═══
   const isEfetivoTab = activeCat === 'Administração' && activeSub === 'Efetivo';
   
-  const filteredArquivos = arquivos.filter(a => a.categoria === activeCat && a.subcategoria === activeSub);
+  const filteredArquivos = arquivos.filter(a => {
+    if (a.categoria !== activeCat || a.subcategoria !== activeSub) return false;
+    
+    if (filterName && !a.titulo?.toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (filterFunc && a.funcionarioId !== filterFunc) return false;
+    if (filterDate) {
+      if (!a.createdAt) return false;
+      const dateObj = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      if (`${yyyy}-${mm}` !== filterDate) return false;
+    }
+    
+    return true;
+  });
 
   return (
     <div className="painel-layout" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -206,8 +250,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           {CATEGORIES[activeCat].map(sub => (
             <button 
               key={sub} 
-              className={`btn ghost ${activeSub === sub ? 'primary' : ''}`}
-              style={activeSub === sub ? { fontWeight: 'bold' } : {}}
+              className={`btn ${activeSub === sub ? 'primary' : 'ghost'}`}
+              style={activeSub === sub ? { fontWeight: 'bold', transform: 'scale(1.05)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } : {}}
               onClick={() => setActiveSub(sub)}
             >
               {sub}
@@ -226,7 +270,11 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <h3>Gestão de Efetivo (Funcionários)</h3>
                 <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários ativos da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
               </div>
-              <button className="btn primary" onClick={() => setEfetivoModalOpen(true)}>+ Novo Funcionário</button>
+              <button className="btn primary" onClick={() => {
+                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+                setEditingEfetivoId(null);
+                setEfetivoModalOpen(true);
+              }}>+ Novo Funcionário</button>
             </div>
             
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
@@ -254,6 +302,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       <td>{ef.pix}</td>
                       <td>{ef.endereco}</td>
                       <td>
+                        <button className="btn mini" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
                         <button className="btn mini bad" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
                       </td>
                     </tr>
@@ -275,6 +324,20 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 setFileModalOpen(true);
               }}>+ Novo Arquivo</button>
             </div>
+
+            <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Filtrar por título/nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+              {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
+                <select value={filterFunc} onChange={e => setFilterFunc(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }}>
+                  <option value="">Todos os Funcionários</option>
+                  {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
+                </select>
+              )}
+              {['Folha de pagamento', 'Advertências'].includes(activeSub) && (
+                <input type="month" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+              )}
+            </div>
+
 
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
               <table>
