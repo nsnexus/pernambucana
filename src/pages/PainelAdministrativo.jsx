@@ -7,7 +7,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 const CATEGORIES = {
   'Segurança': ['Aso', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
-  'Administração': ['Efetivo', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento']
+  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento']
 };
 
 const PainelAdministrativo = ({ brand, onBackToGateway }) => {
@@ -231,7 +231,22 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   // ═══ RENDERERS ═══
   const isEfetivoTab = activeCat === 'Administração' && activeSub === 'Efetivo';
+  const isFeriasTab = activeCat === 'Administração' && activeSub === 'Férias';
   
+  const filteredFerias = efetivos.filter(ef => {
+    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (filterDate) {
+      const baseDate = ef.dataBaseFerias ? new Date(ef.dataBaseFerias + 'T00:00:00') : null;
+      if (!baseDate) return false;
+      const limitDate = new Date(baseDate);
+      limitDate.setFullYear(limitDate.getFullYear() + 2);
+      const yyyy = limitDate.getFullYear();
+      const mm = String(limitDate.getMonth() + 1).padStart(2, '0');
+      if (`${yyyy}-${mm}` !== filterDate) return false;
+    }
+    return true;
+  });
+
   const filteredArquivos = arquivos.filter(a => {
     if (a.categoria !== activeCat || a.subcategoria !== activeSub) return false;
     
@@ -314,7 +329,6 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <th>CPF</th>
                     <th>Nascimento</th>
                     <th>Admissão</th>
-                    <th>Vencimento Férias</th>
                     <th>Telefone</th>
                     <th>Chave PIX</th>
                     <th>Endereço</th>
@@ -330,41 +344,87 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       <td>{ef.cpf}</td>
                       <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
                       <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
-                      <td>
-                        {(() => {
-                          const baseDate = ef.dataBaseFerias ? new Date(ef.dataBaseFerias + 'T00:00:00') : null;
-                          if (!baseDate) return '-';
-                          const limitDate = new Date(baseDate);
-                          limitDate.setFullYear(limitDate.getFullYear() + 2);
-                          const now = new Date();
-                          const diffTime = limitDate - now;
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          let feriasStatus = null;
-                          if (diffDays < 0) {
-                            feriasStatus = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencidas' };
-                          } else if (diffDays <= 60) {
-                            feriasStatus = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
-                          } else {
-                            feriasStatus = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'Ok' };
-                          }
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span>{limitDate.toLocaleDateString('pt-BR')}</span>
-                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: feriasStatus.bg, color: feriasStatus.color, fontWeight: 'bold' }}>{feriasStatus.text}</span>
-                            </div>
-                          );
-                        })()}
-                      </td>
                       <td>{ef.telefone}</td>
                       <td>{ef.pix}</td>
                       <td>{ef.endereco}</td>
                       <td>
-                        <button className="btn mini" style={{ marginRight: '6px', background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }} onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>Férias</button>
                         <button className="btn mini" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
                         <button className="btn mini bad" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : isFeriasTab ? (
+          // --- TABELA DE FÉRIAS ---
+          <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+            <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h3>Controle de Férias</h3>
+                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Acompanhe o vencimento de férias e registre os descansos gozados.</p>
+              </div>
+            </div>
+
+            <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Buscar funcionário..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+              <input type="month" placeholder="Mês/Ano do Vencimento" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} title="Filtrar por Mês/Ano de Vencimento Limite" />
+            </div>
+
+            <div className="table-wrap" style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Data Base (Admissão/Última Férias)</th>
+                    <th>Vencimento Limite (2 anos)</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFerias.length === 0 ? (
+                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                  ) : filteredFerias.map(ef => {
+                    const baseDate = ef.dataBaseFerias ? new Date(ef.dataBaseFerias + 'T00:00:00') : null;
+                    let feriasLabel = '-';
+                    let feriasStatus = null;
+                    if (baseDate) {
+                      const limitDate = new Date(baseDate);
+                      limitDate.setFullYear(limitDate.getFullYear() + 2);
+                      const now = new Date();
+                      const diffTime = limitDate - now;
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      
+                      if (diffDays < 0) {
+                        feriasStatus = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencidas' };
+                      } else if (diffDays <= 60) {
+                        feriasStatus = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
+                      } else {
+                        feriasStatus = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'Ok' };
+                      }
+                      
+                      feriasLabel = (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{limitDate.toLocaleDateString('pt-BR')}</span>
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: feriasStatus.bg, color: feriasStatus.color, fontWeight: 'bold' }}>{feriasStatus.text}</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <tr key={ef.id}>
+                        <td><strong>{ef.nome}</strong></td>
+                        <td>{baseDate ? baseDate.toLocaleDateString('pt-BR') : '-'}</td>
+                        <td>{feriasLabel}</td>
+                        <td>
+                          <button className="btn mini" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }} onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>
+                            Lançar Férias
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
