@@ -6,7 +6,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 
 const CATEGORIES = {
   'Segurança': ['Aso', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
-  'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidencia AVCB'],
+  'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
   'Administração': ['Efetivo', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento']
 };
 
