@@ -1433,33 +1433,32 @@ const Pernambucana = ({ onBackToGateway }) => {
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
         {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
-            className="btn" 
+            className="btn primary" 
             type="button"
             onClick={() => window.print()}
-            style={{ height: '38px', backgroundColor: '#1fb6ff', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
             title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
             🖨️ Imprimir
           </button>
         )}
         {activeTab === 'servicos' && selectedServicos.length > 0 && (
-          <button className="btn" onClick={handleDeleteSelectedServicos} style={{ background: '#f43f5e', color: '#fff' }}>
-            🗑 Excluir Selecionados ({selectedServicos.length})
+          <button className="btn danger" onClick={handleDeleteSelectedServicos}>
+            🗑 Excluir ({selectedServicos.length})
           </button>
         )}
         {activeTab === 'compras' && selectedCompras.length > 0 && (
-          <button className="btn" onClick={handleDeleteSelectedCompras} style={{ background: '#f43f5e', color: '#fff' }}>
-            🗑 Excluir Selecionados ({selectedCompras.length})
+          <button className="btn danger" onClick={handleDeleteSelectedCompras}>
+            🗑 Excluir ({selectedCompras.length})
           </button>
         )}
         {activeTab === 'boletos' && selectedBoletos.length > 0 && (
-          <button className="btn" onClick={handleDeleteSelectedBoletos} style={{ background: '#f43f5e', color: '#fff' }}>
-            🗑 Excluir Selecionados ({selectedBoletos.length})
+          <button className="btn danger" onClick={handleDeleteSelectedBoletos}>
+            🗑 Excluir ({selectedBoletos.length})
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
-            className="btn ghost-light" 
+            className={`btn outline ${gridEditMode ? 'active' : ''}`}
             onClick={() => setGridEditMode(!gridEditMode)}
             title="Ativar modo de edição rápida similar ao Excel"
           >
@@ -1467,21 +1466,20 @@ const Pernambucana = ({ onBackToGateway }) => {
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
-          <button className="btn primary" onClick={openImportModal} title="Importar dados copiados do Excel">Importar Excel</button>
+          <button className="btn outline" onClick={openImportModal} title="Importar dados copiados do Excel">Importar Excel</button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
           <button 
-            className="btn" 
+            className="btn warning" 
             onClick={() => setDuplicateModal(true)} 
             title="Checar dados duplicados nas planilhas"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
           >
             🔍 Checar Duplicados
           </button>
         )}
-        {activeTab === 'servicos' && <button className="btn" onClick={openAddServico}>+ Novo</button>}
-        {activeTab === 'compras' && <button className="btn" onClick={openAddCompra}>+ Novo</button>}
-        {activeTab === 'boletos' && <button className="btn" onClick={openAddBoleto}>+ Novo</button>}
+        {activeTab === 'servicos' && <button className="btn primary" onClick={openAddServico}>+ Novo</button>}
+        {activeTab === 'compras' && <button className="btn primary" onClick={openAddCompra}>+ Novo</button>}
+        {activeTab === 'boletos' && <button className="btn primary" onClick={openAddBoleto}>+ Novo</button>}
       </div>
     </div>
   );

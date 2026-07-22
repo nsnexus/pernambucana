@@ -993,10 +993,9 @@ const AutoGeral = ({ onBackToGateway }) => {
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
         {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
-            className="btn" 
+            className="btn primary" 
             type="button"
             onClick={() => window.print()}
-            style={{ height: '38px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
             title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
             🖨️ Imprimir
@@ -1004,7 +1003,7 @@ const AutoGeral = ({ onBackToGateway }) => {
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
-            className={`btn ghost ${gridEditMode ? 'active' : ''}`}
+            className={`btn outline ${gridEditMode ? 'active' : ''}`}
             type="button"
             onClick={() => {
               if (gridEditMode && Object.keys(gridChanges).length > 0) {
@@ -1013,18 +1012,16 @@ const AutoGeral = ({ onBackToGateway }) => {
               setGridChanges({});
               setGridEditMode(!gridEditMode);
             }} 
-            style={{ height: '38px', borderColor: gridEditMode ? 'var(--yellow)' : 'var(--line)', color: gridEditMode ? 'var(--yellow)' : 'var(--muted)', fontWeight: 800 }}
           >
             {gridEditMode ? '✓ Sair do Modo Planilha' : '✏️ Modo Planilha'}
           </button>
         )}
-        <button className="btn import" onClick={openImportModal} style={{ height: '38px' }}>Importar Excel</button>
+        <button className="btn outline" onClick={openImportModal}>Importar Excel</button>
         {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
           <button 
-            className="btn" 
+            className="btn warning" 
             onClick={() => setDuplicateModal(true)} 
             title="Checar dados duplicados nas planilhas"
-            style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
           >
             🔍 Checar Duplicados
           </button>
@@ -1033,7 +1030,7 @@ const AutoGeral = ({ onBackToGateway }) => {
           if (activeTab === 'servicos') openAddServico();
           else if (activeTab === 'compras') openAddCompra();
           else if (activeTab === 'boletos') openAddBoleto();
-        }} style={{ height: '38px' }}>+ Novo</button>
+        }}>+ Novo</button>
       </div>
     </div>
   );

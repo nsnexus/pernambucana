@@ -384,25 +384,53 @@ body.theme-white .painel-layout {
 /* ── Buttons ── */
 .btn {
   border: 0;
-  border-radius: 10px;
-  padding: 10px 16px;
-  font-weight: 800;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .btn.primary {
-  background: linear-gradient(135deg, var(--green), #0d9488);
+  background: var(--green);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(20, 184, 166, .25);
 }
-.btn.primary:hover { box-shadow: 0 6px 20px rgba(20, 184, 166, .35); transform: translateY(-1px); }
-.btn.ghost {
-  background: rgba(255,255,255,.08);
-  color: #fff;
+.btn.primary:hover { background: #0d9488; }
+
+.btn.outline {
+  background: transparent;
+  color: var(--txt);
   border: 1px solid var(--line);
 }
-.btn.ghost:hover { background: rgba(255,255,255,.12); }
+.btn.outline:hover { background: rgba(255,255,255,.05); }
+
+.btn.danger {
+  background: #f43f5e;
+  color: #fff;
+}
+.btn.danger:hover { background: #e11d48; }
+
+.btn.warning {
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+}
+.btn.warning:hover { background: rgba(234, 179, 8, 0.2); }
+
+.btn.ghost {
+  background: transparent;
+  color: var(--txt);
+}
+.btn.ghost:hover { background: rgba(255,255,255,.08); }
+
+.btn.mini {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+}
 
 /* ── Insights section ── */
 .insights { padding: 22px; margin-bottom: 20px; }
@@ -684,13 +712,14 @@ body.theme-white td { color: #334155; border-bottom-color: rgba(15,23,42,.06); }
 body.theme-white tr:hover td { background: rgba(20,184,166,.03); }
 
 /* Buttons */
-body.theme-white .btn.ghost {
+body.theme-white .btn.ghost,
+body.theme-white .btn.outline {
   background: #fff;
   color: var(--txt);
   border: 1px solid var(--line);
-  box-shadow: 0 2px 8px rgba(15,23,42,.05);
 }
-body.theme-white .btn.ghost:hover { background: #f8fafc; }
+body.theme-white .btn.ghost:hover,
+body.theme-white .btn.outline:hover { background: #f8fafc; }
 
 /* Badge */
 body.theme-white .badge {

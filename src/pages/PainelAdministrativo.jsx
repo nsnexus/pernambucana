@@ -348,8 +348,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       <td>{ef.pix}</td>
                       <td>{ef.endereco}</td>
                       <td>
-                        <button className="btn mini" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
-                        <button className="btn mini bad" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
+                        <button className="btn mini outline" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
+                        <button className="btn mini danger" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
                       </td>
                     </tr>
                   ))}
@@ -418,7 +418,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td>{baseDate ? baseDate.toLocaleDateString('pt-BR') : '-'}</td>
                         <td>{feriasLabel}</td>
                         <td>
-                          <button className="btn mini" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }} onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>
+                          <button className="btn mini warning" onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>
                             Lançar Férias
                           </button>
                         </td>
