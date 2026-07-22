@@ -668,6 +668,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
                   Nota: Marcar como <strong>Gozada</strong> redefinirá a contagem do prazo limite de 2 anos a partir da data informada abaixo.
                 </p>
+              </div>
               <div className="form-grid" style={{ marginTop: '12px' }}>
                 <div className="form-group">
                   <label>Data de Início das Férias *</label>
