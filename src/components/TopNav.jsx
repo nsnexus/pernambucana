@@ -83,6 +83,13 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
               {navLink('compras', 'Compras')}
               {navLink('boletos', 'Boletos')}
               {navLink('recebiveis', 'Recebíveis')}
+              <Link 
+                to="/arquivos" 
+                className={`topnav-link ${currentPage === 'arquivos' ? 'active' : ''}`} 
+                onClick={() => setMobileOpen(false)}
+              >
+                Arquivos
+              </Link>
               <div className="topnav-divider" />
               <Link to="/" className="topnav-link" onClick={() => setMobileOpen(false)}>↗ Portal</Link>
             </>

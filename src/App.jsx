@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Cadastros from './pages/Cadastros';
 import AutoGeral from './pages/AutoGeral';
 import Pernambucana from './pages/Pernambucana';
+import Arquivos from './pages/Arquivos';
 
 // Protected Route Component to block unauthenticated access
 const ProtectedRoute = ({ children }) => {
@@ -56,6 +57,15 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Pernambucana />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/arquivos" 
+                element={
+                  <ProtectedRoute>
+                    <Arquivos />
                   </ProtectedRoute>
                 } 
               />

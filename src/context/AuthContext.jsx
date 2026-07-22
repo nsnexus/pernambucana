@@ -13,7 +13,6 @@ const firebaseConfig = {
   measurementId: "G-PX1XC1R53T"
 };
 
-// Inicializa Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
@@ -21,6 +20,9 @@ export const db = initializeFirestore(app, {
     tabManager: persistentMultipleTabManager()
   })
 });
+import { getStorage } from 'firebase/storage';
+export const storage = getStorage(app);
+export { app };
 
 const AuthContext = createContext();
 
