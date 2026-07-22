@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
 import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
@@ -12,7 +13,17 @@ const CATEGORIES = {
 };
 
 const PainelAdministrativo = ({ brand, onBackToGateway }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (err) {
+      console.error('Erro ao deslogar:', err);
+    }
+  };
   
   const [activeCat, setActiveCat] = useState('Segurança');
   const [activeSub, setActiveSub] = useState(CATEGORIES['Segurança'][0]);
@@ -266,16 +277,38 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   return (
     <div className="painel-layout" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      {/* Fake TopNav just for back button and structure, or we can build a simple header */}
-      <header className="portal-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 24px', background: 'var(--card)', borderBottom: '1px solid var(--line)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <img src={brand === 'autogeral' ? '/assets/logo-autogeral.jpg' : '/assets/logo-pernambucana.jpg'} alt={brand} style={{ height: '40px', borderRadius: brand === 'autogeral' ? '8px' : '0', background: brand === 'autogeral' ? '#000' : 'transparent' }} />
-          <h2 style={{ fontSize: '18px', margin: 0 }}>Painel Administrativo & Gestão de Arquivos</h2>
-        </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn ghost" onClick={onBackToGateway} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🔄 Trocar Painel
-          </button>
+      <header className="topnav">
+        <div className="topnav-inner">
+          <Link to="/" className="topnav-brand">
+            <img 
+              src={brand === 'autogeral' ? '/assets/logo-autogeral.jpg' : '/assets/logo-pernambucana.jpg'} 
+              alt={brand} 
+              style={{ height: '36px', borderRadius: brand === 'autogeral' ? '8px' : '0', background: brand === 'autogeral' ? '#000' : 'transparent' }} 
+            />
+            <div>
+              <strong>{brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}</strong>
+              <span>Gestão de Arquivos</span>
+            </div>
+          </Link>
+
+          <div className="topnav-right">
+            {!currentUser?.isDocumentsOnly && onBackToGateway && (
+              <button 
+                className="btn outline sm" 
+                onClick={onBackToGateway}
+                title="Alternar entre Painel Financeiro e Administrativo"
+                type="button"
+              >
+                <IconRefresh /> Trocar Painel
+              </button>
+            )}
+
+            <Link to="/" className="topnav-link">↗ Portal</Link>
+
+            <button className="topnav-logout" onClick={handleLogout} type="button">
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
