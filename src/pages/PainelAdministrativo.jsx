@@ -36,17 +36,30 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     setLoading(true);
     try {
       // 1. Fetch Arquivos
-      const qArq = query(collection(db, 'arquivos'), where('brand', '==', brand), orderBy('createdAt', 'desc'));
+      const qArq = query(collection(db, 'arquivos'), where('brand', '==', brand));
       const snapArq = await getDocs(qArq);
       const arrArq = [];
       snapArq.forEach(d => arrArq.push({ id: d.id, ...d.data() }));
+      
+      // Ordenar por data (mais recentes primeiro)
+      arrArq.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
       setArquivos(arrArq);
 
       // 2. Fetch Efetivos
-      const qEf = query(collection(db, 'efetivos'), where('brand', '==', brand), orderBy('createdAt', 'desc'));
+      const qEf = query(collection(db, 'efetivos'), where('brand', '==', brand));
       const snapEf = await getDocs(qEf);
       const arrEf = [];
       snapEf.forEach(d => arrEf.push({ id: d.id, ...d.data() }));
+      
+      arrEf.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
       setEfetivos(arrEf);
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -112,7 +125,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     try {
       setIsUploading(true);
       const file = fileForm.file;
-      const filePath = `arquivos_v2/${brand}/${fileForm.categoria}/${Date.now()}_${file.name}`;
+      const subPath = fileForm.subcategoria ? `/${fileForm.subcategoria}` : '';
+      const filePath = `arquivos_v2/${brand}/${fileForm.categoria}${subPath}/${Date.now()}_${file.name}`;
       const fileRef = ref(storage, filePath);
       const snapshot = await uploadBytes(fileRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
