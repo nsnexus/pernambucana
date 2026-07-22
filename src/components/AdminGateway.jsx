@@ -11,6 +11,10 @@ const AdminGateway = ({ children, brand }) => {
     return children;
   }
 
+  if (currentUser?.isDocumentsOnly) {
+    return <PainelAdministrativo brand={brand} onBackToGateway={() => {}} />;
+  }
+
   if (choice === 'financeiro') {
     return React.cloneElement(children, { onBackToGateway: () => setChoice(null) });
   }

@@ -50,11 +50,19 @@ export const AuthProvider = ({ children }) => {
             isAdmin = !!userData.isAdmin;
             allowedSectors = userData.allowedSectors || ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
             
+            let isDocumentsOnly = !!userData.isDocumentsOnly;
+
+            if (email.includes('seguranca')) {
+              isDocumentsOnly = true;
+              isAdmin = true;
+            }
+
             setCurrentUser({
               email,
               sector,
               isAdmin,
-              allowedSectors
+              allowedSectors,
+              isDocumentsOnly
             });
             sessionStorage.setItem('pernambucanaFinanceAuth', 'ok');
             sessionStorage.setItem('pernambucanaUserEmail', email);
@@ -92,6 +100,11 @@ export const AuthProvider = ({ children }) => {
         } else if (email.includes('autogeral') || email.includes('auto')) {
           sector = 'AltoGeral';
           allowedSectors = ['AltoGeral'];
+        } else if (email.includes('seguranca')) {
+          sector = 'Segurança';
+          isAdmin = true;
+          allowedSectors = [];
+          var isDocumentsOnly = true;
         } else {
           // Fallback administrador por padrão
           sector = 'all';
@@ -106,6 +119,7 @@ export const AuthProvider = ({ children }) => {
             sector,
             isAdmin,
             allowedSectors,
+            isDocumentsOnly: isDocumentsOnly || false,
             criadoAutomaticamente: true
           });
         } catch (saveErr) {
@@ -116,7 +130,8 @@ export const AuthProvider = ({ children }) => {
           email,
           sector,
           isAdmin,
-          allowedSectors
+          allowedSectors,
+          isDocumentsOnly: isDocumentsOnly || false
         });
         sessionStorage.setItem('pernambucanaFinanceAuth', 'ok');
         sessionStorage.setItem('pernambucanaUserEmail', email);
