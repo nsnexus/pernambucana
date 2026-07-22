@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { IconRefresh } from './Icons';
 
 const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadastrosPage = false, isAutoGeral = false, whiteTheme, setWhiteTheme, isPernambucana = false, onBackToGateway }) => {
   const { currentUser, logout } = useAuth();
@@ -131,13 +132,12 @@ const TopNav = ({ currentPage, onPageChange, currentDept, onDeptChange, isCadast
 
           {onBackToGateway && (
             <button 
-              className="btn ghost" 
+              className="btn outline sm" 
               onClick={onBackToGateway}
               title="Alternar entre Painel Financeiro e Administrativo"
               type="button"
-              style={{ padding: '6px 12px', height: '36px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              🔄 Painéis
+              <IconRefresh /> Painéis
             </button>
           )}
 

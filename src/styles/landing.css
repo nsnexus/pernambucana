@@ -463,7 +463,7 @@ body.theme-white .modal-backdrop {
   font-size: 12px;
 }
 
-.btn {
+.portal-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -475,17 +475,17 @@ body.theme-white .modal-backdrop {
   font-size: 14px;
 }
 
-.btn.primary {
+.portal-btn.primary {
   background: linear-gradient(135deg, var(--yellow), #fff1a6);
   color: #062a61;
   box-shadow: 0 10px 24px rgba(255, 212, 42, 0.2);
 }
 
-.btn.primary:hover {
+.portal-btn.primary:hover {
   transform: translateY(-1px);
 }
 
-.btn.full {
+.portal-btn.full {
   width: 100%;
 }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
+import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
@@ -34,7 +35,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [editingEfetivoId, setEditingEfetivoId] = useState(null);
 
   // Ferias Form State
-  const [feriasForm, setFeriasForm] = useState({ efetivoId: '', status: 'Programada', data: '' });
+  const [feriasForm, setFeriasForm] = useState({ efetivoId: '', status: 'Programada', dataInicio: '', dataFim: '' });
   const [feriasModalOpen, setFeriasModalOpen] = useState(false);
 
   // Filters State
@@ -59,20 +60,16 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       });
       setArquivos(arrArq);
 
-      // 2. Fetch Efetivos
+      // 2. Fetch Efetivos (Funcionários)
       const qEf = query(collection(db, 'efetivos'), where('brand', '==', brand));
       const snapEf = await getDocs(qEf);
       const arrEf = [];
       snapEf.forEach(d => arrEf.push({ id: d.id, ...d.data() }));
       
-      arrEf.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-        return timeB - timeA;
-      });
+      arrEf.sort((a, b) => a.nome.localeCompare(b.nome));
       setEfetivos(arrEf);
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error);
+    } catch (err) {
+      console.error("Erro ao buscar dados do Firestore:", err);
     } finally {
       setLoading(false);
     }
@@ -147,13 +144,17 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const handleSaveFerias = async (e) => {
     e.preventDefault();
     try {
-      if (!feriasForm.data) {
-        alert("Preencha a data.");
+      if (!feriasForm.dataInicio || !feriasForm.dataFim) {
+        alert("Preencha as datas de início e fim das férias.");
         return;
       }
-      const updateData = {};
+      const updateData = {
+        feriasInicio: feriasForm.dataInicio,
+        feriasFim: feriasForm.dataFim,
+        feriasStatus: feriasForm.status
+      };
       if (feriasForm.status === 'Gozada') {
-        updateData.dataBaseFerias = feriasForm.data;
+        updateData.dataBaseFerias = feriasForm.dataFim;
       }
       await updateDoc(doc(db, 'efetivos', feriasForm.efetivoId), updateData);
       
@@ -314,11 +315,11 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <h3>Gestão de Efetivo (Funcionários)</h3>
                 <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários ativos da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
               </div>
-              <button className="btn primary" onClick={() => {
+              <button className="btn primary sm" onClick={() => {
                 setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
                 setEditingEfetivoId(null);
                 setEfetivoModalOpen(true);
-              }}>+ Novo Funcionário</button>
+              }}><IconPlus /> Novo Funcionário</button>
             </div>
             
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
@@ -337,7 +338,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 </thead>
                 <tbody>
                   {efetivos.length === 0 ? (
-                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário cadastrado.</td></tr>
+                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário cadastrado.</td></tr>
                   ) : efetivos.map(ef => (
                     <tr key={ef.id}>
                       <td><strong>{ef.nome}</strong></td>
@@ -348,8 +349,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       <td>{ef.pix}</td>
                       <td>{ef.endereco}</td>
                       <td>
-                        <button className="btn mini outline" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
-                        <button className="btn mini danger" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
+                            <IconEdit />
+                          </button>
+                          <button className="btn icon-only danger" title="Excluir Funcionário" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>
+                            <IconTrash />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -377,16 +384,18 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <thead>
                   <tr>
                     <th>Nome</th>
-                    <th>Data Base (Admissão/Última Férias)</th>
+                    <th>Data Base (Admissão / Férias)</th>
+                    <th>Período de Férias (Início — Fim)</th>
                     <th>Vencimento Limite (2 anos)</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredFerias.length === 0 ? (
-                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
                   ) : filteredFerias.map(ef => {
-                    const baseDate = ef.dataBaseFerias ? new Date(ef.dataBaseFerias + 'T00:00:00') : null;
+                    const rawBase = ef.dataBaseFerias || ef.dataAdmissao;
+                    const baseDate = rawBase ? new Date(rawBase + 'T00:00:00') : null;
                     let feriasLabel = '-';
                     let feriasStatus = null;
                     if (baseDate) {
@@ -412,14 +421,33 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       );
                     }
 
+                    const feriasPeriodo = (ef.feriasInicio && ef.feriasFim) ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{new Date(ef.feriasInicio + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(ef.feriasFim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                        <span style={{ 
+                          padding: '2px 6px', 
+                          borderRadius: '4px', 
+                          fontSize: '10px', 
+                          fontWeight: 'bold',
+                          background: ef.feriasStatus === 'Gozada' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                          color: ef.feriasStatus === 'Gozada' ? '#22c55e' : '#eab308'
+                        }}>
+                          {ef.feriasStatus || 'Programada'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Não lançado</span>
+                    );
+
                     return (
                       <tr key={ef.id}>
                         <td><strong>{ef.nome}</strong></td>
                         <td>{baseDate ? baseDate.toLocaleDateString('pt-BR') : '-'}</td>
+                        <td>{feriasPeriodo}</td>
                         <td>{feriasLabel}</td>
                         <td>
-                          <button className="btn mini warning" onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>
-                            Lançar Férias
+                          <button className="btn warning sm" onClick={() => { setFeriasForm({ efetivoId: ef.id, status: ef.feriasStatus || 'Programada', dataInicio: ef.feriasInicio || '', dataFim: ef.feriasFim || '' }); setFeriasModalOpen(true); }}>
+                            <IconCalendar /> Lançar Férias
                           </button>
                         </td>
                       </tr>
@@ -437,10 +465,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <h3>{activeSub}</h3>
                 <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Arquivos e documentos da categoria {activeCat}.</p>
               </div>
-              <button className="btn primary" onClick={() => {
+              <button className="btn primary sm" onClick={() => {
                 setFileForm({ ...fileForm, categoria: activeCat, subcategoria: activeSub, file: null });
                 setFileModalOpen(true);
-              }}>+ Novo Arquivo</button>
+              }}><IconPlus /> Novo Arquivo</button>
             </div>
 
             <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
@@ -471,7 +499,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 </thead>
                 <tbody>
                   {filteredArquivos.length === 0 ? (
-                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum arquivo encontrado para {activeSub}.</td></tr>
+                    <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum arquivo encontrado para {activeSub}.</td></tr>
                   ) : filteredArquivos.map(arq => {
                     const func = arq.funcionarioId ? efetivos.find(e => e.id === arq.funcionarioId) : null;
                     return (
@@ -507,8 +535,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td>{arq.uploadedBy}</td>
                         <td>{arq.createdAt?.toDate ? new Date(arq.createdAt.toDate()).toLocaleDateString() : 'Recente'}</td>
                         <td>
-                          <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn mini ghost" style={{ marginRight: '6px', textDecoration: 'none', display: 'inline-block' }}>Visualizar</a>
-                          <button className="btn mini bad" onClick={() => handleDeleteFile(arq)}>Excluir</button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only" title="Visualizar Documento">
+                              <IconEye />
+                            </a>
+                            <button className="btn icon-only danger" title="Excluir Documento" onClick={() => handleDeleteFile(arq)}>
+                              <IconTrash />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -634,10 +668,15 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
                   Nota: Marcar como <strong>Gozada</strong> redefinirá a contagem do prazo limite de 2 anos a partir da data informada abaixo.
                 </p>
-              </div>
-              <div className="form-group">
-                <label>Data de Início das Férias *</label>
-                <input type="date" required value={feriasForm.data} onChange={e => setFeriasForm({...feriasForm, data: e.target.value})} />
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Data de Início das Férias *</label>
+                  <input type="date" required value={feriasForm.dataInicio || ''} onChange={e => setFeriasForm({...feriasForm, dataInicio: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Data de Término das Férias *</label>
+                  <input type="date" required value={feriasForm.dataFim || ''} onChange={e => setFeriasForm({...feriasForm, dataFim: e.target.value})} />
+                </div>
               </div>
             </div>
             <div className="modal-footer">

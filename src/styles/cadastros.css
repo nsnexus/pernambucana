@@ -107,48 +107,57 @@ body.theme-white .tab-btn.active {
 }
 
 .btn-icon {
-  background: transparent;
-  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
   cursor: pointer;
-  font-size: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  transition: all 0.2s;
+  color: var(--muted);
+  transition: all 0.15s ease;
 }
 
 .btn-icon:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--txt);
 }
 
-.btn-icon.edit {
-  color: var(--yellow);
+.btn-icon.edit:hover {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--green);
+  border-color: rgba(20, 184, 166, 0.3);
 }
 
-.btn-icon.delete {
-  color: var(--red);
+.btn-icon.delete:hover {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+  border-color: rgba(244, 63, 94, 0.3);
 }
 
 body.theme-white .btn-icon {
-  background: rgba(0, 0, 0, 0.05);
-  color: #31465e;
+  background: #ffffff;
+  color: #64748b;
+  border-color: #cbd5e1;
 }
 
 body.theme-white .btn-icon:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
-body.theme-white .btn-icon.edit {
-  color: #007e7a;
+body.theme-white .btn-icon.edit:hover {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #86efac;
 }
 
-body.theme-white .btn-icon.delete {
-  color: #c94253;
+body.theme-white .btn-icon.delete:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
 }
 
 /* Pagination */

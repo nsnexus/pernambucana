@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
+import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -1430,56 +1431,58 @@ const Pernambucana = ({ onBackToGateway }) => {
         <input type="search" placeholder="Buscar por OS, cliente, fornecedor..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
       </label>
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', marginLeft: 'auto', flexWrap: 'wrap' }}>
         {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
-            className="btn primary" 
+            className="btn outline sm" 
             type="button"
             onClick={() => window.print()}
             title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
-            🖨️ Imprimir
+            <IconPrinter /> Imprimir
           </button>
         )}
         {activeTab === 'servicos' && selectedServicos.length > 0 && (
-          <button className="btn danger" onClick={handleDeleteSelectedServicos}>
-            🗑 Excluir ({selectedServicos.length})
+          <button className="btn danger sm" onClick={handleDeleteSelectedServicos}>
+            <IconTrash /> Excluir ({selectedServicos.length})
           </button>
         )}
         {activeTab === 'compras' && selectedCompras.length > 0 && (
-          <button className="btn danger" onClick={handleDeleteSelectedCompras}>
-            🗑 Excluir ({selectedCompras.length})
+          <button className="btn danger sm" onClick={handleDeleteSelectedCompras}>
+            <IconTrash /> Excluir ({selectedCompras.length})
           </button>
         )}
         {activeTab === 'boletos' && selectedBoletos.length > 0 && (
-          <button className="btn danger" onClick={handleDeleteSelectedBoletos}>
-            🗑 Excluir ({selectedBoletos.length})
+          <button className="btn danger sm" onClick={handleDeleteSelectedBoletos}>
+            <IconTrash /> Excluir ({selectedBoletos.length})
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
-            className={`btn outline ${gridEditMode ? 'active' : ''}`}
+            className={`btn outline sm ${gridEditMode ? 'active' : ''}`}
             onClick={() => setGridEditMode(!gridEditMode)}
             title="Ativar modo de edição rápida similar ao Excel"
           >
-            {gridEditMode ? '✓ Sair Edição' : '✏ Edição Rápida'}
+            {gridEditMode ? <><IconCheck /> Sair Edição</> : <><IconEdit /> Edição Rápida</>}
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
-          <button className="btn outline" onClick={openImportModal} title="Importar dados copiados do Excel">Importar Excel</button>
+          <button className="btn outline sm" onClick={openImportModal} title="Importar dados copiados do Excel">
+            <IconExcel /> Importar Excel
+          </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
           <button 
-            className="btn warning" 
+            className="btn warning sm" 
             onClick={() => setDuplicateModal(true)} 
             title="Checar dados duplicados nas planilhas"
           >
-            🔍 Checar Duplicados
+            <IconSearch /> Checar Duplicados
           </button>
         )}
-        {activeTab === 'servicos' && <button className="btn primary" onClick={openAddServico}>+ Novo</button>}
-        {activeTab === 'compras' && <button className="btn primary" onClick={openAddCompra}>+ Novo</button>}
-        {activeTab === 'boletos' && <button className="btn primary" onClick={openAddBoleto}>+ Novo</button>}
+        {activeTab === 'servicos' && <button className="btn primary sm" onClick={openAddServico}><IconPlus /> Novo</button>}
+        {activeTab === 'compras' && <button className="btn primary sm" onClick={openAddCompra}><IconPlus /> Novo</button>}
+        {activeTab === 'boletos' && <button className="btn primary sm" onClick={openAddBoleto}><IconPlus /> Novo</button>}
       </div>
     </div>
   );

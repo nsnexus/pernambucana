@@ -43,25 +43,21 @@ const AdminGateway = ({ children, brand }) => {
           Selecione qual módulo da <strong>{isAutoGeral ? 'Auto Geral' : 'Pernambucana'}</strong> você deseja acessar:
         </p>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button 
             className="btn primary" 
-            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: isAutoGeral ? '#4ee247' : '', color: isAutoGeral ? '#000' : '', transition: 'all 0.2s', transform: 'scale(1)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+            style={{ height: '48px', fontSize: '15px', fontWeight: 'bold' }}
             onClick={() => setChoice('financeiro')}
           >
-            <span style={{ fontSize: '20px' }}>📊</span> Painel Financeiro
+            📊 Painel Financeiro
           </button>
           
           <button 
-            className="btn ghost" 
-            style={{ padding: '16px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', background: 'rgba(0, 229, 255, 0.1)', color: '#00b8d4', border: '1px solid rgba(0, 229, 255, 0.3)', transition: 'all 0.2s', transform: 'scale(1)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(0, 229, 255, 0.1)' }}
+            className="btn outline" 
+            style={{ height: '48px', fontSize: '15px', fontWeight: 'bold' }}
             onClick={() => setChoice('administrativo')}
           >
-            <span style={{ fontSize: '20px' }}>📁</span> Painel Administrativo
+            📁 Painel Administrativo
           </button>
         </div>
       </div>

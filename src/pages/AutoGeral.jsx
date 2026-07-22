@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoGeral } from '../context/AutoGeralContext';
 import TopNav from '../components/TopNav';
+import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -990,20 +991,20 @@ const AutoGeral = ({ onBackToGateway }) => {
         Busca
         <input type="search" placeholder="Buscar por OS, cliente, mecânico..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
       </label>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', marginLeft: 'auto', flexWrap: 'wrap' }}>
         {['servicos', 'compras', 'boletos', 'recebiveis'].includes(activeTab) && (
           <button 
-            className="btn primary" 
+            className="btn outline sm" 
             type="button"
             onClick={() => window.print()}
             title={activeTab === 'compras' ? "Imprimir todas as compras filtradas" : activeTab === 'servicos' ? "Imprimir todos os serviços filtrados" : activeTab === 'boletos' ? "Imprimir todos os boletos filtrados" : "Imprimir todos os recebíveis filtrados"}
           >
-            🖨️ Imprimir
+            <IconPrinter /> Imprimir
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button 
-            className={`btn outline ${gridEditMode ? 'active' : ''}`}
+            className={`btn outline sm ${gridEditMode ? 'active' : ''}`}
             type="button"
             onClick={() => {
               if (gridEditMode && Object.keys(gridChanges).length > 0) {
@@ -1013,24 +1014,24 @@ const AutoGeral = ({ onBackToGateway }) => {
               setGridEditMode(!gridEditMode);
             }} 
           >
-            {gridEditMode ? '✓ Sair do Modo Planilha' : '✏️ Modo Planilha'}
+            {gridEditMode ? <><IconCheck /> Sair do Modo Planilha</> : <><IconEdit /> Modo Planilha</>}
           </button>
         )}
-        <button className="btn outline" onClick={openImportModal}>Importar Excel</button>
+        <button className="btn outline sm" onClick={openImportModal}><IconExcel /> Importar Excel</button>
         {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
           <button 
-            className="btn warning" 
+            className="btn warning sm" 
             onClick={() => setDuplicateModal(true)} 
             title="Checar dados duplicados nas planilhas"
           >
-            🔍 Checar Duplicados
+            <IconSearch /> Checar Duplicados
           </button>
         )}
-        <button className="btn primary" onClick={() => {
+        <button className="btn primary sm" onClick={() => {
           if (activeTab === 'servicos') openAddServico();
           else if (activeTab === 'compras') openAddCompra();
           else if (activeTab === 'boletos') openAddBoleto();
-        }}>+ Novo</button>
+        }}><IconPlus /> Novo</button>
       </div>
     </div>
   );

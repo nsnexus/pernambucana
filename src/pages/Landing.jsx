@@ -180,7 +180,7 @@ const Landing = () => {
             
             {errorMsg && <p className="login-error" id="loginError">{errorMsg}</p>}
             
-            <button className="btn primary full" type="submit" disabled={submitting} style={selectedBrand === 'autogeral' ? { background: '#4ee247', color: '#000', fontWeight: 'bold' } : {}}>
+            <button className="portal-btn primary full" type="submit" disabled={submitting} style={selectedBrand === 'autogeral' ? { background: '#4ee247', color: '#000', fontWeight: 'bold' } : {}}>
               {submitting ? 'Verificando...' : 'Entrar no sistema'}
             </button>
           </form>
