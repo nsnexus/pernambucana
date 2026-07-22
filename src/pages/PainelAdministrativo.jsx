@@ -30,8 +30,12 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [fileForm, setFileForm] = useState({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '' });
   
   // Efetivo Form State
-  const [efetivoForm, setEfetivoForm] = useState({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+  const [efetivoForm, setEfetivoForm] = useState({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '' });
   const [editingEfetivoId, setEditingEfetivoId] = useState(null);
+
+  // Ferias Form State
+  const [feriasForm, setFeriasForm] = useState({ efetivoId: '', status: 'Programada', data: '' });
+  const [feriasModalOpen, setFeriasModalOpen] = useState(false);
 
   // Filters State
   const [filterName, setFilterName] = useState('');
@@ -99,13 +103,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       } else {
         await addDoc(collection(db, 'efetivos'), {
           ...efetivoForm,
+          dataBaseFerias: efetivoForm.dataAdmissao || '',
           brand,
           createdBy: currentUser?.email,
           createdAt: serverTimestamp()
         });
         alert('Funcionário cadastrado com sucesso!');
       }
-      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '' });
       setEditingEfetivoId(null);
       setEfetivoModalOpen(false);
       fetchData();
@@ -132,10 +137,33 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       cpf: ef.cpf || '',
       endereco: ef.endereco || '',
       telefone: ef.telefone || '',
-      pix: ef.pix || ''
+      pix: ef.pix || '',
+      dataAdmissao: ef.dataAdmissao || ''
     });
     setEditingEfetivoId(ef.id);
     setEfetivoModalOpen(true);
+  };
+
+  const handleSaveFerias = async (e) => {
+    e.preventDefault();
+    try {
+      if (!feriasForm.data) {
+        alert("Preencha a data.");
+        return;
+      }
+      const updateData = {};
+      if (feriasForm.status === 'Gozada') {
+        updateData.dataBaseFerias = feriasForm.data;
+      }
+      await updateDoc(doc(db, 'efetivos', feriasForm.efetivoId), updateData);
+      
+      setFeriasModalOpen(false);
+      fetchData();
+      alert('Férias registradas com sucesso!');
+    } catch (err) {
+      console.error("Erro ao registrar férias:", err);
+      alert("Erro ao registrar férias.");
+    }
   };
 
   // ═══ FILE ACTIONS ═══
@@ -284,6 +312,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <th>Nome</th>
                     <th>CPF</th>
                     <th>Nascimento</th>
+                    <th>Admissão</th>
+                    <th>Vencimento Férias</th>
                     <th>Telefone</th>
                     <th>Chave PIX</th>
                     <th>Endereço</th>
@@ -298,10 +328,37 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       <td><strong>{ef.nome}</strong></td>
                       <td>{ef.cpf}</td>
                       <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
+                      <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
+                      <td>
+                        {(() => {
+                          const baseDate = ef.dataBaseFerias ? new Date(ef.dataBaseFerias + 'T00:00:00') : null;
+                          if (!baseDate) return '-';
+                          const limitDate = new Date(baseDate);
+                          limitDate.setFullYear(limitDate.getFullYear() + 2);
+                          const now = new Date();
+                          const diffTime = limitDate - now;
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          let feriasStatus = null;
+                          if (diffDays < 0) {
+                            feriasStatus = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencidas' };
+                          } else if (diffDays <= 60) {
+                            feriasStatus = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
+                          } else {
+                            feriasStatus = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'Ok' };
+                          }
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{limitDate.toLocaleDateString('pt-BR')}</span>
+                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: feriasStatus.bg, color: feriasStatus.color, fontWeight: 'bold' }}>{feriasStatus.text}</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td>{ef.telefone}</td>
                       <td>{ef.pix}</td>
                       <td>{ef.endereco}</td>
                       <td>
+                        <button className="btn mini" style={{ marginRight: '6px', background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }} onClick={() => { setFeriasForm({ efetivoId: ef.id, status: 'Programada', data: '' }); setFeriasModalOpen(true); }}>Férias</button>
                         <button className="btn mini" style={{ marginRight: '6px' }} onClick={() => handleEditEfetivo(ef)}>Editar</button>
                         <button className="btn mini bad" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>Excluir</button>
                       </td>
@@ -345,6 +402,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                   <tr>
                     <th>Título</th>
                     {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && <th>Funcionário Vinculado</th>}
+                    {activeSub === 'Aso' && <th>Vencimento (ASO)</th>}
                     <th>Enviado por</th>
                     <th>Data</th>
                     <th>Ações</th>
@@ -360,6 +418,30 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td><strong>{arq.titulo}</strong></td>
                         {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
                           <td>{func ? func.nome : <span style={{ color: 'var(--muted)' }}>Não vinculado</span>}</td>
+                        )}
+                        {activeSub === 'Aso' && (
+                          <td>
+                            {(() => {
+                              if (!arq.dataVencimento) return '-';
+                              const vDate = new Date(arq.dataVencimento + 'T00:00:00');
+                              const diffTime = vDate - new Date();
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                              let asoStatus = null;
+                              if (diffDays < 0) {
+                                asoStatus = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencido' };
+                              } else if (diffDays <= 30) {
+                                asoStatus = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
+                              } else {
+                                asoStatus = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'No prazo' };
+                              }
+                              return (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{vDate.toLocaleDateString('pt-BR')}</span>
+                                  <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: asoStatus.bg, color: asoStatus.color, fontWeight: 'bold' }}>{asoStatus.text}</span>
+                                </div>
+                              );
+                            })()}
+                          </td>
                         )}
                         <td>{arq.uploadedBy}</td>
                         <td>{arq.createdAt?.toDate ? new Date(arq.createdAt.toDate()).toLocaleDateString() : 'Recente'}</td>
@@ -395,6 +477,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <div className="form-group">
                   <label>Data de Nascimento</label>
                   <input type="date" value={efetivoForm.dataNascimento} onChange={e => setEfetivoForm({...efetivoForm, dataNascimento: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Data de Admissão *</label>
+                  <input type="date" required value={efetivoForm.dataAdmissao || ''} onChange={e => setEfetivoForm({...efetivoForm, dataAdmissao: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label>CPF</label>
@@ -447,6 +533,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 </div>
               )}
 
+              {fileForm.subcategoria === 'Aso' && (
+                <div className="form-group">
+                  <label>Data de Vencimento do ASO *</label>
+                  <input type="date" required value={fileForm.dataVencimento || ''} onChange={e => setFileForm({...fileForm, dataVencimento: e.target.value})} />
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Selecione o Arquivo (PDF, Imagem, etc) *</label>
                 <input type="file" required onChange={handleFileChange} />
@@ -457,6 +550,38 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               <button className="btn primary" type="submit" disabled={isUploading}>
                 {isUploading ? 'Enviando...' : 'Salvar Arquivo'}
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {/* ═══ MODAL FERIAS ═══ */}
+      {feriasModalOpen && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setFeriasModalOpen(false)}></div>
+          <form className="modal-form-card glass" onSubmit={handleSaveFerias} style={{ zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>Registrar Férias</h3>
+              <button className="close" type="button" onClick={() => setFeriasModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Status das Férias</label>
+                <select value={feriasForm.status} onChange={e => setFeriasForm({...feriasForm, status: e.target.value})}>
+                  <option value="Programada">Programada (Apenas aviso)</option>
+                  <option value="Gozada">Férias Gozadas (Concluída)</option>
+                </select>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
+                  Nota: Marcar como <strong>Gozada</strong> redefinirá a contagem do prazo limite de 2 anos a partir da data informada abaixo.
+                </p>
+              </div>
+              <div className="form-group">
+                <label>Data de Início das Férias *</label>
+                <input type="date" required value={feriasForm.data} onChange={e => setFeriasForm({...feriasForm, data: e.target.value})} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setFeriasModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" type="submit">Salvar Férias</button>
             </div>
           </form>
         </div>
