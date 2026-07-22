@@ -110,7 +110,7 @@ function parseCompraSectors(setorStr) {
   return secs.length > 0 ? secs : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
 }
 
-const Pernambucana = () => {
+const Pernambucana = ({ onBackToGateway }) => {
   const { currentUser } = useAuth();
   const {
     allServicos: rawServicos, allCompras: rawCompras, allBoletos: rawBoletos, allRecebiveis: rawRecebiveis, loading,
