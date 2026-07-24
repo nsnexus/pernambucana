@@ -39,7 +39,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [isUploading, setIsUploading] = useState(false);
 
   // File Form State
-  const [fileForm, setFileForm] = useState({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '' });
+  const [fileForm, setFileForm] = useState({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
+  const [editingFileId, setEditingFileId] = useState(null);
   
   // Efetivo Form State
   const [efetivoForm, setEfetivoForm] = useState({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '' });
@@ -185,43 +186,86 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     }
   };
 
+  const handleEditFile = (arq) => {
+    setEditingFileId(arq.id);
+    setFileForm({
+      titulo: arq.titulo || '',
+      categoria: arq.categoria,
+      subcategoria: arq.subcategoria,
+      file: null, // O arquivo original é mantido caso não mande outro
+      funcionarioId: arq.funcionarioId || '',
+      dataVencimento: arq.dataVencimento || ''
+    });
+    setFileModalOpen(true);
+  };
+
   const handleSaveFile = async (e) => {
     e.preventDefault();
-    if (!fileForm.titulo || !fileForm.file) {
-      alert("Preencha o título e selecione um arquivo.");
+    if (!fileForm.titulo) {
+      alert("Preencha o título.");
+      return;
+    }
+    
+    if (!editingFileId && !fileForm.file) {
+      alert("Selecione um arquivo para cadastrar.");
       return;
     }
 
     try {
       setIsUploading(true);
-      const file = fileForm.file;
-      const subPath = fileForm.subcategoria ? `/${fileForm.subcategoria}` : '';
-      const filePath = `arquivos_v2/${brand}/${fileForm.categoria}${subPath}/${Date.now()}_${file.name}`;
-      const fileRef = ref(storage, filePath);
-      const snapshot = await uploadBytes(fileRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      let newFileUrl = null;
+      let newFilePath = null;
+      let newFileName = null;
 
-      await addDoc(collection(db, 'arquivos'), {
-        titulo: fileForm.titulo,
-        categoria: fileForm.categoria,
-        subcategoria: fileForm.subcategoria,
-        fileName: file.name,
-        filePath: filePath,
-        fileUrl: downloadURL,
-        funcionarioId: fileForm.funcionarioId || null,
-        dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null,
-        brand,
-        uploadedBy: currentUser?.email || 'Desconhecido',
-        createdAt: serverTimestamp()
-      });
+      if (fileForm.file) {
+        const file = fileForm.file;
+        const subPath = fileForm.subcategoria ? `/${fileForm.subcategoria}` : '';
+        newFilePath = `arquivos_v2/${brand}/${fileForm.categoria}${subPath}/${Date.now()}_${file.name}`;
+        const fileRef = ref(storage, newFilePath);
+        const snapshot = await uploadBytes(fileRef, file);
+        newFileUrl = await getDownloadURL(snapshot.ref);
+        newFileName = file.name;
+      }
+
+      if (editingFileId) {
+        const updateData = {
+          titulo: fileForm.titulo,
+          funcionarioId: fileForm.funcionarioId || null,
+          dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null
+        };
+        
+        if (newFileUrl) {
+          updateData.fileUrl = newFileUrl;
+          updateData.filePath = newFilePath;
+          updateData.fileName = newFileName;
+        }
+
+        await updateDoc(doc(db, 'arquivos', editingFileId), updateData);
+        alert('Arquivo atualizado com sucesso!');
+      } else {
+        await addDoc(collection(db, 'arquivos'), {
+          titulo: fileForm.titulo,
+          categoria: fileForm.categoria,
+          subcategoria: fileForm.subcategoria,
+          fileName: newFileName,
+          filePath: newFilePath,
+          fileUrl: newFileUrl,
+          funcionarioId: fileForm.funcionarioId || null,
+          dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null,
+          brand,
+          uploadedBy: currentUser?.email || 'Desconhecido',
+          createdAt: serverTimestamp()
+        });
+        alert('Arquivo cadastrado com sucesso!');
+      }
 
       setFileModalOpen(false);
       setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
+      setEditingFileId(null);
       fetchData();
-      alert('Arquivo cadastrado com sucesso!');
     } catch (error) {
-      console.error("Erro ao fazer upload:", error);
-      alert('Erro ao enviar o arquivo.');
+      console.error("Erro ao salvar arquivo:", error);
+      alert('Erro ao salvar o arquivo.');
     } finally {
       setIsUploading(false);
     }
@@ -499,7 +543,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Arquivos e documentos da categoria {activeCat}.</p>
               </div>
               <button className="btn primary sm" onClick={() => {
-                setFileForm({ ...fileForm, categoria: activeCat, subcategoria: activeSub, file: null });
+                setEditingFileId(null);
+                setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
                 setFileModalOpen(true);
               }}><IconPlus /> Novo Arquivo</button>
             </div>
@@ -572,6 +617,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                             <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only" title="Visualizar Documento">
                               <IconEye />
                             </a>
+                            <button className="btn icon-only edit" title="Editar Documento" onClick={() => handleEditFile(arq)}>
+                              <IconEdit />
+                            </button>
                             <button className="btn icon-only danger" title="Excluir Documento" onClick={() => handleDeleteFile(arq)}>
                               <IconTrash />
                             </button>
@@ -639,11 +687,11 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       {/* ═══ MODAL ARQUIVO ═══ */}
       {fileModalOpen && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setFileModalOpen(false)}></div>
+          <div className="modal-backdrop" onClick={() => { setFileModalOpen(false); setEditingFileId(null); }}></div>
           <form className="modal-form-card glass" onSubmit={handleSaveFile} style={{ zIndex: 10 }}>
             <div className="modal-header">
-              <h3>Novo Arquivo: {fileForm.subcategoria}</h3>
-              <button className="close" type="button" onClick={() => setFileModalOpen(false)}>×</button>
+              <h3>{editingFileId ? 'Editar Arquivo:' : 'Novo Arquivo:'} {fileForm.subcategoria}</h3>
+              <button className="close" type="button" onClick={() => { setFileModalOpen(false); setEditingFileId(null); }}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -669,8 +717,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               )}
 
               <div className="form-group">
-                <label>Selecione o Arquivo (PDF, Imagem, etc) *</label>
-                <input type="file" required onChange={handleFileChange} />
+                <label>Selecione o Arquivo (PDF, Imagem, etc) {!editingFileId ? '*' : '(Opcional se quiser manter o atual)'}</label>
+                <input type="file" required={!editingFileId} onChange={handleFileChange} />
               </div>
             </div>
             <div className="modal-footer">
