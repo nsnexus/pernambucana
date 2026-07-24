@@ -163,6 +163,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all'); // Sector filter for the dashboard and lists
+  const [titularFilter, setTitularFilter] = useState('all');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -208,7 +209,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: []
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: ''
   });
 
   // Excel paste import modal
@@ -516,7 +517,10 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const filteredServicos = useMemo(() => filterList(allServicos), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
   const filteredCompras = useMemo(() => filterList(allCompras), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
-  const filteredBoletos = useMemo(() => filterList(allBoletos), [allBoletos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
+  const filteredBoletos = useMemo(() => filterList(allBoletos, (item) => {
+    if (titularFilter === 'all') return true;
+    return item.titularNota === titularFilter;
+  }), [allBoletos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, titularFilter]);
   
   const filteredRecebiveis = useMemo(() => filterList(allRecebiveis, (item) => {
     if (statusFilter === 'all') return true;
@@ -642,7 +646,7 @@ const Pernambucana = ({ onBackToGateway }) => {
     setBoletoEditId(null);
     setBoletoForm({
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
-      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria']
+      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'], titularNota: ''
     });
     setBoletoModal(true);
   };
@@ -653,7 +657,7 @@ const Pernambucana = ({ onBackToGateway }) => {
       dataVencimento: item.dataVencimento || '', fornecedor: item.fornecedor || '',
       descricao: item.descricao || '', valorBoleto: item.valorBoleto || 0,
       setor: item.setor || 'Todos', status: 'Pago',
-      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: item.setores || parseBoletoSectors(item.setor)
+      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: item.setores || parseBoletoSectors(item.setor), titularNota: item.titularNota || ''
     });
     setBoletoModal(true);
   };
@@ -1037,6 +1041,7 @@ const Pernambucana = ({ onBackToGateway }) => {
         let fornecedorVal = '';
         let valorBoletoVal = 0;
         let setorVal = 'Todos';
+        let titularNotaVal = '';
 
         if (firstRowHasHeaders) {
           mesVencVal = getVal(['mes', 'mes vencimento', 'mesvencimento']);
@@ -1044,13 +1049,15 @@ const Pernambucana = ({ onBackToGateway }) => {
           fornecedorVal = getVal(['fornecedor', 'nome fornecedor']);
           valorBoletoVal = parseExcelNumber(getVal(['valor', 'valor boleto', 'valorboleto']));
           setorVal = getVal(['setor', 'setores', 'lancamento']);
+          titularNotaVal = getVal(['titular', 'titular nota', 'empresa']);
         } else {
-          while (cols.length < 5) cols.push('');
+          while (cols.length < 6) cols.push('');
           mesVencVal = cols[0];
           dataVencVal = cols[1];
           fornecedorVal = cols[2];
           valorBoletoVal = parseExcelNumber(cols[3]);
           setorVal = cols[4];
+          titularNotaVal = cols[5];
         }
 
         const secsNormalized = parseBoletoSectors(setorVal);
@@ -1063,7 +1070,8 @@ const Pernambucana = ({ onBackToGateway }) => {
           setor: setorVal || 'Todos',
           setores: secsNormalized,
           status: 'Pago',
-          dataPagamento: parseExcelDate(dataVencVal)
+          dataPagamento: parseExcelDate(dataVencVal),
+          titularNota: cleanCell(titularNotaVal) || 'LF'
         });
       }
     }
@@ -1422,6 +1430,17 @@ const Pernambucana = ({ onBackToGateway }) => {
             <option value="Pendente">A Vencer</option>
             <option value="Vencido">Vencidos</option>
             <option value="Recebido">Recebidos</option>
+          </select>
+        </label>
+      )}
+
+      {activeTab === 'boletos' && (
+        <label>
+          Titular
+          <select value={titularFilter} onChange={(e) => setTitularFilter(e.target.value)}>
+            <option value="all">Todos</option>
+            <option value="LF">LF</option>
+            <option value="Pernambucana">Pernambucana</option>
           </select>
         </label>
       )}
@@ -2144,6 +2163,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                       <th>Descrição</th>
                       <th>Valor Total</th>
                       <th>Setor(es)</th>
+                      <th>Titular Nota</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2154,6 +2174,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <td>{item.descricao || '-'}</td>
                         <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
                         <td>{item.setor || 'Todos'}</td>
+                        <td>{item.titularNota || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2179,7 +2200,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                           />
                         </th>
                         <th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>Valor Total</th>
-                        <th>Setor(es)</th><th>Ações</th>
+                        <th>Setor(es)</th><th>Titular Nota</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2232,6 +2253,17 @@ const Pernambucana = ({ onBackToGateway }) => {
                                 <span className="portal-badge" style={{ background: 'rgba(31, 182, 255, 0.12)', color: '#1fb6ff', fontSize: '10px' }}>
                                   {item.setor || 'Todos'}
                                 </span>
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode ? (
+                                <select value={rowData.titularNota || ''} onChange={e => handleGridCellChange(item.id, 'titularNota', e.target.value)} className="ag-grid-input">
+                                  <option value="">Selecione</option>
+                                  <option value="LF">LF</option>
+                                  <option value="Pernambucana">Pernambucana</option>
+                                </select>
+                              ) : (
+                                <span style={{ fontWeight: '600' }}>{item.titularNota || '-'}</span>
                               )}
                             </td>
                             <td>
@@ -2642,6 +2674,14 @@ const Pernambucana = ({ onBackToGateway }) => {
                 <div className="form-group">
                   <label>Descrição da Despesa</label>
                   <input type="text" required value={boletoForm.descricao} onChange={e => setBoletoForm(prev => ({ ...prev, descricao: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Titular Nota</label>
+                  <select required value={boletoForm.titularNota} onChange={e => setBoletoForm(prev => ({ ...prev, titularNota: e.target.value }))}>
+                    <option value="">Selecione...</option>
+                    <option value="LF">LF</option>
+                    <option value="Pernambucana">Pernambucana</option>
+                  </select>
                 </div>
               </div>
 
