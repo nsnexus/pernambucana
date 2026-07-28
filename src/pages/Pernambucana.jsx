@@ -89,6 +89,25 @@ function parseBoletoSectors(setorStr) {
   return secs.length > 0 ? secs : ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
 }
 
+function helperEqualSplit(setoresList, totalVal) {
+  if (!setoresList || setoresList.length === 0) return {};
+  const n = setoresList.length;
+  const numTotal = parseFloat(totalVal) || 0;
+  if (n === 1) return { [setoresList[0]]: numTotal };
+  const base = Math.floor((numTotal / n) * 100) / 100;
+  const res = {};
+  let currentSum = 0;
+  setoresList.forEach((s, idx) => {
+    if (idx === n - 1) {
+      res[s] = Math.round((numTotal - currentSum) * 100) / 100;
+    } else {
+      res[s] = base;
+      currentSum += base;
+    }
+  });
+  return res;
+}
+
 // Normalized split parser for compras
 function parseCompraSectors(setorStr) {
   if (!setorStr) return ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
@@ -209,7 +228,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: ''
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {}
   });
 
   // Excel paste import modal
@@ -439,7 +458,9 @@ const Pernambucana = ({ onBackToGateway }) => {
     bFiltered.forEach(b => {
       // Resolve multi-sectors
       const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
-      const valSplit = (parseFloat(b.valorBoleto) || 0) / secs.length;
+      const valSplit = (b.valoresSetores && deptFilter !== 'all' && b.valoresSetores[deptFilter] !== undefined)
+        ? (parseFloat(b.valoresSetores[deptFilter]) || 0)
+        : ((parseFloat(b.valorBoleto) || 0) / (secs.length || 1));
       
       if (deptFilter === 'all') {
         totalBoletos += parseFloat(b.valorBoleto) || 0;
@@ -642,22 +663,63 @@ const Pernambucana = ({ onBackToGateway }) => {
     } catch (err) { alert(err.message); }
   };
 
+  const handleBoletoSectorValueChange = (editedSector, rawVal) => {
+    const totalVal = boletoForm.valorBoleto || 0;
+    const val = Math.max(0, parseFloat(rawVal) || 0);
+    const setoresList = boletoForm.setores || [];
+    const otherSectors = setoresList.filter(s => s !== editedSector);
+    
+    const newMap = { ...(boletoForm.valoresSetores || {}), [editedSector]: val };
+    
+    if (otherSectors.length > 0) {
+      const rem = Math.max(0, totalVal - val);
+      const nOther = otherSectors.length;
+      const baseOther = Math.floor((rem / nOther) * 100) / 100;
+      let sumOther = 0;
+      otherSectors.forEach((s, idx) => {
+        if (idx === nOther - 1) {
+          newMap[s] = Math.round((rem - sumOther) * 100) / 100;
+        } else {
+          newMap[s] = baseOther;
+          sumOther += baseOther;
+        }
+      });
+    }
+    
+    setBoletoForm(prev => ({ ...prev, valoresSetores: newMap }));
+  };
+
+  const handleResetBoletoRateio = () => {
+    setBoletoForm(prev => ({
+      ...prev,
+      valoresSetores: helperEqualSplit(prev.setores, prev.valorBoleto)
+    }));
+  };
+
   const openAddBoleto = () => {
     setBoletoEditId(null);
+    const initialSetores = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
     setBoletoForm({
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
-      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'], titularNota: ''
+      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: initialSetores, titularNota: '',
+      valoresSetores: helperEqualSplit(initialSetores, 0)
     });
     setBoletoModal(true);
   };
 
   const openEditBoleto = (item) => {
     setBoletoEditId(item.id);
+    const initialSetores = item.setores || parseBoletoSectors(item.setor);
+    const initialValores = (item.valoresSetores && Object.keys(item.valoresSetores).length > 0)
+      ? item.valoresSetores
+      : helperEqualSplit(initialSetores, item.valorBoleto || 0);
+
     setBoletoForm({
       dataVencimento: item.dataVencimento || '', fornecedor: item.fornecedor || '',
       descricao: item.descricao || '', valorBoleto: item.valorBoleto || 0,
       setor: item.setor || 'Todos', status: 'Pago',
-      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: item.setores || parseBoletoSectors(item.setor), titularNota: item.titularNota || ''
+      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: initialSetores, titularNota: item.titularNota || '',
+      valoresSetores: initialValores
     });
     setBoletoModal(true);
   };
@@ -682,7 +744,8 @@ const Pernambucana = ({ onBackToGateway }) => {
         ...boletoForm, 
         setor: sectorLabel,
         status: 'Pago',
-        dataPagamento: boletoForm.dataVencimento
+        dataPagamento: boletoForm.dataVencimento,
+        valoresSetores: boletoForm.valoresSetores || helperEqualSplit(boletoForm.setores, boletoForm.valorBoleto)
       };
 
       if (boletoEditId) {
@@ -1226,7 +1289,9 @@ const Pernambucana = ({ onBackToGateway }) => {
       if (yearFilter !== 'all' && y !== yearFilter) return;
 
       const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
-      const valSplit = (parseFloat(b.valorBoleto) || 0) / secs.length;
+      const valSplit = (b.valoresSetores && deptFilter !== 'all' && b.valoresSetores[deptFilter] !== undefined)
+        ? (parseFloat(b.valoresSetores[deptFilter]) || 0)
+        : ((parseFloat(b.valorBoleto) || 0) / (secs.length || 1));
 
       if (deptFilter === 'all') {
         bForYear.push({ ...b, valorSplit: parseFloat(b.valorBoleto) || 0 });
@@ -2669,7 +2734,21 @@ const Pernambucana = ({ onBackToGateway }) => {
                 </div>
                 <div className="form-group">
                   <label>Valor Total (Boleto)</label>
-                  <input type="number" step="0.01" required value={boletoForm.valorBoleto === 0 ? '' : boletoForm.valorBoleto} onFocus={e => e.target.select()} onChange={e => setBoletoForm(prev => ({ ...prev, valorBoleto: parseFloat(e.target.value) || 0 }))} />
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    value={boletoForm.valorBoleto === 0 ? '' : boletoForm.valorBoleto} 
+                    onFocus={e => e.target.select()} 
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setBoletoForm(prev => ({
+                        ...prev,
+                        valorBoleto: val,
+                        valoresSetores: helperEqualSplit(prev.setores, val)
+                      }));
+                    }} 
+                  />
                 </div>
                 <div className="form-group">
                   <label>Descrição da Despesa</label>
@@ -2700,7 +2779,11 @@ const Pernambucana = ({ onBackToGateway }) => {
                             const list = checked 
                               ? boletoForm.setores.filter(x => x !== d)
                               : [...boletoForm.setores, d];
-                            setBoletoForm(prev => ({ ...prev, setores: list }));
+                            setBoletoForm(prev => ({ 
+                              ...prev, 
+                              setores: list,
+                              valoresSetores: helperEqualSplit(list, prev.valorBoleto)
+                            }));
                           }}
                         />
                         {DEPT_LABELS[d]}
@@ -2708,8 +2791,68 @@ const Pernambucana = ({ onBackToGateway }) => {
                     );
                   })}
                 </div>
-                <small style={{ color: 'var(--muted)', marginTop: '6px', display: 'block' }}>
-                  O custo de {fmtMoney.format(boletoForm.valorBoleto)} será dividido igualmente em: {fmtMoney.format(boletoForm.valorBoleto / (boletoForm.setores.length || 1))} para cada um dos {boletoForm.setores.length} setores selecionados.
+                
+                {boletoForm.setores.length > 1 && (
+                  <div style={{ marginTop: '14px', background: 'rgba(0, 0, 0, 0.08)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>
+                        Participação / Valor Individual por Setor:
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={handleResetBoletoRateio}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          color: 'var(--primary)',
+                          fontSize: '11px',
+                          padding: '3px 8px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ↺ Redividir Igualmente
+                      </button>
+                    </div>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                      {boletoForm.setores.map(s => (
+                        <div key={s} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', opacity: 0.85, fontWeight: 500 }}>{DEPT_LABELS[s] || s}</label>
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <span style={{ position: 'absolute', left: '8px', fontSize: '12px', opacity: 0.5 }}>R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              style={{ paddingLeft: '30px', width: '100%', fontSize: '13px' }}
+                              value={boletoForm.valoresSetores && boletoForm.valoresSetores[s] !== undefined ? boletoForm.valoresSetores[s] : ''}
+                              onFocus={e => e.target.select()}
+                              onChange={e => handleBoletoSectorValueChange(s, e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(() => {
+                      const somaValores = Object.values(boletoForm.valoresSetores || {}).reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
+                      const dif = Math.abs(somaValores - (boletoForm.valorBoleto || 0));
+                      const bate = dif < 0.02;
+                      return (
+                        <div style={{ marginTop: '10px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: bate ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                            {bate ? '✓ Soma dos setores igual ao total do boleto' : `⚠️ Soma atual: ${fmtMoney.format(somaValores)} (Diferença: ${fmtMoney.format(somaValores - boletoForm.valorBoleto)})`}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                <small style={{ color: 'var(--muted)', marginTop: '8px', display: 'block' }}>
+                  {boletoForm.setores.length === 1 
+                    ? `O custo total de ${fmtMoney.format(boletoForm.valorBoleto)} será atribuído ao setor selecionado.` 
+                    : `O custo total de ${fmtMoney.format(boletoForm.valorBoleto)} está distribuído entre os ${boletoForm.setores.length} setores selecionados.`}
                 </small>
               </div>
             </div>

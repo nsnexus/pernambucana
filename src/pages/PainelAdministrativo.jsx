@@ -6,8 +6,16 @@ import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLe
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
+function addYearToDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return '';
+  const year = parseInt(parts[0], 10) + 1;
+  return `${year}-${parts[1]}-${parts[2]}`;
+}
+
 const CATEGORIES = {
-  'Segurança': ['Aso', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
+  'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
   'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento']
 };
@@ -37,13 +45,27 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [efetivoModalOpen, setEfetivoModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyFunc, setHistoryFunc] = useState(null);
 
   // File Form State
-  const [fileForm, setFileForm] = useState({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
+  const [fileForm, setFileForm] = useState({ 
+    titulo: '', 
+    categoria: activeCat, 
+    subcategoria: activeSub, 
+    file: null, 
+    funcionarioId: '', 
+    dataVencimento: '',
+    tipoAso: 'Admissional',
+    dataExame: '',
+    mesAnoRef: ''
+  });
   const [editingFileId, setEditingFileId] = useState(null);
   
   // Efetivo Form State
-  const [efetivoForm, setEfetivoForm] = useState({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '' });
+  const [efetivoForm, setEfetivoForm] = useState({ 
+    nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' 
+  });
   const [editingEfetivoId, setEditingEfetivoId] = useState(null);
 
   // Ferias Form State
@@ -54,6 +76,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [filterName, setFilterName] = useState('');
   const [filterFunc, setFilterFunc] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [statusFilterEfetivo, setStatusFilterEfetivo] = useState('Todos');
 
   const fetchData = async () => {
     setLoading(true);
@@ -106,12 +129,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     try {
       if (editingEfetivoId) {
         await updateDoc(doc(db, 'efetivos', editingEfetivoId), {
-          ...efetivoForm
+          ...efetivoForm,
+          status: efetivoForm.status || 'Ativo'
         });
         alert('Funcionário atualizado com sucesso!');
       } else {
         await addDoc(collection(db, 'efetivos'), {
           ...efetivoForm,
+          status: efetivoForm.status || 'Ativo',
           dataBaseFerias: efetivoForm.dataAdmissao || '',
           brand,
           createdBy: currentUser?.email,
@@ -119,7 +144,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         });
         alert('Funcionário cadastrado com sucesso!');
       }
-      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '' });
+      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' });
       setEditingEfetivoId(null);
       setEfetivoModalOpen(false);
       fetchData();
@@ -147,7 +172,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       endereco: ef.endereco || '',
       telefone: ef.telefone || '',
       pix: ef.pix || '',
-      dataAdmissao: ef.dataAdmissao || ''
+      dataAdmissao: ef.dataAdmissao || '',
+      status: ef.status || 'Ativo'
     });
     setEditingEfetivoId(ef.id);
     setEfetivoModalOpen(true);
@@ -192,20 +218,56 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       titulo: arq.titulo || '',
       categoria: arq.categoria,
       subcategoria: arq.subcategoria,
-      file: null, // O arquivo original é mantido caso não mande outro
+      file: null,
       funcionarioId: arq.funcionarioId || '',
-      dataVencimento: arq.dataVencimento || ''
+      dataVencimento: arq.dataVencimento || '',
+      tipoAso: arq.tipoAso || (arq.subcategoria === 'Aso Demissional' ? 'Demissional' : 'Admissional'),
+      dataExame: arq.dataExame || '',
+      mesAnoRef: arq.mesAnoRef || ''
     });
     setFileModalOpen(true);
   };
 
   const handleSaveFile = async (e) => {
     e.preventDefault();
-    if (!fileForm.titulo) {
-      alert("Preencha o título.");
-      return;
+
+    const isAso = ['Aso', 'Aso Demissional'].includes(fileForm.subcategoria);
+    const isInspecao = fileForm.subcategoria === 'Inspeções';
+    let calculatedTitle = fileForm.titulo;
+
+    if (isAso) {
+      if (!fileForm.funcionarioId) {
+        alert("Selecione um funcionário para vincular o ASO.");
+        return;
+      }
+      const funcObj = efetivos.find(ef => ef.id === fileForm.funcionarioId);
+      const funcName = funcObj ? funcObj.nome : '';
+      const actualTipoAso = fileForm.subcategoria === 'Aso Demissional' ? 'Demissional' : fileForm.tipoAso;
+      calculatedTitle = `ASO ${actualTipoAso} - ${funcName}`;
+
+      if (actualTipoAso === 'Demissional' && funcObj && funcObj.status !== 'Desligado') {
+        const confirmDesligar = window.confirm(`Você está cadastrando um ASO Demissional para o colaborador "${funcName}". Deseja alterar o status do colaborador para "Desligado"?`);
+        if (confirmDesligar) {
+          try {
+            await updateDoc(doc(db, 'efetivos', funcObj.id), { status: 'Desligado' });
+          } catch (err) {
+            console.error("Erro ao atualizar status do colaborador:", err);
+          }
+        }
+      }
+    } else if (isInspecao) {
+      if (!fileForm.mesAnoRef) {
+        alert("Informe o Mês/Ano de Referência da inspeção.");
+        return;
+      }
+      calculatedTitle = `Inspeção - ${fileForm.mesAnoRef}`;
+    } else {
+      if (!fileForm.titulo) {
+        alert("Preencha o título.");
+        return;
+      }
     }
-    
+
     if (!editingFileId && !fileForm.file) {
       alert("Selecione um arquivo para cadastrar.");
       return;
@@ -227,11 +289,16 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         newFileName = file.name;
       }
 
+      const actualTipoAso = isAso ? (fileForm.subcategoria === 'Aso Demissional' ? 'Demissional' : fileForm.tipoAso) : null;
+
       if (editingFileId) {
         const updateData = {
-          titulo: fileForm.titulo,
+          titulo: calculatedTitle,
           funcionarioId: fileForm.funcionarioId || null,
-          dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null
+          tipoAso: actualTipoAso,
+          dataExame: isAso ? (fileForm.dataExame || null) : null,
+          dataVencimento: isAso ? (fileForm.dataVencimento || null) : null,
+          mesAnoRef: isInspecao ? (fileForm.mesAnoRef || null) : null
         };
         
         if (newFileUrl) {
@@ -244,14 +311,17 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         alert('Arquivo atualizado com sucesso!');
       } else {
         await addDoc(collection(db, 'arquivos'), {
-          titulo: fileForm.titulo,
+          titulo: calculatedTitle,
           categoria: fileForm.categoria,
           subcategoria: fileForm.subcategoria,
           fileName: newFileName,
           filePath: newFilePath,
           fileUrl: newFileUrl,
           funcionarioId: fileForm.funcionarioId || null,
-          dataVencimento: fileForm.subcategoria === 'Aso' ? (fileForm.dataVencimento || null) : null,
+          tipoAso: actualTipoAso,
+          dataExame: isAso ? (fileForm.dataExame || null) : null,
+          dataVencimento: isAso ? (fileForm.dataVencimento || null) : null,
+          mesAnoRef: isInspecao ? (fileForm.mesAnoRef || null) : null,
           brand,
           uploadedBy: currentUser?.email || 'Desconhecido',
           createdAt: serverTimestamp()
@@ -260,7 +330,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       }
 
       setFileModalOpen(false);
-      setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
+      setFileForm({ 
+        titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', 
+        dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '' 
+      });
       setEditingFileId(null);
       fetchData();
     } catch (error) {
@@ -390,13 +463,22 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
             <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
                 <h3>Gestão de Efetivo (Funcionários)</h3>
-                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários ativos da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
+                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
               </div>
               <button className="btn primary sm" onClick={() => {
-                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '' });
+                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' });
                 setEditingEfetivoId(null);
                 setEfetivoModalOpen(true);
               }}><IconPlus /> Novo Funcionário</button>
+            </div>
+
+            <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Buscar funcionário por nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+              <select value={statusFilterEfetivo} onChange={e => setStatusFilterEfetivo(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}>
+                <option value="Todos">Todos os Status</option>
+                <option value="Ativo">Ativos</option>
+                <option value="Desligado">Desligados</option>
+              </select>
             </div>
             
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
@@ -404,6 +486,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <thead>
                   <tr>
                     <th>Nome</th>
+                    <th>Status</th>
                     <th>CPF</th>
                     <th>Nascimento</th>
                     <th>Admissão</th>
@@ -414,29 +497,197 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {efetivos.length === 0 ? (
-                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário cadastrado.</td></tr>
-                  ) : efetivos.map(ef => (
-                    <tr key={ef.id}>
-                      <td><strong>{ef.nome}</strong></td>
-                      <td>{ef.cpf}</td>
-                      <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
-                      <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
-                      <td>{ef.telefone}</td>
-                      <td>{ef.pix}</td>
-                      <td>{ef.endereco}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
-                            <IconEdit />
-                          </button>
-                          <button className="btn icon-only danger" title="Excluir Funcionário" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>
-                            <IconTrash />
-                          </button>
+                  {efetivos.filter(ef => {
+                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
+                    return true;
+                  }).length === 0 ? (
+                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                  ) : efetivos.filter(ef => {
+                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
+                    return true;
+                  }).map(ef => {
+                    const isDesligado = ef.status === 'Desligado';
+                    return (
+                      <tr key={ef.id} style={isDesligado ? { opacity: 0.7 } : {}}>
+                        <td><strong>{ef.nome}</strong></td>
+                        <td>
+                          <span style={{ 
+                            padding: '3px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            background: isDesligado ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                            color: isDesligado ? '#ef4444' : '#22c55e'
+                          }}>
+                            {ef.status || 'Ativo'}
+                          </span>
+                        </td>
+                        <td>{ef.cpf || '-'}</td>
+                        <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
+                        <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
+                        <td>{ef.telefone || '-'}</td>
+                        <td>{ef.pix || '-'}</td>
+                        <td>{ef.endereco || '-'}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
+                              <IconEdit />
+                            </button>
+                            <button className="btn icon-only danger" title="Excluir Funcionário" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : activeCat === 'Segurança' && activeSub === 'Aso' ? (
+          // --- TABELA CONSOLIDADA DE ASO POR FUNCIONÁRIO ---
+          <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+            <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h3>Gestão de ASO (Atestado de Saúde Ocupacional)</h3>
+                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Acompanhe os ASOs Admissional e Periódico de todos os colaboradores.</p>
+              </div>
+              <button className="btn primary sm" onClick={() => {
+                setEditingFileId(null);
+                setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', file: null, funcionarioId: '', dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '' });
+                setFileModalOpen(true);
+              }}><IconPlus /> Novo ASO</button>
+            </div>
+
+            <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Filtrar por nome do colaborador..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+              <select value={statusFilterEfetivo} onChange={e => setStatusFilterEfetivo(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}>
+                <option value="Todos">Todos os Colaboradores</option>
+                <option value="Ativo">Apenas Ativos</option>
+                <option value="Desligado">Apenas Desligados</option>
+              </select>
+            </div>
+
+            <div className="table-wrap" style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Funcionário</th>
+                    <th>ASO Admissional</th>
+                    <th>ASO Periódico (Mais Recente)</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {efetivos.filter(ef => {
+                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
+                    return true;
+                  }).length === 0 ? (
+                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                  ) : efetivos.filter(ef => {
+                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
+                    return true;
+                  }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).map(ef => {
+                    const funcArquivos = arquivos.filter(a => a.funcionarioId === ef.id);
+                    const admissional = funcArquivos.find(a => a.tipoAso === 'Admissional' || a.titulo?.toLowerCase().includes('admissional'));
+                    const periodicos = funcArquivos.filter(a => a.tipoAso === 'Periódico' || a.titulo?.toLowerCase().includes('periódico') || a.titulo?.toLowerCase().includes('periodico'))
+                      .sort((a, b) => {
+                        const dateA = a.dataExame || (a.createdAt?.toDate ? a.createdAt.toDate().toISOString() : '');
+                        const dateB = b.dataExame || (b.createdAt?.toDate ? b.createdAt.toDate().toISOString() : '');
+                        return dateB.localeCompare(dateA);
+                      });
+                    const latestPeriodico = periodicos[0];
+                    const isDesligado = ef.status === 'Desligado';
+
+                    const renderAsoCell = (arq) => {
+                      if (!arq) return <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Não cadastrado</span>;
+                      const exDate = arq.dataExame ? new Date(arq.dataExame + 'T00:00:00') : null;
+                      const vDate = arq.dataVencimento ? new Date(arq.dataVencimento + 'T00:00:00') : null;
+                      let statusBadge = null;
+                      if (vDate) {
+                        const diffTime = vDate - new Date();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays < 0) {
+                          statusBadge = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencido' };
+                        } else if (diffDays <= 30) {
+                          statusBadge = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
+                        } else {
+                          statusBadge = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'No prazo' };
+                        }
+                      }
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '13px' }}>
+                              {exDate ? `Exame: ${exDate.toLocaleDateString('pt-BR')}` : ''}
+                              {vDate ? ` (Venc: ${vDate.toLocaleDateString('pt-BR')})` : ''}
+                            </span>
+                            {statusBadge && (
+                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', background: statusBadge.bg, color: statusBadge.color, fontWeight: 'bold' }}>
+                                {statusBadge.text}
+                              </span>
+                            )}
+                            {arq.fileUrl && (
+                              <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento">
+                                <IconEye />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
+                      );
+                    };
+
+                    return (
+                      <tr key={ef.id} style={isDesligado ? { opacity: 0.7 } : {}}>
+                        <td>
+                          <strong>{ef.nome}</strong>
+                          <span style={{ 
+                            marginLeft: '8px',
+                            padding: '2px 6px', 
+                            borderRadius: '4px', 
+                            fontSize: '10px', 
+                            fontWeight: 'bold',
+                            background: isDesligado ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                            color: isDesligado ? '#ef4444' : '#22c55e'
+                          }}>
+                            {ef.status || 'Ativo'}
+                          </span>
+                        </td>
+                        <td>{renderAsoCell(admissional)}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {renderAsoCell(latestPeriodico)}
+                            {periodicos.length > 1 && (
+                              <button 
+                                className="btn outline sm" 
+                                style={{ fontSize: '11px', padding: '2px 8px', whiteSpace: 'nowrap' }} 
+                                onClick={() => { setHistoryFunc({ ef, files: periodicos }); setHistoryModalOpen(true); }}
+                              >
+                                Ver Histórico ({periodicos.length})
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <button 
+                            className="btn primary sm" 
+                            onClick={() => {
+                              setEditingFileId(null);
+                              setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', file: null, funcionarioId: ef.id, dataVencimento: '', tipoAso: 'Periódico', dataExame: '', mesAnoRef: '' });
+                              setFileModalOpen(true);
+                            }}
+                          >
+                            <IconPlus /> Lançar ASO
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -535,7 +786,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
             </div>
           </section>
         ) : (
-          // --- TABELA ARQUIVOS ---
+          // --- TABELA ARQUIVOS PADRÃO / INSPEÇÕES / ASO DEMISSIONAL ---
           <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
             <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
@@ -544,32 +795,34 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </div>
               <button className="btn primary sm" onClick={() => {
                 setEditingFileId(null);
-                setFileForm({ titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', dataVencimento: '' });
+                setFileForm({ 
+                  titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', 
+                  dataVencimento: '', tipoAso: activeSub === 'Aso Demissional' ? 'Demissional' : 'Admissional', dataExame: '', mesAnoRef: '' 
+                });
                 setFileModalOpen(true);
               }}><IconPlus /> Novo Arquivo</button>
             </div>
 
             <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Filtrar por título/nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
-              {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
+              {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
                 <select value={filterFunc} onChange={e => setFilterFunc(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }}>
                   <option value="">Todos os Funcionários</option>
                   {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
                 </select>
               )}
-              {['Folha de pagamento', 'Advertências'].includes(activeSub) && (
+              {['Folha de pagamento', 'Advertências', 'Inspeções'].includes(activeSub) && (
                 <input type="month" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
               )}
             </div>
-
 
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
                   <tr>
-                    <th>Título</th>
-                    {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && <th>Funcionário Vinculado</th>}
-                    {activeSub === 'Aso' && <th>Vencimento (ASO)</th>}
+                    {activeSub === 'Inspeções' ? <th>Mês/Ano Ref.</th> : <th>Título</th>}
+                    {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && <th>Funcionário Vinculado</th>}
+                    {activeSub === 'Aso Demissional' && <th>Data do Exame</th>}
                     <th>Enviado por</th>
                     <th>Data</th>
                     <th>Ações</th>
@@ -578,37 +831,22 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <tbody>
                   {filteredArquivos.length === 0 ? (
                     <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum arquivo encontrado para {activeSub}.</td></tr>
-                  ) : filteredArquivos.map(arq => {
+                  ) : [...filteredArquivos].sort((a, b) => {
+                    const funcA = a.funcionarioId ? efetivos.find(e => e.id === a.funcionarioId) : null;
+                    const funcB = b.funcionarioId ? efetivos.find(e => e.id === b.funcionarioId) : null;
+                    const nameA = funcA ? funcA.nome : (a.titulo || '');
+                    const nameB = funcB ? funcB.nome : (b.titulo || '');
+                    return nameA.localeCompare(nameB);
+                  }).map(arq => {
                     const func = arq.funcionarioId ? efetivos.find(e => e.id === arq.funcionarioId) : null;
                     return (
                       <tr key={arq.id}>
-                        <td><strong>{arq.titulo}</strong></td>
-                        {['Aso', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
+                        <td><strong>{activeSub === 'Inspeções' ? (arq.mesAnoRef || arq.titulo) : arq.titulo}</strong></td>
+                        {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
                           <td>{func ? func.nome : <span style={{ color: 'var(--muted)' }}>Não vinculado</span>}</td>
                         )}
-                        {activeSub === 'Aso' && (
-                          <td>
-                            {(() => {
-                              if (!arq.dataVencimento) return '-';
-                              const vDate = new Date(arq.dataVencimento + 'T00:00:00');
-                              const diffTime = vDate - new Date();
-                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                              let asoStatus = null;
-                              if (diffDays < 0) {
-                                asoStatus = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencido' };
-                              } else if (diffDays <= 30) {
-                                asoStatus = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
-                              } else {
-                                asoStatus = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'No prazo' };
-                              }
-                              return (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>{vDate.toLocaleDateString('pt-BR')}</span>
-                                  <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: asoStatus.bg, color: asoStatus.color, fontWeight: 'bold' }}>{asoStatus.text}</span>
-                                </div>
-                              );
-                            })()}
-                          </td>
+                        {activeSub === 'Aso Demissional' && (
+                          <td>{arq.dataExame ? new Date(arq.dataExame + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
                         )}
                         <td>{arq.uploadedBy}</td>
                         <td>{arq.createdAt?.toDate ? new Date(arq.createdAt.toDate()).toLocaleDateString() : 'Recente'}</td>
@@ -641,7 +879,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           <div className="modal-backdrop" onClick={() => setEfetivoModalOpen(false)}></div>
           <form className="modal-form-card glass" onSubmit={handleSaveEfetivo} style={{ zIndex: 10 }}>
             <div className="modal-header">
-              <h3>Novo Funcionário (Efetivo)</h3>
+              <h3>{editingEfetivoId ? 'Editar Funcionário' : 'Novo Funcionário (Efetivo)'}</h3>
               <button className="close" type="button" onClick={() => setEfetivoModalOpen(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -651,12 +889,19 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </div>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Data de Nascimento</label>
-                  <input type="date" value={efetivoForm.dataNascimento} onChange={e => setEfetivoForm({...efetivoForm, dataNascimento: e.target.value})} />
+                  <label>Status do Colaborador *</label>
+                  <select value={efetivoForm.status || 'Ativo'} onChange={e => setEfetivoForm({ ...efetivoForm, status: e.target.value })}>
+                    <option value="Ativo">Ativo</option>
+                    <option value="Desligado">Desligado</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Data de Admissão *</label>
                   <input type="date" required value={efetivoForm.dataAdmissao || ''} onChange={e => setEfetivoForm({...efetivoForm, dataAdmissao: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Data de Nascimento</label>
+                  <input type="date" value={efetivoForm.dataNascimento} onChange={e => setEfetivoForm({...efetivoForm, dataNascimento: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label>CPF</label>
@@ -678,13 +923,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
             </div>
             <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setEfetivoModalOpen(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">Cadastrar</button>
+              <button className="btn primary" type="submit">{editingEfetivoId ? 'Salvar' : 'Cadastrar'}</button>
             </div>
           </form>
         </div>
       )}
 
-      {/* ═══ MODAL ARQUIVO ═══ */}
+      {/* ═══ MODAL ARQUIVO (DINÂMICO PARA ASO, INSPEÇÕES E DEMAIS) ═══ */}
       {fileModalOpen && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => { setFileModalOpen(false); setEditingFileId(null); }}></div>
@@ -694,29 +939,93 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               <button className="close" type="button" onClick={() => { setFileModalOpen(false); setEditingFileId(null); }}>×</button>
             </div>
             <div className="modal-body">
-              <div className="form-group">
-                <label>Título do Documento *</label>
-                <input type="text" required placeholder="Ex: ASO Retorno ao Trabalho" value={fileForm.titulo} onChange={e => setFileForm({...fileForm, titulo: e.target.value})} />
-              </div>
-              
-              {['Aso', 'Advertências', 'Folha de pagamento'].includes(fileForm.subcategoria) && (
+              {['Aso', 'Aso Demissional'].includes(fileForm.subcategoria) ? (
+                <>
+                  <div className="form-group">
+                    <label>Tipo de ASO *</label>
+                    <select 
+                      value={fileForm.subcategoria === 'Aso Demissional' ? 'Demissional' : fileForm.tipoAso} 
+                      disabled={fileForm.subcategoria === 'Aso Demissional'}
+                      onChange={e => setFileForm({ ...fileForm, tipoAso: e.target.value })}
+                    >
+                      <option value="Admissional">Admissional</option>
+                      <option value="Periódico">Periódico</option>
+                      <option value="Demissional">Demissional</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Funcionário *</label>
+                    <select required value={fileForm.funcionarioId} onChange={e => setFileForm({ ...fileForm, funcionarioId: e.target.value })}>
+                      <option value="">-- Selecione o Funcionário --</option>
+                      {efetivos.map(ef => (
+                        <option key={ef.id} value={ef.id}>
+                          {ef.nome} {ef.status === 'Desligado' ? '(Desligado)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Data do Exame *</label>
+                      <input 
+                        type="date" 
+                        required 
+                        value={fileForm.dataExame || ''} 
+                        onChange={e => {
+                          const d = e.target.value;
+                          setFileForm(prev => ({ 
+                            ...prev, 
+                            dataExame: d, 
+                            dataVencimento: d ? addYearToDate(d) : prev.dataVencimento 
+                          }));
+                        }} 
+                      />
+                    </div>
+                    {fileForm.tipoAso !== 'Demissional' && fileForm.subcategoria !== 'Aso Demissional' && (
+                      <div className="form-group">
+                        <label>Data de Vencimento do ASO *</label>
+                        <input 
+                          type="date" 
+                          required 
+                          value={fileForm.dataVencimento || ''} 
+                          onChange={e => setFileForm({ ...fileForm, dataVencimento: e.target.value })} 
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : fileForm.subcategoria === 'Inspeções' ? (
                 <div className="form-group">
-                  <label>Vincular a Funcionário (Opcional)</label>
-                  <select value={fileForm.funcionarioId} onChange={e => setFileForm({...fileForm, funcionarioId: e.target.value})}>
-                    <option value="">-- Não vincular --</option>
-                    {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
-                  </select>
+                  <label>Mês/Ano de Referência *</label>
+                  <input 
+                    type="month" 
+                    required 
+                    value={fileForm.mesAnoRef || ''} 
+                    onChange={e => setFileForm({ ...fileForm, mesAnoRef: e.target.value })} 
+                  />
                 </div>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Título do Documento *</label>
+                    <input type="text" required placeholder="Ex: Treinamento de Integração" value={fileForm.titulo} onChange={e => setFileForm({...fileForm, titulo: e.target.value})} />
+                  </div>
+                  
+                  {['Advertências', 'Folha de pagamento'].includes(fileForm.subcategoria) && (
+                    <div className="form-group">
+                      <label>Vincular a Funcionário (Opcional)</label>
+                      <select value={fileForm.funcionarioId} onChange={e => setFileForm({...fileForm, funcionarioId: e.target.value})}>
+                        <option value="">-- Não vincular --</option>
+                        {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </>
               )}
 
-              {fileForm.subcategoria === 'Aso' && (
-                <div className="form-group">
-                  <label>Data de Vencimento do ASO *</label>
-                  <input type="date" required value={fileForm.dataVencimento || ''} onChange={e => setFileForm({...fileForm, dataVencimento: e.target.value})} />
-                </div>
-              )}
-
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '16px' }}>
                 <label>Selecione o Arquivo (PDF, Imagem, etc) {!editingFileId ? '*' : '(Opcional se quiser manter o atual)'}</label>
                 <input type="file" required={!editingFileId} onChange={handleFileChange} />
               </div>
@@ -730,6 +1039,79 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           </form>
         </div>
       )}
+
+      {/* ═══ MODAL HISTÓRICO DE ASO PERIÓDICO ═══ */}
+      {historyModalOpen && historyFunc && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setHistoryModalOpen(false)}></div>
+          <div className="modal-form-card glass" style={{ zIndex: 10, maxWidth: '650px' }}>
+            <div className="modal-header">
+              <h3>Histórico de ASOs Periódicos — {historyFunc.ef.nome}</h3>
+              <button className="close" type="button" onClick={() => setHistoryModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="table-wrap">
+                <table style={{ width: '100%', fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>Data do Exame</th>
+                      <th>Data Vencimento</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyFunc.files.map(file => {
+                      const exDate = file.dataExame ? new Date(file.dataExame + 'T00:00:00') : null;
+                      const vDate = file.dataVencimento ? new Date(file.dataVencimento + 'T00:00:00') : null;
+                      let statusObj = null;
+                      if (vDate) {
+                        const diffTime = vDate - new Date();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays < 0) statusObj = { color: 'var(--red)', bg: 'rgba(244, 63, 94, 0.1)', text: 'Vencido' };
+                        else if (diffDays <= 30) statusObj = { color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: `Faltam ${diffDays}d` };
+                        else statusObj = { color: 'var(--green)', bg: 'rgba(34, 197, 94, 0.1)', text: 'No prazo' };
+                      }
+                      return (
+                        <tr key={file.id}>
+                          <td>{exDate ? exDate.toLocaleDateString('pt-BR') : '-'}</td>
+                          <td>{vDate ? vDate.toLocaleDateString('pt-BR') : '-'}</td>
+                          <td>
+                            {statusObj ? (
+                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: statusObj.bg, color: statusObj.color, fontWeight: 'bold' }}>
+                                {statusObj.text}
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {file.fileUrl && (
+                                <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento">
+                                  <IconEye />
+                                </a>
+                              )}
+                              <button className="btn icon-only edit sm" title="Editar" onClick={() => { setHistoryModalOpen(false); handleEditFile(file); }}>
+                                <IconEdit />
+                              </button>
+                              <button className="btn icon-only danger sm" title="Excluir" onClick={() => { handleDeleteFile(file); setHistoryModalOpen(false); }}>
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setHistoryModalOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══ MODAL FERIAS ═══ */}
       {feriasModalOpen && (
         <div className="modal show">
