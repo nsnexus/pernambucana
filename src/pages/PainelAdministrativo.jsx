@@ -594,7 +594,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     return true;
                   }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).map(ef => {
                     const funcArquivos = arquivos.filter(a => a.funcionarioId === ef.id);
-                    const admissional = funcArquivos.find(a => a.tipoAso === 'Admissional' || a.titulo?.toLowerCase().includes('admissional'));
+                    const admissionalFiles = funcArquivos.filter(a => a.tipoAso === 'Admissional' || a.titulo?.toLowerCase().includes('admissional'))
+                      .sort((a, b) => {
+                        const dateA = a.dataExame || (a.createdAt?.toDate ? a.createdAt.toDate().toISOString() : '');
+                        const dateB = b.dataExame || (b.createdAt?.toDate ? b.createdAt.toDate().toISOString() : '');
+                        return dateB.localeCompare(dateA);
+                      });
+                    const admissional = admissionalFiles[0];
                     const periodicos = funcArquivos.filter(a => a.tipoAso === 'Periódico' || a.titulo?.toLowerCase().includes('periódico') || a.titulo?.toLowerCase().includes('periodico'))
                       .sort((a, b) => {
                         const dateA = a.dataExame || (a.createdAt?.toDate ? a.createdAt.toDate().toISOString() : '');
