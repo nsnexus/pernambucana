@@ -604,7 +604,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     const latestPeriodico = periodicos[0];
                     const isDesligado = ef.status === 'Desligado';
 
-                    const renderAsoCell = (arq) => {
+                    const renderAsoCell = (arq, allFiles = [], titleType = '') => {
                       if (!arq) return <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Não cadastrado</span>;
                       const exDate = arq.dataExame ? new Date(arq.dataExame + 'T00:00:00') : null;
                       const vDate = arq.dataVencimento ? new Date(arq.dataVencimento + 'T00:00:00') : null;
@@ -622,7 +622,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                       }
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '13px' }}>
                               {exDate ? `Exame: ${exDate.toLocaleDateString('pt-BR')}` : ''}
                               {vDate ? ` (Venc: ${vDate.toLocaleDateString('pt-BR')})` : ''}
@@ -632,11 +632,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                 {statusBadge.text}
                               </span>
                             )}
-                            {arq.fileUrl && (
-                              <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento">
-                                <IconEye />
-                              </a>
-                            )}
+                            <button 
+                              className="btn outline sm" 
+                              style={{ fontSize: '11px', padding: '2px 8px', whiteSpace: 'nowrap' }} 
+                              onClick={() => { setHistoryFunc({ ef, typeName: `ASO ${titleType}`, files: allFiles.length > 0 ? allFiles : [arq] }); setHistoryModalOpen(true); }}
+                              title="Ver detalhes, histórico, editar ou excluir"
+                            >
+                              📋 Detalhes {allFiles.length > 1 ? `(${allFiles.length})` : ''}
+                            </button>
                           </div>
                         </div>
                       );
@@ -658,21 +661,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                             {ef.status || 'Ativo'}
                           </span>
                         </td>
-                        <td>{renderAsoCell(admissional)}</td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {renderAsoCell(latestPeriodico)}
-                            {periodicos.length > 1 && (
-                              <button 
-                                className="btn outline sm" 
-                                style={{ fontSize: '11px', padding: '2px 8px', whiteSpace: 'nowrap' }} 
-                                onClick={() => { setHistoryFunc({ ef, files: periodicos }); setHistoryModalOpen(true); }}
-                              >
-                                Ver Histórico ({periodicos.length})
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        <td>{renderAsoCell(admissional, admissionalFiles, 'Admissional')}</td>
+                        <td>{renderAsoCell(latestPeriodico, periodicos, 'Periódico')}</td>
                         <td>
                           <button 
                             className="btn primary sm" 
@@ -1040,13 +1030,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         </div>
       )}
 
-      {/* ═══ MODAL HISTÓRICO DE ASO PERIÓDICO ═══ */}
+      {/* ═══ MODAL DETALHES E HISTÓRICO DE ASO ═══ */}
       {historyModalOpen && historyFunc && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => setHistoryModalOpen(false)}></div>
-          <div className="modal-form-card glass" style={{ zIndex: 10, maxWidth: '650px' }}>
+          <div className="modal-form-card glass" style={{ zIndex: 10, maxWidth: '800px', width: '90%' }}>
             <div className="modal-header">
-              <h3>Histórico de ASOs Periódicos — {historyFunc.ef.nome}</h3>
+              <h3>Detalhes — {historyFunc.typeName} ({historyFunc.ef.nome})</h3>
               <button className="close" type="button" onClick={() => setHistoryModalOpen(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -1054,8 +1044,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <table style={{ width: '100%', fontSize: '13px' }}>
                   <thead>
                     <tr>
-                      <th>Data do Exame</th>
-                      <th>Data Vencimento</th>
+                      <th>Data Exame</th>
+                      <th>Vencimento</th>
+                      <th>Enviado Por</th>
+                      <th>Data do Envio</th>
                       <th>Status</th>
                       <th>Ações</th>
                     </tr>
@@ -1064,6 +1056,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     {historyFunc.files.map(file => {
                       const exDate = file.dataExame ? new Date(file.dataExame + 'T00:00:00') : null;
                       const vDate = file.dataVencimento ? new Date(file.dataVencimento + 'T00:00:00') : null;
+                      const uploadDate = file.createdAt?.toDate ? new Date(file.createdAt.toDate()) : null;
                       let statusObj = null;
                       if (vDate) {
                         const diffTime = vDate - new Date();
@@ -1077,6 +1070,16 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                           <td>{exDate ? exDate.toLocaleDateString('pt-BR') : '-'}</td>
                           <td>{vDate ? vDate.toLocaleDateString('pt-BR') : '-'}</td>
                           <td>
+                            <span style={{ fontSize: '12px', fontWeight: '500' }}>
+                              {file.uploadedBy || file.createdBy || 'Sistema'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                              {uploadDate ? uploadDate.toLocaleDateString('pt-BR') + ' ' + uploadDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Recente'}
+                            </span>
+                          </td>
+                          <td>
                             {statusObj ? (
                               <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', background: statusObj.bg, color: statusObj.color, fontWeight: 'bold' }}>
                                 {statusObj.text}
@@ -1086,14 +1089,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                           <td>
                             <div style={{ display: 'flex', gap: '6px' }}>
                               {file.fileUrl && (
-                                <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento">
+                                <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento (PDF)">
                                   <IconEye />
                                 </a>
                               )}
-                              <button className="btn icon-only edit sm" title="Editar" onClick={() => { setHistoryModalOpen(false); handleEditFile(file); }}>
+                              <button className="btn icon-only edit sm" title="Editar Documento/Datas" onClick={() => { setHistoryModalOpen(false); handleEditFile(file); }}>
                                 <IconEdit />
                               </button>
-                              <button className="btn icon-only danger sm" title="Excluir" onClick={() => { handleDeleteFile(file); setHistoryModalOpen(false); }}>
+                              <button className="btn icon-only danger sm" title="Excluir Documento" onClick={() => { handleDeleteFile(file); setHistoryModalOpen(false); }}>
                                 <IconTrash />
                               </button>
                             </div>
