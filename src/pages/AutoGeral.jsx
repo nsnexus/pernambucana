@@ -102,7 +102,8 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     nomeFornecedor: '', descricaoMaterial: '', numOS: '', valorBoleto: 0,
-    valorOS: 0, nomeCliente: '', dataVencimento: '', mesVencimento: ''
+    valorOS: 0, nomeCliente: '', dataVencimento: '', mesVencimento: '',
+    qtdBoletos: 1, datasVencimento: []
   });
 
   const [importModal, setImportModal] = useState(false);
@@ -548,20 +549,24 @@ const AutoGeral = ({ onBackToGateway }) => {
   // ── BOLETO ACTIONS ──
   const openAddBoleto = () => {
     setBoletoEditId(null);
+    const hoje = new Date().toISOString().split('T')[0];
     setBoletoForm({
       nomeFornecedor: '', descricaoMaterial: '', numOS: '', valorBoleto: 0,
-      valorOS: 0, nomeCliente: '', dataVencimento: '', mesVencimento: ''
+      valorOS: 0, nomeCliente: '', dataVencimento: hoje, mesVencimento: '',
+      qtdBoletos: 1, datasVencimento: [hoje]
     });
     setBoletoModal(true);
   };
 
   const openEditBoleto = (item) => {
     setBoletoEditId(item.id);
+    const itemVenc = item.dataVencimento || '';
     setBoletoForm({
       nomeFornecedor: item.nomeFornecedor || '', descricaoMaterial: item.descricaoMaterial || '',
       numOS: item.numOS || '', valorBoleto: item.valorBoleto || 0, valorOS: item.valorOS || 0,
-      nomeCliente: item.nomeCliente || '', dataVencimento: item.dataVencimento || '',
-      mesVencimento: item.mesVencimento || ''
+      nomeCliente: item.nomeCliente || '', dataVencimento: itemVenc,
+      mesVencimento: item.mesVencimento || '',
+      qtdBoletos: 1, datasVencimento: [itemVenc]
     });
     setBoletoModal(true);
   };
@@ -570,11 +575,31 @@ const AutoGeral = ({ onBackToGateway }) => {
     e.preventDefault();
     try {
       if (boletoEditId) {
-        await updateBoleto(boletoEditId, boletoForm);
+        const payload = { ...boletoForm };
+        delete payload.qtdBoletos;
+        delete payload.datasVencimento;
+        await updateBoleto(boletoEditId, payload);
         triggerToast('Boleto atualizado.');
       } else {
-        await addBoleto(boletoForm);
-        triggerToast('Boleto registrado.');
+        const count = Math.max(1, parseInt(boletoForm.qtdBoletos) || 1);
+        const dates = boletoForm.datasVencimento || [];
+        for (let i = 0; i < count; i++) {
+          const venc = dates[i] || boletoForm.dataVencimento || '';
+          let mes = boletoForm.mesVencimento;
+          if (!mes && venc) {
+            const mIdx = new Date(venc + 'T12:00:00').getMonth();
+            if (!isNaN(mIdx)) mes = MONTHS[mIdx]?.toLowerCase();
+          }
+          const payload = {
+            ...boletoForm,
+            dataVencimento: venc,
+            mesVencimento: mes || boletoForm.mesVencimento
+          };
+          delete payload.qtdBoletos;
+          delete payload.datasVencimento;
+          await addBoleto(payload);
+        }
+        triggerToast(`${count} ${count > 1 ? 'boletos registrados' : 'boleto registrado'}.`);
       }
       setBoletoModal(false);
     } catch (err) { alert(err.message); }
@@ -1939,13 +1964,84 @@ const AutoGeral = ({ onBackToGateway }) => {
             </div>
             <div className="modal-body">
               <div className="form-grid">
+                {!boletoEditId && (
+                  <Field 
+                    label="Quantidade de Boletos" 
+                    type="number" 
+                    min="1" 
+                    max="24" 
+                    value={boletoForm.qtdBoletos || 1} 
+                    onChange={e => {
+                      const num = Math.max(1, parseInt(e.target.value) || 1);
+                      setBoletoForm(prev => {
+                        const currentDates = [...(prev.datasVencimento || [])];
+                        while (currentDates.length < num) {
+                          currentDates.push(prev.dataVencimento || '');
+                        }
+                        return {
+                          ...prev,
+                          qtdBoletos: num,
+                          datasVencimento: currentDates.slice(0, num)
+                        };
+                      });
+                    }} 
+                  />
+                )}
                 <Field label="Nome do Fornecedor" value={boletoForm.nomeFornecedor} onChange={e => setBoletoForm({...boletoForm, nomeFornecedor: e.target.value})} />
                 <Field label="Descrição do Material" value={boletoForm.descricaoMaterial} onChange={e => setBoletoForm({...boletoForm, descricaoMaterial: e.target.value})} />
                 <Field label="Nº da OS" value={boletoForm.numOS} onChange={e => setBoletoForm({...boletoForm, numOS: e.target.value})} />
                 <Field label="Valor do Boleto" type="number" step="0.01" value={boletoForm.valorBoleto} onChange={e => setBoletoForm({...boletoForm, valorBoleto: parseFloat(e.target.value) || 0})} />
                 <Field label="Valor da OS" type="number" step="0.01" value={boletoForm.valorOS} onChange={e => setBoletoForm({...boletoForm, valorOS: parseFloat(e.target.value) || 0})} />
                 <Field label="Nome do Cliente" value={boletoForm.nomeCliente} onChange={e => setBoletoForm({...boletoForm, nomeCliente: e.target.value})} />
-                <Field label="Data de Vencimento" type="date" value={boletoForm.dataVencimento} onChange={e => setBoletoForm({...boletoForm, dataVencimento: e.target.value})} />
+                
+                {(boletoForm.qtdBoletos || 1) <= 1 ? (
+                  <Field 
+                    label="Data de Vencimento" 
+                    type="date" 
+                    value={boletoForm.dataVencimento} 
+                    onChange={e => {
+                      const v = e.target.value;
+                      setBoletoForm(prev => ({
+                        ...prev,
+                        dataVencimento: v,
+                        datasVencimento: [v, ...(prev.datasVencimento || []).slice(1)]
+                      }));
+                    }} 
+                  />
+                ) : (
+                  <div style={{ gridColumn: '1 / -1', marginBottom: '10px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '6px', display: 'block', color: 'var(--text)' }}>
+                      Vencimentos dos {boletoForm.qtdBoletos} Boletos
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                      {Array.from({ length: boletoForm.qtdBoletos }).map((_, idx) => (
+                        <div key={idx}>
+                          <label style={{ fontSize: '12px', opacity: 0.8, display: 'block', marginBottom: '4px' }}>Vencimento {idx + 1}º Boleto</label>
+                          <input 
+                            type="date" 
+                            className="ag-input"
+                            style={{ width: '100%' }}
+                            required 
+                            value={(boletoForm.datasVencimento && boletoForm.datasVencimento[idx]) || ''} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              setBoletoForm(prev => {
+                                const arr = [...(prev.datasVencimento || [])];
+                                arr[idx] = val;
+                                return {
+                                  ...prev,
+                                  dataVencimento: arr[0] || val,
+                                  datasVencimento: arr
+                                };
+                              });
+                            }} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <Field label="Mês Vencimento" value={boletoForm.mesVencimento} onChange={e => setBoletoForm({...boletoForm, mesVencimento: e.target.value})} options={['', ...MONTHS.map(m => ({ value: m.toLowerCase(), label: m }))]} />
               </div>
             </div>

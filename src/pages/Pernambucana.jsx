@@ -32,13 +32,14 @@ ChartJS.register(
 );
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const DEPARTMENTS = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+const DEPARTMENTS = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'Prolabore'];
 const DEPT_LABELS = {
   Mecanica: 'Mecânica',
   Peças: 'Peças',
   Retifica: 'Retífica',
   Torneadora: 'Torneadora',
-  Caldeiraria: 'Caldeiraria'
+  Caldeiraria: 'Caldeiraria',
+  Prolabore: 'Pró-labore'
 };
 
 // Date format parser (YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, etc.)
@@ -228,7 +229,8 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {}
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {},
+    qtdBoletos: 1, datasVencimento: []
   });
 
   // Excel paste import modal
@@ -463,7 +465,17 @@ const Pernambucana = ({ onBackToGateway }) => {
         : ((parseFloat(b.valorBoleto) || 0) / (secs.length || 1));
       
       if (deptFilter === 'all') {
-        totalBoletos += parseFloat(b.valorBoleto) || 0;
+        // Exclude Prolabore portion from general dashboard total
+        let valToCount = parseFloat(b.valorBoleto) || 0;
+        if (secs.includes('Prolabore')) {
+          if (b.valoresSetores && b.valoresSetores['Prolabore'] !== undefined) {
+            valToCount -= (parseFloat(b.valoresSetores['Prolabore']) || 0);
+          } else {
+            valToCount -= (valToCount / (secs.length || 1));
+          }
+        }
+        valToCount = Math.max(0, valToCount);
+        totalBoletos += valToCount;
         splitBoletosList.push({ ...b, valorSplit: parseFloat(b.valorBoleto) || 0 });
       } else if (secs.includes(deptFilter)) {
         totalBoletos += valSplit;
@@ -540,6 +552,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   const filteredCompras = useMemo(() => filterList(allCompras), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
   const filteredBoletos = useMemo(() => filterList(allBoletos, (item) => {
     if (titularFilter === 'all') return true;
+    if (titularFilter === 'LF Carvalho') return item.titularNota === 'LF Carvalho' || item.titularNota === 'LF';
     return item.titularNota === titularFilter;
   }), [allBoletos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, titularFilter]);
   
@@ -702,7 +715,9 @@ const Pernambucana = ({ onBackToGateway }) => {
     setBoletoForm({
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
       setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: initialSetores, titularNota: '',
-      valoresSetores: helperEqualSplit(initialSetores, 0)
+      valoresSetores: helperEqualSplit(initialSetores, 0),
+      qtdBoletos: 1,
+      datasVencimento: [hoje]
     });
     setBoletoModal(true);
   };
@@ -714,12 +729,15 @@ const Pernambucana = ({ onBackToGateway }) => {
       ? item.valoresSetores
       : helperEqualSplit(initialSetores, item.valorBoleto || 0);
 
+    const itemVenc = item.dataVencimento || hoje;
     setBoletoForm({
-      dataVencimento: item.dataVencimento || '', fornecedor: item.fornecedor || '',
+      dataVencimento: itemVenc, fornecedor: item.fornecedor || '',
       descricao: item.descricao || '', valorBoleto: item.valorBoleto || 0,
       setor: item.setor || 'Todos', status: 'Pago',
-      dataPagamento: item.dataPagamento || item.dataVencimento || hoje, setores: initialSetores, titularNota: item.titularNota || '',
-      valoresSetores: initialValores
+      dataPagamento: item.dataPagamento || itemVenc, setores: initialSetores, titularNota: item.titularNota || '',
+      valoresSetores: initialValores,
+      qtdBoletos: 1,
+      datasVencimento: [itemVenc]
     });
     setBoletoModal(true);
   };
@@ -729,31 +747,49 @@ const Pernambucana = ({ onBackToGateway }) => {
     try {
       let sectorLabel = 'Todos';
       if (boletoForm.setores.length === 1) {
-        sectorLabel = boletoForm.setores[0].charAt(0).toUpperCase();
-      } else if (boletoForm.setores.length < 5) {
+        sectorLabel = DEPT_LABELS[boletoForm.setores[0]] || boletoForm.setores[0];
+      } else if (boletoForm.setores.length < 6) {
         sectorLabel = boletoForm.setores.map(s => {
           if (s === 'Mecanica') return 'M';
           if (s === 'Retifica') return 'R';
           if (s === 'Peças') return 'P';
           if (s === 'Torneadora') return 'T';
           if (s === 'Caldeiraria') return 'C';
+          if (s === 'Prolabore') return 'PRO';
           return s.charAt(0).toUpperCase();
         }).join(',');
       }
-      const dataPayload = { 
-        ...boletoForm, 
-        setor: sectorLabel,
-        status: 'Pago',
-        dataPagamento: boletoForm.dataVencimento,
-        valoresSetores: boletoForm.valoresSetores || helperEqualSplit(boletoForm.setores, boletoForm.valorBoleto)
-      };
 
       if (boletoEditId) {
+        const dataPayload = { 
+          ...boletoForm, 
+          setor: sectorLabel,
+          status: 'Pago',
+          dataPagamento: boletoForm.dataVencimento,
+          valoresSetores: boletoForm.valoresSetores || helperEqualSplit(boletoForm.setores, boletoForm.valorBoleto)
+        };
+        delete dataPayload.qtdBoletos;
+        delete dataPayload.datasVencimento;
         await updateBoleto(boletoEditId, dataPayload);
         triggerToast('Boleto atualizado.');
       } else {
-        await addBoleto(dataPayload);
-        triggerToast('Boleto adicionado.');
+        const count = Math.max(1, parseInt(boletoForm.qtdBoletos) || 1);
+        const dates = boletoForm.datasVencimento || [];
+        for (let i = 0; i < count; i++) {
+          const venc = dates[i] || boletoForm.dataVencimento || hoje;
+          const dataPayload = {
+            ...boletoForm,
+            dataVencimento: venc,
+            dataPagamento: venc,
+            setor: sectorLabel,
+            status: 'Pago',
+            valoresSetores: boletoForm.valoresSetores || helperEqualSplit(boletoForm.setores, boletoForm.valorBoleto)
+          };
+          delete dataPayload.qtdBoletos;
+          delete dataPayload.datasVencimento;
+          await addBoleto(dataPayload);
+        }
+        triggerToast(`${count} ${count > 1 ? 'boletos adicionados' : 'boleto adicionado'}.`);
       }
       setBoletoModal(false);
     } catch (err) { alert(err.message); }
@@ -1134,7 +1170,7 @@ const Pernambucana = ({ onBackToGateway }) => {
           setores: secsNormalized,
           status: 'Pago',
           dataPagamento: parseExcelDate(dataVencVal),
-          titularNota: cleanCell(titularNotaVal) || 'LF'
+          titularNota: cleanCell(titularNotaVal) || 'LF Carvalho'
         });
       }
     }
@@ -1504,8 +1540,9 @@ const Pernambucana = ({ onBackToGateway }) => {
           Titular
           <select value={titularFilter} onChange={(e) => setTitularFilter(e.target.value)}>
             <option value="all">Todos</option>
-            <option value="LF">LF</option>
+            <option value="LF Carvalho">LF Carvalho</option>
             <option value="Pernambucana">Pernambucana</option>
+            <option value="Prolabore">Pró-labore</option>
           </select>
         </label>
       )}
@@ -2324,8 +2361,9 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <select value={rowData.titularNota || ''} onChange={e => handleGridCellChange(item.id, 'titularNota', e.target.value)} className="ag-grid-input">
                                   <option value="">Selecione</option>
-                                  <option value="LF">LF</option>
+                                  <option value="LF Carvalho">LF Carvalho</option>
                                   <option value="Pernambucana">Pernambucana</option>
+                                  <option value="Prolabore">Pró-labore</option>
                                 </select>
                               ) : (
                                 <span style={{ fontWeight: '600' }}>{item.titularNota || '-'}</span>
@@ -2724,10 +2762,78 @@ const Pernambucana = ({ onBackToGateway }) => {
             
             <div className="modal-body">
               <div className="form-grid">
-                <div className="form-group">
-                  <label>Vencimento</label>
-                  <input type="date" required value={boletoForm.dataVencimento} onChange={e => setBoletoForm(prev => ({ ...prev, dataVencimento: e.target.value }))} />
-                </div>
+                {!boletoEditId && (
+                  <div className="form-group">
+                    <label>Qtd. Boletos</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="24" 
+                      required 
+                      value={boletoForm.qtdBoletos || 1} 
+                      onChange={e => {
+                        const num = Math.max(1, parseInt(e.target.value) || 1);
+                        setBoletoForm(prev => {
+                          const currentDates = [...(prev.datasVencimento || [])];
+                          while (currentDates.length < num) {
+                            currentDates.push(prev.dataVencimento || hoje);
+                          }
+                          return {
+                            ...prev,
+                            qtdBoletos: num,
+                            datasVencimento: currentDates.slice(0, num)
+                          };
+                        });
+                      }} 
+                    />
+                  </div>
+                )}
+                {(boletoForm.qtdBoletos || 1) <= 1 ? (
+                  <div className="form-group">
+                    <label>Vencimento</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={boletoForm.dataVencimento} 
+                      onChange={e => {
+                        const v = e.target.value;
+                        setBoletoForm(prev => ({
+                          ...prev,
+                          dataVencimento: v,
+                          datasVencimento: [v, ...(prev.datasVencimento || []).slice(1)]
+                        }));
+                      }} 
+                    />
+                  </div>
+                ) : (
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontWeight: '600', marginBottom: '6px', display: 'block' }}>Vencimentos dos {boletoForm.qtdBoletos} Boletos</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                      {Array.from({ length: boletoForm.qtdBoletos }).map((_, idx) => (
+                        <div key={idx}>
+                          <label style={{ fontSize: '12px', opacity: 0.8, display: 'block', marginBottom: '4px' }}>Vencimento {idx + 1}º Boleto</label>
+                          <input 
+                            type="date" 
+                            required 
+                            value={(boletoForm.datasVencimento && boletoForm.datasVencimento[idx]) || ''} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              setBoletoForm(prev => {
+                                const arr = [...(prev.datasVencimento || [])];
+                                arr[idx] = val;
+                                return {
+                                  ...prev,
+                                  dataVencimento: arr[0] || val,
+                                  datasVencimento: arr
+                                };
+                              });
+                            }} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="form-group">
                   <label>Fornecedor</label>
                   <input type="text" required value={boletoForm.fornecedor} onChange={e => setBoletoForm(prev => ({ ...prev, fornecedor: e.target.value }))} />
@@ -2758,8 +2864,9 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <label>Titular Nota</label>
                   <select required value={boletoForm.titularNota} onChange={e => setBoletoForm(prev => ({ ...prev, titularNota: e.target.value }))}>
                     <option value="">Selecione...</option>
-                    <option value="LF">LF</option>
+                    <option value="LF Carvalho">LF Carvalho</option>
                     <option value="Pernambucana">Pernambucana</option>
+                    <option value="Prolabore">Pró-labore</option>
                   </select>
                 </div>
               </div>

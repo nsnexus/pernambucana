@@ -17,7 +17,7 @@ function addYearToDate(dateStr) {
 const CATEGORIES = {
   'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
-  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento']
+  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho']
 };
 
 const PainelAdministrativo = ({ brand, onBackToGateway }) => {
@@ -64,7 +64,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   
   // Efetivo Form State
   const [efetivoForm, setEfetivoForm] = useState({ 
-    nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' 
+    nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' 
   });
   const [editingEfetivoId, setEditingEfetivoId] = useState(null);
 
@@ -144,7 +144,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         });
         alert('Funcionário cadastrado com sucesso!');
       }
-      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' });
+      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
       setEditingEfetivoId(null);
       setEfetivoModalOpen(false);
       fetchData();
@@ -173,6 +173,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       telefone: ef.telefone || '',
       pix: ef.pix || '',
       dataAdmissao: ef.dataAdmissao || '',
+      dataDemissional: ef.dataDemissional || '',
       status: ef.status || 'Ativo'
     });
     setEditingEfetivoId(ef.id);
@@ -466,7 +467,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
               </div>
               <button className="btn primary sm" onClick={() => {
-                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', status: 'Ativo' });
+                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
                 setEditingEfetivoId(null);
                 setEfetivoModalOpen(true);
               }}><IconPlus /> Novo Funcionário</button>
@@ -490,6 +491,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <th>CPF</th>
                     <th>Nascimento</th>
                     <th>Admissão</th>
+                    <th>Demissão</th>
                     <th>Telefone</th>
                     <th>Chave PIX</th>
                     <th>Endereço</th>
@@ -502,7 +504,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
                     return true;
                   }).length === 0 ? (
-                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                    <tr><td colSpan="10" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
                   ) : efetivos.filter(ef => {
                     if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
                     if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
@@ -527,6 +529,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td>{ef.cpf || '-'}</td>
                         <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
                         <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
+                        <td>{ef.dataDemissional ? ef.dataDemissional.split('-').reverse().join('/') : '-'}</td>
                         <td>{ef.telefone || '-'}</td>
                         <td>{ef.pix || '-'}</td>
                         <td>{ef.endereco || '-'}</td>
@@ -801,13 +804,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
             <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Filtrar por título/nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
-              {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
+              {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(activeSub) && (
                 <select value={filterFunc} onChange={e => setFilterFunc(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }}>
                   <option value="">Todos os Funcionários</option>
                   {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
                 </select>
               )}
-              {['Folha de pagamento', 'Advertências', 'Inspeções'].includes(activeSub) && (
+              {['Folha de pagamento', 'Advertências', 'Inspeções', 'Acidente do Trabalho'].includes(activeSub) && (
                 <input type="month" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
               )}
             </div>
@@ -817,7 +820,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <thead>
                   <tr>
                     {activeSub === 'Inspeções' ? <th>Mês/Ano Ref.</th> : <th>Título</th>}
-                    {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && <th>Funcionário Vinculado</th>}
+                    {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(activeSub) && <th>Funcionário Vinculado</th>}
                     {activeSub === 'Aso Demissional' && <th>Data do Exame</th>}
                     <th>Enviado por</th>
                     <th>Data</th>
@@ -838,7 +841,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     return (
                       <tr key={arq.id}>
                         <td><strong>{activeSub === 'Inspeções' ? (arq.mesAnoRef || arq.titulo) : arq.titulo}</strong></td>
-                        {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento'].includes(activeSub) && (
+                        {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(activeSub) && (
                           <td>{func ? func.nome : <span style={{ color: 'var(--muted)' }}>Não vinculado</span>}</td>
                         )}
                         {activeSub === 'Aso Demissional' && (
@@ -894,6 +897,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <div className="form-group">
                   <label>Data de Admissão *</label>
                   <input type="date" required value={efetivoForm.dataAdmissao || ''} onChange={e => setEfetivoForm({...efetivoForm, dataAdmissao: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Data Demissional</label>
+                  <input type="date" value={efetivoForm.dataDemissional || ''} onChange={e => setEfetivoForm({...efetivoForm, dataDemissional: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label>Data de Nascimento</label>
@@ -1009,7 +1016,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <input type="text" required placeholder="Ex: Treinamento de Integração" value={fileForm.titulo} onChange={e => setFileForm({...fileForm, titulo: e.target.value})} />
                   </div>
                   
-                  {['Advertências', 'Folha de pagamento'].includes(fileForm.subcategoria) && (
+                  {['Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(fileForm.subcategoria) && (
                     <div className="form-group">
                       <label>Vincular a Funcionário (Opcional)</label>
                       <select value={fileForm.funcionarioId} onChange={e => setFileForm({...fileForm, funcionarioId: e.target.value})}>
