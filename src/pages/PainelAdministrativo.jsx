@@ -630,7 +630,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         }
                       }
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '13px' }}>
                               {exDate ? `Exame: ${exDate.toLocaleDateString('pt-BR')}` : ''}
@@ -641,14 +641,29 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                 {statusBadge.text}
                               </span>
                             )}
-                            <button 
-                              className="btn outline sm" 
-                              style={{ fontSize: '11px', padding: '2px 8px', whiteSpace: 'nowrap' }} 
-                              onClick={() => { setHistoryFunc({ ef, typeName: `ASO ${titleType}`, files: allFiles.length > 0 ? allFiles : [arq] }); setHistoryModalOpen(true); }}
-                              title="Ver detalhes, histórico, editar ou excluir"
-                            >
-                              📋 Detalhes {allFiles.length > 1 ? `(${allFiles.length})` : ''}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {arq.fileUrl && (
+                              <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento (PDF/Imagem)">
+                                <IconEye />
+                              </a>
+                            )}
+                            <button className="btn icon-only edit sm" title="Editar ASO" onClick={() => handleEditFile(arq)}>
+                              <IconEdit />
                             </button>
+                            <button className="btn icon-only danger sm" title="Excluir ASO" onClick={() => handleDeleteFile(arq)}>
+                              <IconTrash />
+                            </button>
+                            {allFiles.length > 1 && (
+                              <button 
+                                className="btn outline sm" 
+                                style={{ fontSize: '10px', padding: '2px 6px', marginLeft: '4px' }} 
+                                onClick={() => { setHistoryFunc({ ef, typeName: `ASO ${titleType}`, files: allFiles }); setHistoryModalOpen(true); }}
+                                title="Ver histórico completo de ASOs deste colaborador"
+                              >
+                                📋 Histórico ({allFiles.length})
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
