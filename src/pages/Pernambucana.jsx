@@ -229,7 +229,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {},
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {}, setoresEditados: [],
     qtdBoletos: 1, datasVencimento: []
   });
 
@@ -678,19 +678,30 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const handleBoletoSectorValueChange = (editedSector, rawVal) => {
     const totalVal = boletoForm.valorBoleto || 0;
-    const val = Math.max(0, parseFloat(rawVal) || 0);
     const setoresList = boletoForm.setores || [];
-    const otherSectors = setoresList.filter(s => s !== editedSector);
+    const prevEdited = boletoForm.setoresEditados || [];
     
-    const newMap = { ...(boletoForm.valoresSetores || {}), [editedSector]: val };
+    const newEdited = prevEdited.includes(editedSector) 
+      ? prevEdited 
+      : [...prevEdited, editedSector];
     
-    if (otherSectors.length > 0) {
-      const rem = Math.max(0, totalVal - val);
-      const nOther = otherSectors.length;
-      const baseOther = Math.floor((rem / nOther) * 100) / 100;
+    const uneditedSectors = setoresList.filter(s => !newEdited.includes(s));
+    
+    const numVal = rawVal === '' ? '' : Math.max(0, parseFloat(rawVal) || 0);
+    const newMap = { ...(boletoForm.valoresSetores || {}), [editedSector]: numVal };
+    
+    const sumEdited = newEdited.reduce((acc, s) => {
+      const v = newMap[s];
+      return acc + (v === '' || isNaN(v) ? 0 : (parseFloat(v) || 0));
+    }, 0);
+    
+    if (uneditedSectors.length > 0) {
+      const rem = Math.max(0, totalVal - sumEdited);
+      const nUnedited = uneditedSectors.length;
+      const baseOther = Math.floor((rem / nUnedited) * 100) / 100;
       let sumOther = 0;
-      otherSectors.forEach((s, idx) => {
-        if (idx === nOther - 1) {
+      uneditedSectors.forEach((s, idx) => {
+        if (idx === nUnedited - 1) {
           newMap[s] = Math.round((rem - sumOther) * 100) / 100;
         } else {
           newMap[s] = baseOther;
@@ -699,13 +710,18 @@ const Pernambucana = ({ onBackToGateway }) => {
       });
     }
     
-    setBoletoForm(prev => ({ ...prev, valoresSetores: newMap }));
+    setBoletoForm(prev => ({ 
+      ...prev, 
+      valoresSetores: newMap,
+      setoresEditados: newEdited
+    }));
   };
 
   const handleResetBoletoRateio = () => {
     setBoletoForm(prev => ({
       ...prev,
-      valoresSetores: helperEqualSplit(prev.setores, prev.valorBoleto)
+      valoresSetores: helperEqualSplit(prev.setores, prev.valorBoleto),
+      setoresEditados: []
     }));
   };
 
@@ -716,6 +732,7 @@ const Pernambucana = ({ onBackToGateway }) => {
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
       setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: initialSetores, titularNota: '',
       valoresSetores: helperEqualSplit(initialSetores, 0),
+      setoresEditados: [],
       qtdBoletos: 1,
       datasVencimento: [hoje]
     });
@@ -736,6 +753,7 @@ const Pernambucana = ({ onBackToGateway }) => {
       setor: item.setor || 'Todos', status: 'Pago',
       dataPagamento: item.dataPagamento || itemVenc, setores: initialSetores, titularNota: item.titularNota || '',
       valoresSetores: initialValores,
+      setoresEditados: [],
       qtdBoletos: 1,
       datasVencimento: [itemVenc]
     });
@@ -2848,11 +2866,37 @@ const Pernambucana = ({ onBackToGateway }) => {
                     onFocus={e => e.target.select()} 
                     onChange={e => {
                       const val = parseFloat(e.target.value) || 0;
-                      setBoletoForm(prev => ({
-                        ...prev,
-                        valorBoleto: val,
-                        valoresSetores: helperEqualSplit(prev.setores, val)
-                      }));
+                      setBoletoForm(prev => {
+                        const edited = prev.setoresEditados || [];
+                        const unedited = prev.setores.filter(s => !edited.includes(s));
+                        let newMap = { ...(prev.valoresSetores || {}) };
+
+                        if (edited.length === 0 || unedited.length === 0) {
+                          newMap = helperEqualSplit(prev.setores, val);
+                        } else {
+                          const sumEdited = edited.reduce((acc, s) => {
+                            const v = newMap[s];
+                            return acc + (v === '' || isNaN(v) ? 0 : parseFloat(v) || 0);
+                          }, 0);
+                          const rem = Math.max(0, val - sumEdited);
+                          const nUnedited = unedited.length;
+                          const baseOther = Math.floor((rem / nUnedited) * 100) / 100;
+                          let sumOther = 0;
+                          unedited.forEach((s, idx) => {
+                            if (idx === nUnedited - 1) {
+                              newMap[s] = Math.round((rem - sumOther) * 100) / 100;
+                            } else {
+                              newMap[s] = baseOther;
+                              sumOther += baseOther;
+                            }
+                          });
+                        }
+                        return {
+                          ...prev,
+                          valorBoleto: val,
+                          valoresSetores: newMap
+                        };
+                      });
                     }} 
                   />
                 </div>
@@ -2889,7 +2933,8 @@ const Pernambucana = ({ onBackToGateway }) => {
                             setBoletoForm(prev => ({ 
                               ...prev, 
                               setores: list,
-                              valoresSetores: helperEqualSplit(list, prev.valorBoleto)
+                              valoresSetores: helperEqualSplit(list, prev.valorBoleto),
+                              setoresEditados: []
                             }));
                           }}
                         />
@@ -2931,8 +2976,17 @@ const Pernambucana = ({ onBackToGateway }) => {
                             <input
                               type="number"
                               step="0.01"
+                              placeholder="0,00"
                               style={{ paddingLeft: '30px', width: '100%', fontSize: '13px' }}
-                              value={boletoForm.valoresSetores && boletoForm.valoresSetores[s] !== undefined ? boletoForm.valoresSetores[s] : ''}
+                              value={
+                                boletoForm.valoresSetores &&
+                                boletoForm.valoresSetores[s] !== undefined &&
+                                boletoForm.valoresSetores[s] !== 0 &&
+                                boletoForm.valoresSetores[s] !== '0' &&
+                                boletoForm.valoresSetores[s] !== ''
+                                  ? boletoForm.valoresSetores[s]
+                                  : ''
+                              }
                               onFocus={e => e.target.select()}
                               onChange={e => handleBoletoSectorValueChange(s, e.target.value)}
                             />
