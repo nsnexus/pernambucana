@@ -178,6 +178,27 @@ const AutoGeral = ({ onBackToGateway }) => {
   // Money formatter
   const fmtMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Date formatter
+  const formatDateBR = (dateStr) => {
+    if (!dateStr) return '-';
+    if (dateStr.includes('/')) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const getMonthName = (dateStr) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      return MONTHS[monthIndex]?.toLowerCase() || '-';
+    }
+    return '-';
+  };
+
   // Get duplicate groups for AutoGeral (using AutoGeral specific key fields)
   const getDuplicateGroups = useMemo(() => {
     const getServicosDuplicates = () => {
@@ -1253,7 +1274,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <tbody>
                     {filteredServicos.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data || '-'}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{item.formaCompra || '-'}</td>
                         <td>{item.nomeCliente || '-'}</td>
                         <td>{item.descricaoMaterial || '-'}</td>
@@ -1443,7 +1464,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <tbody>
                     {filteredCompras.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data || '-'}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{item.formaCompra || '-'}</td>
                         <td>{item.nomeCliente || '-'}</td>
                         <td>{item.descricaoMaterial || '-'}</td>
@@ -1633,8 +1654,8 @@ const AutoGeral = ({ onBackToGateway }) => {
                         <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
                         <td className="text-right">{fmtMoney.format(item.valorOS)}</td>
                         <td>{item.nomeCliente || '-'}</td>
-                        <td>{item.dataVencimento || '-'}</td>
-                        <td>{item.mesVencimento || '-'}</td>
+                        <td>{formatDateBR(item.dataVencimento)}</td>
+                        <td>{getMonthName(item.dataVencimento) !== '-' ? getMonthName(item.dataVencimento) : (item.mesVencimento || '-')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1821,9 +1842,9 @@ const AutoGeral = ({ onBackToGateway }) => {
                           <td>{item.mecanico || '-'}</td>
                           <td>{item.parcela}/{item.totalParcelas}</td>
                           <td className="text-right">{fmtMoney.format(item.valorParcela)}</td>
-                          <td>{item.dataVencimento || '-'}</td>
+                          <td>{formatDateBR(item.dataVencimento)}</td>
                           <td>{isVencido ? 'Vencido' : item.status}</td>
-                          <td>{item.dataRecebimento || '-'}</td>
+                          <td>{formatDateBR(item.dataRecebimento)}</td>
                         </tr>
                       );
                     })}
@@ -1864,7 +1885,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                                 {isVencido ? '⚠ Vencido' : item.status === 'Recebido' ? '✓ Recebido' : '◌ Pendente'}
                               </button>
                             </td>
-                            <td>{item.dataRecebimento || '-'}</td>
+                            <td>{formatDateBR(item.dataRecebimento)}</td>
                           </tr>
                         );
                       })}

@@ -118,6 +118,17 @@ const Cadastros = () => {
   // Helper formats
   const fmtMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Date formatter
+  const formatDateBR = (dateStr) => {
+    if (!dateStr) return '-';
+    if (dateStr.includes('/')) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   const triggerToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 2600);
@@ -646,7 +657,7 @@ const Cadastros = () => {
                   <tbody>
                     {paginatedItems.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEFAULT_DEPT_LABEL[item.setor] || item.setor}</td>
                         <td>{item.os || '-'}</td>
                         <td>{item.cliente || '-'}</td>
@@ -694,7 +705,7 @@ const Cadastros = () => {
                   <tbody>
                     {paginatedItems.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEFAULT_DEPT_LABEL[item.setor] || item.setor}</td>
                         <td>{item.categoria}</td>
                         <td>{item.descricao || '-'}</td>
@@ -738,7 +749,7 @@ const Cadastros = () => {
                   <tbody>
                     {paginatedItems.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEFAULT_DEPT_LABEL[item.setor] || item.setor}</td>
                         <td>{item.funcionario || '-'}</td>
                         <td>{fmtMoney.format(item.bruto)}</td>
@@ -777,7 +788,7 @@ const Cadastros = () => {
                   <tbody>
                     {paginatedItems.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEFAULT_DEPT_LABEL[item.setor] || item.setor}</td>
                         <td>{item.descricao || '-'}</td>
                         <td><strong>{fmtMoney.format(item.valorProduto)}</strong></td>

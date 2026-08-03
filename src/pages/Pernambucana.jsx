@@ -171,6 +171,27 @@ const Pernambucana = ({ onBackToGateway }) => {
   // Today's date string
   const hoje = new Date().toISOString().split('T')[0];
 
+  // Date formatter
+  const formatDateBR = (dateStr) => {
+    if (!dateStr) return '-';
+    if (dateStr.includes('/')) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const getMonthName = (dateStr) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      return MONTHS[monthIndex]?.toLowerCase() || '-';
+    }
+    return '-';
+  };
+
   // Active Tab
   const [activeTab, setActiveTab] = useState(() => {
     return currentUser?.isAdmin ? 'dashboard' : 'servicos';
@@ -1835,7 +1856,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <tbody>
                     {filteredServicos.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data || '-'}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEPT_LABELS[item.setor] || item.setor || '-'}</td>
                         <td>{item.cliente || '-'}</td>
                         <td>{item.descricao || '-'}</td>
@@ -2087,7 +2108,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <tbody>
                     {filteredCompras.map(item => (
                       <tr key={item.id}>
-                        <td>{item.data || '-'}</td>
+                        <td>{formatDateBR(item.data)}</td>
                         <td>{DEPT_LABELS[item.setor] || item.setor || '-'}</td>
                         <td>{item.fornecedor || '-'}</td>
                         <td>{item.descricao || '-'}</td>
@@ -2289,7 +2310,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <tbody>
                     {filteredBoletos.map(item => (
                       <tr key={item.id}>
-                        <td>{item.dataVencimento || '-'}</td>
+                        <td>{formatDateBR(item.dataVencimento)}</td>
                         <td>{item.fornecedor || '-'}</td>
                         <td>{item.descricao || '-'}</td>
                         <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
@@ -2506,9 +2527,9 @@ const Pernambucana = ({ onBackToGateway }) => {
                           <td>{item.descricao || '-'}</td>
                           <td>{item.parcela}/{item.totalParcelas}</td>
                           <td className="text-right">{fmtMoney.format(item.valorParcela)}</td>
-                          <td>{item.dataVencimento || '-'}</td>
+                          <td>{formatDateBR(item.dataVencimento)}</td>
                           <td>{isVencido ? 'Vencido' : item.status}</td>
-                          <td>{item.dataRecebimento || '-'}</td>
+                          <td>{formatDateBR(item.dataRecebimento)}</td>
                         </tr>
                       );
                     })}
@@ -2536,7 +2557,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                             <td>{item.descricao || '-'}</td>
                             <td><strong>{item.parcela}/{item.totalParcelas}</strong></td>
                             <td><strong>{fmtMoney.format(item.valorParcela)}</strong></td>
-                            <td style={isVencido ? { color: 'var(--red)', fontWeight: 800 } : {}}>{item.dataVencimento}</td>
+                            <td style={isVencido ? { color: 'var(--red)', fontWeight: 800 } : {}}>{formatDateBR(item.dataVencimento)}</td>
                             <td>
                               <button
                                 className={`status-badge ${isVencido ? 'vencido' : item.status === 'Recebido' ? 'recebido' : 'pendente'}`}
@@ -2549,7 +2570,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                                 {isVencido ? '⚠ Vencido' : item.status === 'Recebido' ? '✓ Recebido' : '◌ Pendente'}
                               </button>
                             </td>
-                            <td>{item.dataRecebimento || '-'}</td>
+                            <td>{formatDateBR(item.dataRecebimento)}</td>
                           </tr>
                         );
                       })}
