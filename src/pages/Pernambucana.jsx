@@ -1913,7 +1913,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.data || '-'
+                                formatDateBR(item.data)
                               )}
                             </td>
                             <td>
@@ -2165,7 +2165,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.data || '-'
+                                formatDateBR(item.data)
                               )}
                             </td>
                             <td>
@@ -2363,7 +2363,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.dataVencimento || ''} onChange={e => handleGridCellChange(item.id, 'dataVencimento', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.dataVencimento || '-'
+                                formatDateBR(item.dataVencimento)
                               )}
                             </td>
                             <td>

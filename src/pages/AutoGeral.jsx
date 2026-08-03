@@ -1310,7 +1310,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.data
+                                formatDateBR(item.data)
                               )}
                             </td>
                             <td>
@@ -1500,7 +1500,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.data
+                                formatDateBR(item.data)
                               )}
                             </td>
                             <td>
@@ -1723,7 +1723,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="date" value={rowData.dataVencimento || ''} onChange={e => handleGridCellChange(item.id, 'dataVencimento', e.target.value)} className="ag-grid-input" />
                               ) : (
-                                item.dataVencimento || '-'
+                                formatDateBR(item.dataVencimento)
                               )}
                             </td>
                             <td>
@@ -1733,7 +1733,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                                   {MONTHS.map(m => <option key={m} value={m.toLowerCase()}>{m}</option>)}
                                 </select>
                               ) : (
-                                item.mesVencimento || '-'
+                                getMonthName(item.dataVencimento) !== '-' ? getMonthName(item.dataVencimento) : (item.mesVencimento || '-')
                               )}
                             </td>
                             <td>
@@ -1872,7 +1872,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                             <td>{item.mecanico || '-'}</td>
                             <td><strong>{item.parcela}/{item.totalParcelas}</strong></td>
                             <td><strong>{fmtMoney.format(item.valorParcela)}</strong></td>
-                            <td style={isVencido ? { color: 'var(--red)', fontWeight: 800 } : {}}>{item.dataVencimento}</td>
+                            <td style={isVencido ? { color: 'var(--red)', fontWeight: 800 } : {}}>{formatDateBR(item.dataVencimento)}</td>
                             <td>
                               <button
                                 className={`status-badge ${isVencido ? 'vencido' : item.status === 'Recebido' ? 'recebido' : 'pendente'}`}
