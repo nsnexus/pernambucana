@@ -188,12 +188,6 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       alert('Erro ao salvar holerites');
     }
   };
-    setActiveCat(cat);
-    setActiveSub(CATEGORIES[cat][0]);
-    setFilterName('');
-    setFilterFunc('');
-    setFilterDate('');
-  };
 
   // ═══ EFETIVO ACTIONS ═══
   const handleSaveEfetivo = async (e) => {
