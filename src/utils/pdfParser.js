@@ -23,52 +23,47 @@ export const extractHoleritesFromPDF = async (file) => {
           // Usar o texto puro exatamente na ordem que o PDFJS extrai
           const rawText = textContent.items.map(i => i.str).join(' ');
           
-          // Dividir por Valor Líquido
-          const receipts = rawText.split(/Valor\s*L[ií]quido/gi);
+          // Dividir por 'Nome do Funcionário' - isso sempre vai funcionar, mesmo se o PDF for cortado na metade
+          const receipts = rawText.split(/Nome do Funcion[aá]rio/gi);
           
-          for (let j = 0; j < receipts.length - 1; j++) {
+          for (let j = 1; j < receipts.length; j++) {
             const receiptText = receipts[j];
             
-            // Extrair nome (tudo maiúsculo entre "Nome do Funcionário" e a próxima palavra CamelCase ou número)
-            const nameMatch = receiptText.match(/Nome do Funcion[aá]rio\s+([A-ZÀ-Ú\s]+?)\s+(?:[A-Z][a-z]|CBO|\d)/);
+            // Extrair nome (tudo maiúsculo entre o split e a próxima palavra CamelCase ou número)
+            const nameMatch = receiptText.match(/^\s*([A-ZÀ-Úa-z\s]+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
-            
-            // O cargo acaba vindo junto (ex: ABMAEL SOUZA OLIVEIRA SOLDADOR). Vamos usar a string toda,
-            // no Painel a busca vai dar match se contiver o nome.
             const nome = rawName;
             
             if (nome === 'Desconhecido' || nome.length < 3) continue;
 
             if (employees.find(e => e.nome === nome)) continue;
 
-            // Extrair Vencimentos Oficiais e Descontos Oficiais
             let totalVencimentosPdf = 0;
             let totalDescontosPdf = 0;
+            let salarioBase = 0;
             
-            const totalMatch = receiptText.match(/Total de Vencimentos[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
-            if (totalMatch) {
-                totalVencimentosPdf = parseFloat(totalMatch[1].replace(/\./g, '').replace(',', '.'));
-                totalDescontosPdf = parseFloat(totalMatch[2].replace(/\./g, '').replace(',', '.'));
+            // Encontrar os valores de Vencimentos (lista de números após a palavra Vencimentos)
+            const vencimentosMatch = receiptText.match(/Vencimentos\s+((?:\d{1,3}(?:\.\d{3})*,\d{2}\s*)+)/i);
+            if (vencimentosMatch) {
+               const vals = vencimentosMatch[1].trim().split(/\s+/);
+               vals.forEach((v, idx) => {
+                   const num = parseFloat(v.replace(/\./g, '').replace(',', '.'));
+                   totalVencimentosPdf += num;
+                   if (idx === 0) salarioBase = num; // O primeiro vencimento (ex: DIAS NORMAIS) é a base
+               });
             }
 
-            // Vencimento Liquido e Salário Base ficam na próxima parte do split
-            let liquidoPdf = 0;
-            let salarioBase = 0;
-            const nextPart = receipts[j+1];
-            
-            if (nextPart) {
-               // Liquido é o primeiro número logo após o Valor Líquido
-               const valMatch = nextPart.match(/^\s*[\n\r]*\s*(?:[^\d]*)?(\d{1,3}(?:\.\d{3})*,\d{2})/);
-               if (valMatch) {
-                  liquidoPdf = parseFloat(valMatch[1].replace(/\./g, '').replace(',', '.'));
-               }
-               
-               // Salário base
-               const sBaseMatch = nextPart.match(/Sal[aá]rio\s*Base[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
-               if (sBaseMatch) {
-                  salarioBase = parseFloat(sBaseMatch[1].replace(/\./g, '').replace(',', '.'));
-               }
+            // Encontrar os valores de Descontos (lista de números após a palavra Descontos)
+            const descontosMatch = receiptText.match(/Descontos\s+((?:\d{1,3}(?:\.\d{3})*,\d{2}\s*)+)/i);
+            if (descontosMatch) {
+               const vals = descontosMatch[1].trim().split(/\s+/);
+               vals.forEach((v) => {
+                   totalDescontosPdf += parseFloat(v.replace(/\./g, '').replace(',', '.'));
+               });
             }
+
+            // O líquido é simplesmente a diferença
+            let liquidoPdf = totalVencimentosPdf - totalDescontosPdf;
 
             employees.push({
               nome,
