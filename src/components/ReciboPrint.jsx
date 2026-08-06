@@ -45,7 +45,7 @@ const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span><strong>Cargo ou Função:</strong> {hol.cargo || 'Funcionário'}</span>
-                      <span><strong>Mês/Ano de Referência:</strong> {mesAnoRef || 'N/A'}</span>
+                      <span><strong>Mês/Ano de Referência:</strong> {hol.mesAnoRef || mesAnoRef || 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span><strong>Nome do(a) Empregado(a):</strong> {hol.nome}</span>
