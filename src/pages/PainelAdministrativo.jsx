@@ -93,6 +93,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportHolerites, setExportHolerites] = useState(null);
   const exportContainerRef = useRef(null);
+  const [previewHolerite, setPreviewHolerite] = useState(null);
   const [pdfAlertMsg, setPdfAlertMsg] = useState(null);
   const [holeritesHistory, setHoleritesHistory] = useState([]);
 
@@ -155,16 +156,21 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     
     setIsParsingPdf(true);
     try {
-      const data = await extractHoleritesFromPDF(file);
+      const { employees: data, mesAnoRef: detectedMesAnoRef } = await extractHoleritesFromPDF(file);
       if (data.length === 0) {
         setPdfAlertMsg("Nenhum funcionário foi encontrado. O arquivo foi lido, mas a estrutura (textos como 'Valor Líquido' e 'Nome do Funcionário') não foi reconhecida no padrão.");
       }
-      // Map effectively to the employee record to get Cargo if possible
+      // Prioriza o cargo/função que veio do próprio PDF (separado do nome);
+      // só recorre ao cadastro de funcionários ou ao rótulo genérico se o
+      // PDF não trouxer essa informação.
       const enrichedData = data.map(hol => {
          const funcObj = efetivos.find(ef => hol.nome.toLowerCase().includes(ef.nome.toLowerCase()) || ef.nome.toLowerCase().includes(hol.nome.toLowerCase()));
-         return { ...hol, cargo: funcObj ? (funcObj.cargo || 'Funcionário') : 'Funcionário' };
+         return { ...hol, cargo: hol.cargoPdf || funcObj?.cargo || 'Funcionário' };
       });
       setHoleritesParsed(enrichedData);
+      // Detecta o mês/ano direto do "Folha Mensal <Mês> de <Ano>" do PDF,
+      // pra evitar erro de digitação de quem está importando.
+      if (detectedMesAnoRef) setHoleriteMesAnoRef(detectedMesAnoRef);
     } catch (err) {
       console.error(err);
       setPdfAlertMsg('Erro ao processar PDF: ' + err.message);
@@ -188,25 +194,62 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     setIsSavingHolerites(true);
     try {
       for (const hol of holeritesParsed) {
-        await addDoc(collection(db, 'holerites_extras'), {
-          ...hol,
-          mesAnoRef: holeriteMesAnoRef,
-          brand,
-          createdAt: serverTimestamp()
-        });
+        const { id, ...fields } = hol;
+        if (id) {
+          // Veio da edição de um lançamento já salvo — atualiza em vez de duplicar
+          await updateDoc(doc(db, 'holerites_extras', id), {
+            ...fields,
+            mesAnoRef: holeriteMesAnoRef,
+            brand,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await addDoc(collection(db, 'holerites_extras'), {
+            ...fields,
+            mesAnoRef: holeriteMesAnoRef,
+            brand,
+            createdAt: serverTimestamp(),
+          });
+        }
       }
-      setPdfAlertMsg('Dados salvos no histórico com sucesso! Imprimindo recibos...');
+      setPdfAlertMsg('Dados salvos no histórico com sucesso!');
       fetchData();
-      setTimeout(() => {
-        setPdfAlertMsg(null);
-        window.print();
-      }, 2000);
+      setHoleritesParsed([]);
+      setHoleriteMesAnoRef('');
+      setTimeout(() => setPdfAlertMsg(null), 3000);
     } catch (err) {
       console.error(err);
       setPdfAlertMsg('Erro ao salvar holerites: ' + err.message);
     } finally {
       setIsSavingHolerites(false);
     }
+  };
+
+  // Carrega de volta na mesma tela de revisão todos os lançamentos salvos
+  // de um mês/ano específico, para permitir edição e regravação (update em
+  // vez de duplicar) — a mesma visão que aparece ao importar um PDF novo.
+  const handleEditHoleriteBatch = (mesRef) => {
+    const records = holeritesHistory.filter(h => h.mesAnoRef === mesRef);
+    if (records.length === 0) return;
+    setHoleritesParsed(records.map(h => ({ ...h })));
+    setHoleriteMesAnoRef(mesRef);
+    setPdfAlertMsg(null);
+  };
+
+  const handleEditSelectedHolerites = (records) => {
+    if (records.length === 0) return;
+    // Se todos são do mesmo mês/ano, usa esse como referência; senão deixa em branco
+    const refs = [...new Set(records.map(h => h.mesAnoRef))];
+    setHoleritesParsed(records.map(h => ({ ...h })));
+    setHoleriteMesAnoRef(refs.length === 1 ? refs[0] : '');
+    setPdfAlertMsg(null);
+    setSelectedHistoryIds(new Set());
+  };
+
+
+  const handleCancelHoleriteEdit = () => {
+    setHoleritesParsed([]);
+    setHoleriteMesAnoRef('');
   };
 
   // Gera um PDF real (um recibo por página, no mesmo modelo do ReciboPrint)
@@ -233,6 +276,33 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const handleDeleteHolerite = async (h) => {
+    if (!window.confirm(`Excluir o lançamento de ${h.nome} (${h.mesAnoRef})? Essa ação não pode ser desfeita.`)) return;
+    try {
+      await deleteDoc(doc(db, 'holerites_extras', h.id));
+      setSelectedHistoryIds(prev => { const next = new Set(prev); next.delete(h.id); return next; });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedHolerites = async (records) => {
+    if (records.length === 0) return;
+    if (!window.confirm(`Excluir ${records.length} lançamento(s) selecionado(s)? Essa ação não pode ser desfeita.`)) return;
+    try {
+      for (const h of records) {
+        await deleteDoc(doc(db, 'holerites_extras', h.id));
+      }
+      setSelectedHistoryIds(new Set());
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir: ' + err.message);
+    }
   };
 
   // ═══ EFETIVO ACTIONS ═══
@@ -914,10 +984,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           </section>
         ) : isPagamentosTab ? (
            <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+              {(() => {
+                const isEditMode = holeritesParsed.length > 0 && holeritesParsed.some(h => h.id);
+                return (
               <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
-                  <h3>Gestão de Holerites Extras</h3>
-                  <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Importe o PDF da folha para preencher valores por fora e gerar os recibos finais.</p>
+                  <h3>Gestão de Holerites Extras {isEditMode && <span style={{ color: '#ca8a04', fontSize: '13px', fontWeight: 'normal' }}>(editando lançamentos de {holeriteMesAnoRef})</span>}</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Importe o PDF da folha para preencher valores por fora dos lançamentos.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input type="month" value={holeriteMesAnoRef} onChange={e => setHoleriteMesAnoRef(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)' }} title="Mês/Ano Ref." />
@@ -925,11 +998,18 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         {isParsingPdf ? 'Processando...' : '📄 Importar PDF'}
                         <input type="file" accept="application/pdf" onChange={handlePdfUpload} onClick={(e) => { e.target.value = null; }} style={{ display: 'none' }} disabled={isParsingPdf} />
                     </label>
+                    {holeritesParsed.length > 0 && (
+                      <button className="btn outline sm" onClick={handleCancelHoleriteEdit} disabled={isSavingHolerites}>
+                        Cancelar
+                      </button>
+                    )}
                     <button className="btn primary sm" onClick={handleSaveHolerites} disabled={holeritesParsed.length === 0 || isSavingHolerites}>
-                        {isSavingHolerites ? 'Salvando...' : '🖨️ Salvar e Imprimir Recibos'}
+                        {isSavingHolerites ? 'Salvando...' : (isEditMode ? '💾 Salvar Alterações' : '💾 Salvar')}
                     </button>
                 </div>
               </div>
+                );
+              })()}
 
               {holeritesParsed.length > 0 ? (
                 <div className="table-wrap" style={{ overflowX: 'auto', paddingBottom: '20px' }}>
@@ -959,7 +1039,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     </thead>
                     <tbody>
                       {holeritesParsed.map((hol, index) => {
-                          const prov = (Number(hol.extraFolha)||0) + (Number(hol.comissao)||0) + (Number(hol.h50)||0) + (Number(hol.horasEx50)||0) + (Number(hol.h100)||0) + (Number(hol.horasEx100)||0) + (Number(hol.hDss)||0) + (Number(hol.dssHex)||0);
+                          // h50/h100/hDss são quantidade de horas, não dinheiro — só horasEx50/horasEx100/dssHex entram na soma
+                          const prov = (Number(hol.extraFolha)||0) + (Number(hol.comissao)||0) + (Number(hol.horasEx50)||0) + (Number(hol.horasEx100)||0) + (Number(hol.dssHex)||0);
                           const desc = (Number(hol.faltas)||0) + (Number(hol.vale)||0);
                           const finalLiquido = prov - desc;
                           
@@ -1032,11 +1113,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
-                   Nenhum PDF importado ainda. Importe o PDF dos holerites para iniciar.
-                </div>
-              )}
+              ) : null}
 
               {holeritesHistory.length > 0 && (() => {
                  const visibleHistory = [...holeritesHistory]
@@ -1049,13 +1126,29 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                  <div style={{ marginTop: '40px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h4>Histórico Salvo</h4>
-                      <button
-                        className="btn primary sm"
-                        disabled={selectedRecords.length === 0 || isExportingPdf}
-                        onClick={() => handleDownloadPdf(selectedRecords, `Recibos_Selecionados_${selectedRecords.length}.pdf`)}
-                      >
-                        {isExportingPdf ? 'Gerando PDF...' : `⬇️ Baixar Selecionados (${selectedRecords.length})`}
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn primary sm"
+                          disabled={selectedRecords.length === 0 || isExportingPdf}
+                          onClick={() => handleDownloadPdf(selectedRecords, `Recibos_Selecionados_${selectedRecords.length}.pdf`)}
+                        >
+                          {isExportingPdf ? 'Gerando PDF...' : `⬇️ Baixar Selecionados (${selectedRecords.length})`}
+                        </button>
+                        <button
+                          className="btn outline sm"
+                          disabled={selectedRecords.length === 0}
+                          onClick={() => handleEditSelectedHolerites(selectedRecords)}
+                        >
+                          ✏️ Editar Selecionados ({selectedRecords.length})
+                        </button>
+                        <button
+                          className="btn warning sm"
+                          disabled={selectedRecords.length === 0}
+                          onClick={() => handleDeleteSelectedHolerites(selectedRecords)}
+                        >
+                          🗑️ Excluir Selecionados ({selectedRecords.length})
+                        </button>
+                      </div>
                     </div>
                     <div className="table-wrap" style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
                         <table>
@@ -1078,7 +1171,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                     <th>Mês/Ano Ref.</th>
                                     <th>Salário Base (Oficial)</th>
                                     <th>Líquido Final Pago (Extra)</th>
-                                    <th>PDF</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1090,9 +1183,17 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                         <td>{h.mesAnoRef}</td>
                                         <td>R$ {Number(h.salarioBase||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
                                         <td>
-                                            R$ { ((Number(h.extraFolha)||0) + (Number(h.comissao)||0) + (Number(h.h50)||0) + (Number(h.horasEx50)||0) + (Number(h.h100)||0) + (Number(h.horasEx100)||0) + (Number(h.hDss)||0) + (Number(h.dssHex)||0) - (Number(h.faltas)||0) - (Number(h.vale)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2}) }
+                                            R$ { ((Number(h.extraFolha)||0) + (Number(h.comissao)||0) + (Number(h.horasEx50)||0) + (Number(h.horasEx100)||0) + (Number(h.dssHex)||0) - (Number(h.faltas)||0) - (Number(h.vale)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2}) }
                                         </td>
-                                        <td>
+                                        <td style={{ display: 'flex', gap: '6px' }}>
+                                          <button
+                                            type="button"
+                                            className="btn outline sm"
+                                            style={{ padding: '2px 8px', fontSize: '12px' }}
+                                            onClick={() => setPreviewHolerite(h)}
+                                          >
+                                            👁️ Exibir
+                                          </button>
                                           <button
                                             type="button"
                                             className="btn outline sm"
@@ -1101,6 +1202,23 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                             onClick={() => handleDownloadPdf([h], `Recibo_${h.nome}_${h.mesAnoRef}.pdf`)}
                                           >
                                             ⬇️ Baixar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn outline sm"
+                                            style={{ padding: '2px 8px', fontSize: '12px' }}
+                                            title="Editar apenas este funcionário"
+                                            onClick={() => handleEditSelectedHolerites([h])}
+                                          >
+                                            ✏️ Editar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn outline sm"
+                                            style={{ padding: '2px 8px', fontSize: '12px', color: '#dc2626', borderColor: '#dc2626' }}
+                                            onClick={() => handleDeleteHolerite(h)}
+                                          >
+                                            🗑️ Excluir
                                           </button>
                                         </td>
                                     </tr>
@@ -1264,9 +1382,35 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       <ReciboPrint holerites={holeritesParsed} mesAnoRef={holeriteMesAnoRef} />
 
       {/* Container fora da tela usado só para gerar o PDF de download (individual ou em massa) do Histórico Salvo */}
-      <div ref={exportContainerRef} style={{ position: 'fixed', top: 0, left: '-99999px', zIndex: -1 }}>
+      <div ref={exportContainerRef} className="pdf-export-target" style={{ position: 'fixed', top: 0, left: '-99999px', zIndex: -1 }}>
         {exportHolerites && <ReciboPrint holerites={exportHolerites} mesAnoRef="" />}
       </div>
+
+      {/* ═══ MODAL EXIBIR RECIBO ═══ */}
+      {previewHolerite && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setPreviewHolerite(null)}></div>
+          <div className="modal-form-card glass" style={{ zIndex: 10, maxWidth: '880px', maxHeight: '92vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h3>Recibo — {previewHolerite.nome}</h3>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn outline sm"
+                  disabled={isExportingPdf}
+                  onClick={() => handleDownloadPdf([previewHolerite], `Recibo_${previewHolerite.nome}_${previewHolerite.mesAnoRef}.pdf`)}
+                >
+                  {isExportingPdf ? 'Gerando PDF...' : '⬇️ Baixar PDF'}
+                </button>
+                <button className="close" type="button" onClick={() => setPreviewHolerite(null)}>×</button>
+              </div>
+            </div>
+            <div className="modal-body recibo-preview-modal" style={{ display: 'flex', justifyContent: 'center' }}>
+              <ReciboPrint holerites={[previewHolerite]} mesAnoRef="" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {fileModalOpen && (
         <div className="modal show">
