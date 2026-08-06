@@ -29,9 +29,9 @@ export const extractHoleritesFromPDF = async (file) => {
           for (let j = 1; j < receipts.length; j++) {
             const receiptText = receipts[j];
             
-            // Extrair nome (tudo maiúsculo entre o split e a próxima palavra CamelCase ou número)
-            // Agora permitimos pontos e hífens no nome
-            const nameMatch = receiptText.match(/^\s*([A-ZÀ-Úa-z\s.\-]+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
+            // Extrair nome (tudo entre o split e a próxima palavra CamelCase ou número)
+            // Usamos (.+?) para aceitar qualquer caractere estranho ou zero-width space do PDF
+            const nameMatch = receiptText.match(/^\s*(.+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
             const nome = rawName;
             
