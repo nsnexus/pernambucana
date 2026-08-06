@@ -23,14 +23,15 @@ export const extractHoleritesFromPDF = async (file) => {
           // Usar o texto puro exatamente na ordem que o PDFJS extrai
           const rawText = textContent.items.map(i => i.str).join(' ');
           
-          // Dividir por 'Nome do Funcionário' - isso sempre vai funcionar, mesmo se o PDF for cortado na metade
-          const receipts = rawText.split(/Nome do Funcion[aá]rio/gi);
+          // Dividir por 'Nome do Funcionário' ignorando possíveis problemas de acentos compostos (combining characters)
+          const receipts = rawText.split(/Nome do Funcion[^\s]*\s+/gi);
           
           for (let j = 1; j < receipts.length; j++) {
             const receiptText = receipts[j];
             
             // Extrair nome (tudo maiúsculo entre o split e a próxima palavra CamelCase ou número)
-            const nameMatch = receiptText.match(/^\s*([A-ZÀ-Úa-z\s]+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
+            // Agora permitimos pontos e hífens no nome
+            const nameMatch = receiptText.match(/^\s*([A-ZÀ-Úa-z\s.\-]+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
             const nome = rawName;
             
