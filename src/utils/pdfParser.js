@@ -122,6 +122,11 @@ export const extractHoleritesFromPDF = async (file) => {
             });
           }
         }
+        if (employees.length === 0) {
+           // Fallback to debug
+           const debugText = (await (await pdf.getPage(1)).getTextContent()).items.map(i => i.str).join(' ').substring(0, 600);
+           throw new Error("DEBUG_TEXT: " + debugText);
+        }
         
         resolve(employees);
       } catch (err) {
