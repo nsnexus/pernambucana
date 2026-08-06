@@ -29,14 +29,17 @@ export const extractHoleritesFromPDF = async (file) => {
           for (let j = 1; j < receipts.length; j++) {
             const receiptText = receipts[j];
             
-            // Extrair nome (tudo entre o split e a próxima palavra CamelCase ou número)
-            // Usamos (.+?) para aceitar qualquer caractere estranho ou zero-width space do PDF
-            const nameMatch = receiptText.match(/^\s*(.+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
-            const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
+            // Extrair nome tolerando quebras de linha com [\s\S]+?
+            const nameMatch = receiptText.match(/^\s*([\s\S]+?)\s+(?:[A-Z][a-z]|CBO|Des|Dep|\d)/);
+            let rawName = nameMatch ? nameMatch[1].trim() : '';
+            
+            // Fallback extremo: se a regex falhar, pega os primeiros 35 caracteres
+            if (!rawName || rawName.length < 3) {
+                rawName = receiptText.substring(0, 35).trim();
+            }
+            
             const nome = rawName;
             
-            if (nome === 'Desconhecido' || nome.length < 3) continue;
-
             if (employees.find(e => e.nome === nome)) continue;
 
             let totalVencimentosPdf = 0;
