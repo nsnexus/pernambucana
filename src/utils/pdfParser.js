@@ -56,9 +56,9 @@ export const extractHoleritesFromPDF = async (file) => {
           for (let j = 0; j < receipts.length - 1; j++) {
             const receiptText = receipts[j];
             
-            // Tentar extrair o nome - flexível com quebras de linha e texto vizinho
-            const nameMatch = receiptText.match(/Nome do Funcion[aá]rio[\s\S]*?\n\s*([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]{2,})\s*\n/i) 
-                           || receiptText.match(/Nome do Funcion[aá]rio\s+([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]{2,})/i);
+            // Tentar extrair o nome identificando a linha com Código, Nome e CBO
+            // Exemplo: "8 ABMAEL SOUZA OLIVEIRA 724315 1 1"
+            const nameMatch = receiptText.match(/(?:^|\n)\s*\d+\s+([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]+?)\s+\d{4,6}/);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
             
             const nomeParts = rawName.split(/  +/);
