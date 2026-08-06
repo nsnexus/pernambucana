@@ -1,0 +1,102 @@
+/* Estilos apenas para impressão */
+@media screen {
+    .recibo-print-container {
+        display: none !important;
+    }
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    .recibo-print-container, .recibo-print-container * {
+        visibility: visible;
+    }
+    
+    .recibo-print-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .recibo-page {
+        page-break-after: always;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    
+    .recibo-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        margin-bottom: 20px;
+        border: 2px solid #000;
+    }
+    
+    .recibo-table th, .recibo-table td {
+        border: 1px solid #000;
+        padding: 8px 12px;
+    }
+    
+    .recibo-header-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        text-transform: uppercase;
+        padding: 12px !important;
+    }
+    
+    .recibo-empresa-info {
+        text-align: left;
+        font-weight: normal;
+        padding: 15px !important;
+    }
+    
+    .recibo-col-headers th {
+        font-weight: bold;
+        text-align: center;
+        background-color: #f0f0f0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .text-right {
+        text-align: right;
+    }
+    
+    .empty-row td {
+        height: 25px;
+    }
+    
+    .recibo-totals td {
+        border-top: 2px solid #000;
+    }
+    
+    .recibo-liquido td {
+        padding: 15px 12px !important;
+    }
+    
+    .recibo-footer {
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        text-align: center;
+        margin-top: 30px;
+    }
+    
+    .recibo-footer p {
+        margin-bottom: 40px;
+        font-weight: bold;
+    }
+    
+    .recibo-assinatura {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 0 20px;
+    }
+}

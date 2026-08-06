@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
 import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { extractHoleritesFromPDF } from '../utils/pdfParser';
+import ReciboPrint from '../components/ReciboPrint';
 
 function addYearToDate(dateStr) {
   if (!dateStr) return '';
@@ -17,7 +19,8 @@ function addYearToDate(dateStr) {
 const CATEGORIES = {
   'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
-  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho']
+  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'],
+  'Pagamentos': ['Holerites']
 };
 
 const PainelAdministrativo = ({ brand, onBackToGateway }) => {
@@ -78,6 +81,12 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [filterDate, setFilterDate] = useState('');
   const [statusFilterEfetivo, setStatusFilterEfetivo] = useState('Todos');
 
+  // Holerites State
+  const [holeritesParsed, setHoleritesParsed] = useState([]);
+  const [holeriteMesAnoRef, setHoleriteMesAnoRef] = useState('');
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [holeritesHistory, setHoleritesHistory] = useState([]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -103,6 +112,13 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       
       arrEf.sort((a, b) => a.nome.localeCompare(b.nome));
       setEfetivos(arrEf);
+
+      // 3. Fetch Holerites History
+      const qHol = query(collection(db, 'holerites_extras'), where('brand', '==', brand));
+      const snapHol = await getDocs(qHol);
+      const arrHol = [];
+      snapHol.forEach(d => arrHol.push({ id: d.id, ...d.data() }));
+      setHoleritesHistory(arrHol);
     } catch (err) {
       console.error("Erro ao buscar dados do Firestore:", err);
     } finally {
@@ -116,6 +132,62 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   // Handle Tab Switch
   const handleCatSwitch = (cat) => {
+    setActiveCat(cat);
+    setActiveSub(CATEGORIES[cat][0]);
+    setFilterName('');
+    setFilterFunc('');
+    setFilterDate('');
+  };
+
+  // ═══ PAGAMENTOS ACTIONS ═══
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsParsingPdf(true);
+    try {
+      const data = await extractHoleritesFromPDF(file);
+      // Map effectively to the employee record to get Cargo if possible
+      const enrichedData = data.map(hol => {
+         const funcObj = efetivos.find(ef => ef.nome.toLowerCase() === hol.nome.toLowerCase());
+         return { ...hol, cargo: funcObj ? (funcObj.cargo || 'Funcionário') : 'Funcionário' };
+      });
+      setHoleritesParsed(enrichedData);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao processar PDF');
+    } finally {
+      setIsParsingPdf(false);
+    }
+  };
+
+  const handleHoleriteChange = (index, field, value) => {
+    const updated = [...holeritesParsed];
+    updated[index][field] = value;
+    setHoleritesParsed(updated);
+  };
+
+  const handleSaveHolerites = async () => {
+    if (!holeriteMesAnoRef) {
+      alert("Por favor, informe o Mês/Ano de Referência.");
+      return;
+    }
+    try {
+      for (const hol of holeritesParsed) {
+        await addDoc(collection(db, 'holerites_extras'), {
+          ...hol,
+          mesAnoRef: holeriteMesAnoRef,
+          brand,
+          createdAt: serverTimestamp()
+        });
+      }
+      alert('Dados salvos no histórico com sucesso!');
+      fetchData();
+      setTimeout(() => window.print(), 500);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar holerites');
+    }
+  };
     setActiveCat(cat);
     setActiveSub(CATEGORIES[cat][0]);
     setFilterName('');
@@ -362,6 +434,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   // ═══ RENDERERS ═══
   const isEfetivoTab = activeCat === 'Administração' && activeSub === 'Efetivo';
   const isFeriasTab = activeCat === 'Administração' && activeSub === 'Férias';
+  const isPagamentosTab = activeCat === 'Pagamentos' && activeSub === 'Holerites';
   
   const filteredFerias = efetivos.filter(ef => {
     if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
@@ -436,7 +509,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         <div className="tab-nav" style={{ marginBottom: '0' }}>
           {Object.keys(CATEGORIES).map(cat => (
             <button key={cat} className={`tab-btn ${activeCat === cat ? 'active' : ''}`} onClick={() => handleCatSwitch(cat)}>
-              {cat === 'Segurança' ? '🛡️ Segurança' : cat === 'Meio ambiente' ? '🌱 Meio Ambiente' : '🏢 Administração'}
+              {cat === 'Segurança' ? '🛡️ Segurança' : cat === 'Meio ambiente' ? '🌱 Meio Ambiente' : cat === 'Administração' ? '🏢 Administração' : '💸 Pagamentos'}
             </button>
           ))}
         </div>
@@ -799,6 +872,120 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </table>
             </div>
           </section>
+        ) : isPagamentosTab ? (
+           <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+              <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <h3>Gestão de Holerites Extras</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Importe o PDF da folha para preencher valores por fora e gerar os recibos finais.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input type="month" value={holeriteMesAnoRef} onChange={e => setHoleriteMesAnoRef(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)' }} title="Mês/Ano Ref." />
+                    <label className="btn outline sm" style={{ margin: 0, cursor: 'pointer' }}>
+                        {isParsingPdf ? 'Processando...' : '📄 Importar PDF'}
+                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: 'none' }} disabled={isParsingPdf} />
+                    </label>
+                    <button className="btn primary sm" onClick={handleSaveHolerites} disabled={holeritesParsed.length === 0}>
+                        🖨️ Salvar e Imprimir Recibos
+                    </button>
+                </div>
+              </div>
+
+              {holeritesParsed.length > 0 ? (
+                <div className="table-wrap" style={{ overflowX: 'auto', paddingBottom: '20px' }}>
+                  <table style={{ minWidth: '1600px' }}>
+                    <thead>
+                      <tr>
+                        <th rowSpan="2" style={{ position: 'sticky', left: 0, background: 'var(--bg)', zIndex: 2 }}>Funcionário</th>
+                        <th rowSpan="2">Salário Base (PDF)</th>
+                        <th rowSpan="2">Líquido (PDF)</th>
+                        <th colSpan="8" style={{ textAlign: 'center', background: 'rgba(234, 179, 8, 0.1)', color: '#ca8a04' }}>Pagamento Extra Folha (Preenchimento Manual)</th>
+                        <th colSpan="2" style={{ textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626' }}>Descontos Manuais</th>
+                        <th rowSpan="2" style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#16a34a' }}>Líquido a Receber (Final)</th>
+                      </tr>
+                      <tr>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>Extra Folha</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>Comissão</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>H 50%</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>Horas Ex 50%</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>H 100%</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>Horas Ex 100%</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>H DSS</th>
+                        <th style={{ background: 'rgba(234, 179, 8, 0.05)' }}>DSS HEX</th>
+                        <th style={{ background: 'rgba(239, 68, 68, 0.05)' }}>Faltas</th>
+                        <th style={{ background: 'rgba(239, 68, 68, 0.05)' }}>Vale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holeritesParsed.map((hol, index) => {
+                          const prov = (Number(hol.extraFolha)||0) + (Number(hol.comissao)||0) + (Number(hol.h50)||0) + (Number(hol.horasEx50)||0) + (Number(hol.h100)||0) + (Number(hol.horasEx100)||0) + (Number(hol.hDss)||0) + (Number(hol.dssHex)||0);
+                          const desc = (Number(hol.faltas)||0) + (Number(hol.vale)||0);
+                          const finalLiquido = prov - desc;
+                          
+                          const renderInput = (field) => (
+                              <input type="number" step="0.01" value={hol[field] === 0 ? '' : hol[field]} placeholder="0,00" onChange={e => handleHoleriteChange(index, field, e.target.value)} style={{ width: '80px', padding: '4px', border: '1px solid var(--line)', borderRadius: '4px' }} />
+                          );
+
+                          return (
+                              <tr key={index}>
+                                <td style={{ position: 'sticky', left: 0, background: 'var(--bg)', zIndex: 1 }}><strong>{hol.nome}</strong></td>
+                                <td>R$ {hol.salarioBase?.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                                <td>R$ {hol.liquidoPdf?.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                                <td>{renderInput('extraFolha')}</td>
+                                <td>{renderInput('comissao')}</td>
+                                <td>{renderInput('h50')}</td>
+                                <td>{renderInput('horasEx50')}</td>
+                                <td>{renderInput('h100')}</td>
+                                <td>{renderInput('horasEx100')}</td>
+                                <td>{renderInput('hDss')}</td>
+                                <td>{renderInput('dssHex')}</td>
+                                <td>{renderInput('faltas')}</td>
+                                <td>{renderInput('vale')}</td>
+                                <td style={{ fontWeight: 'bold', color: '#16a34a' }}>R$ {finalLiquido.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                              </tr>
+                          );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
+                   Nenhum PDF importado ainda. Importe o PDF dos holerites para iniciar.
+                </div>
+              )}
+
+              {holeritesHistory.length > 0 && (
+                 <div style={{ marginTop: '40px' }}>
+                    <h4>Histórico Salvo</h4>
+                    <div className="table-wrap" style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data Lançamento</th>
+                                    <th>Funcionário</th>
+                                    <th>Mês/Ano Ref.</th>
+                                    <th>Salário Base (Oficial)</th>
+                                    <th>Líquido Final Pago (Extra)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {holeritesHistory.sort((a, b) => (b.createdAt?.toMillis()||0) - (a.createdAt?.toMillis()||0)).slice(0, 100).map(h => (
+                                    <tr key={h.id}>
+                                        <td>{h.createdAt?.toDate ? h.createdAt.toDate().toLocaleDateString('pt-BR') : '-'}</td>
+                                        <td><strong>{h.nome}</strong></td>
+                                        <td>{h.mesAnoRef}</td>
+                                        <td>R$ {Number(h.salarioBase||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                                        <td>
+                                            R$ { ((Number(h.extraFolha)||0) + (Number(h.comissao)||0) + (Number(h.h50)||0) + (Number(h.horasEx50)||0) + (Number(h.h100)||0) + (Number(h.horasEx100)||0) + (Number(h.hDss)||0) + (Number(h.dssHex)||0) - (Number(h.faltas)||0) - (Number(h.vale)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2}) }
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                 </div>
+              )}
+           </section>
         ) : (
           // --- TABELA ARQUIVOS PADRÃO / INSPEÇÕES / ASO DEMISSIONAL ---
           <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
@@ -948,6 +1135,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       )}
 
       {/* ═══ MODAL ARQUIVO (DINÂMICO PARA ASO, INSPEÇÕES E DEMAIS) ═══ */}
+      <ReciboPrint holerites={holeritesParsed} mesAnoRef={holeriteMesAnoRef} />
+
       {fileModalOpen && (
         <div className="modal show">
           <div className="modal-backdrop" onClick={() => { setFileModalOpen(false); setEditingFileId(null); }}></div>
