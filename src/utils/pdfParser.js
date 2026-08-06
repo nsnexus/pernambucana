@@ -24,7 +24,7 @@ export const extractHoleritesFromPDF = async (file) => {
           const rawText = textContent.items.map(i => i.str).join(' ');
           
           // Dividir por 'Nome do Funcionário' ignorando possíveis problemas de acentos compostos (combining characters)
-          const receipts = rawText.split(/Nome do Funcion[^\s]*\s+/gi);
+          const receipts = rawText.split(/Nome\s+do\s+Funcion[^\s]*\s+/gi);
           
           for (let j = 1; j < receipts.length; j++) {
             const receiptText = receipts[j];
