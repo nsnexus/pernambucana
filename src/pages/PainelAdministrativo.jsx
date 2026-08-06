@@ -146,6 +146,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     setIsParsingPdf(true);
     try {
       const data = await extractHoleritesFromPDF(file);
+      if (data.length === 0) {
+        alert("Nenhum funcionário foi encontrado. O arquivo foi lido, mas a estrutura (textos como 'Valor Líquido' e 'Nome do Funcionário') não foi reconhecida no padrão.");
+      }
       // Map effectively to the employee record to get Cargo if possible
       const enrichedData = data.map(hol => {
          const funcObj = efetivos.find(ef => ef.nome.toLowerCase() === hol.nome.toLowerCase());

@@ -47,28 +47,25 @@ export const extractHoleritesFromPDF = async (file) => {
           }
           if (currentLine.length > 0) lines.push(currentLine.join(' '));
           
-          // Processar as linhas para achar funcionários (tem 2 vias por página normalmente)
-          // Vamos agrupar todo o texto da página e buscar padrões
+          // Processar as linhas para achar funcionários
           const pageText = lines.join('\n');
           
-          // Dividir a página em dois recibos (se houver a marca 'Total de Vencimentos' duas vezes)
-          const receipts = pageText.split(/Valor Líquido/gi);
+          // Dividir a página em recibos (se houver a marca 'Valor Líquido' ou similar)
+          const receipts = pageText.split(/Valor L[ií]quido/gi);
           
           for (let j = 0; j < receipts.length - 1; j++) {
             const receiptText = receipts[j];
             
-            // Tentar extrair o nome
-            const nameMatch = receiptText.match(/Nome do Funcionário\s*\n\s*([A-ZÀ-Ú\s]+)\s*\n/i);
+            // Tentar extrair o nome - flexível com quebras de linha e texto vizinho
+            const nameMatch = receiptText.match(/Nome do Funcion[aá]rio[\s\S]*?\n\s*([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]{2,})\s*\n/i) 
+                           || receiptText.match(/Nome do Funcion[aá]rio\s+([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]{2,})/i);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
             
-            // Limpar o nome de cargos que podem ter grudado
-            // Como é um modelo, geralmente a segunda linha depois do nome é o CBO ou cargo
             const nomeParts = rawName.split(/  +/);
             const nome = nomeParts[0].trim();
             
             if (nome === 'Desconhecido' || nome.length < 3) continue;
 
-            // Evitar duplicidade na mesma página (via empresa / via funcionário)
             if (employees.find(e => e.nome === nome)) continue;
 
             // Extrair Salário Base
