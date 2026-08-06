@@ -21,7 +21,7 @@ export const extractHoleritesFromPDF = async (file) => {
           const textContent = await page.getTextContent();
           
           // Usar o texto puro exatamente na ordem que o PDFJS extrai
-          const rawText = items.map(i => i.str).join(' ');
+          const rawText = textContent.items.map(i => i.str).join(' ');
           
           // Dividir por Valor Líquido
           const receipts = rawText.split(/Valor\s*L[ií]quido/gi);
