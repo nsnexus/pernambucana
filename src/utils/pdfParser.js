@@ -8,6 +8,7 @@ const parseNumber = (str) => parseFloat(str.replace(/\./g, '').replace(',', '.')
 const isMoney = (str) => /^\d{1,3}(\.\d{3})*,\d{2}$/.test(str.trim());
 const ADMISSAO_RE = /^admiss/i;
 const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
+const CBO_RE = /^\d{6}$/;
 
 // O PDF.js entrega os itens de texto na ordem do fluxo interno do arquivo,
 // que nem sempre corresponde à ordem visual (linha a linha, coluna a
@@ -15,10 +16,17 @@ const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
 // cada item, para poder ler a tabela do holerite coluna a coluna em vez de
 // depender de regex sobre um texto "achatado" — que é frágil e muda de
 // resultado dependendo de como o funcionário/via foi posicionado na página.
+// Em algumas páginas o PDF quebra um mesmo valor (ex.: "4,19") em um
+// fragmento por caractere ("4" "," "1" "9"), com espaçamento praticamente
+// zero entre eles — bem diferente do espaço real entre palavras (~5
+// unidades). Sem juntar esses fragmentos, nenhuma regex de valor monetário
+// bate contra eles e a linha inteira é perdida na extração.
+const FRAGMENT_GAP_THRESHOLD = 2;
+
 const buildRows = (items) => {
   const points = items
     .filter(it => it.str.trim() !== '')
-    .map(it => ({ x: it.transform[4], y: it.transform[5], str: it.str.trim() }));
+    .map(it => ({ x: it.transform[4], y: it.transform[5], w: it.width || 0, str: it.str.trim() }));
   points.sort((a, b) => b.y - a.y);
 
   const rows = [];
@@ -27,11 +35,72 @@ const buildRows = (items) => {
     if (!row) { row = { y: p.y, items: [] }; rows.push(row); }
     row.items.push(p);
   }
-  rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+
+  rows.forEach(r => {
+    r.items.sort((a, b) => a.x - b.x);
+    const merged = [];
+    for (const it of r.items) {
+      const last = merged[merged.length - 1];
+      if (last && (it.x - (last.x + last.w)) < FRAGMENT_GAP_THRESHOLD) {
+        last.str += it.str;
+        last.w = (it.x + it.w) - last.x;
+      } else {
+        merged.push({ ...it });
+      }
+    }
+    r.items = merged;
+  });
+
   return rows;
 };
 
-const findItem = (row, label) => row.items.find(it => it.str.toLowerCase().startsWith(label.toLowerCase()));
+const stripSpacesLower = (s) => s.toLowerCase().replace(/\s+/g, '');
+
+// Alguns rótulos do PDF vêm como um único item de texto ("Nome do
+// Funcionário", "Descrição"), mas dependendo da versão/fonte do pdfjs-dist
+// e de como o gerador do holerite escreveu o PDF, o mesmo rótulo pode vir
+// quebrado em vários fragmentos adjacentes na mesma linha (ex.: "Nome" +
+// "do" + "Funcionário", ou "Des" + "crição", ou "Total" + "de" +
+// "Vencimentos"). Esta função reconhece o rótulo nos dois casos,
+// concatenando itens consecutivos até bater com o texto procurado, e
+// devolve o item onde o rótulo começa (usado como referência de X).
+const findItem = (row, label) => {
+  const target = stripSpacesLower(label);
+  for (let i = 0; i < row.items.length; i++) {
+    let acc = '';
+    for (let j = i; j < row.items.length; j++) {
+      acc += stripSpacesLower(row.items[j].str);
+      if (acc.length >= target.length) {
+        if (acc.startsWith(target)) return row.items[i];
+        break;
+      }
+      if (!target.startsWith(acc)) break;
+    }
+  }
+  return null;
+};
+
+const stripAccents = (str) => str.normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const MESES = {
+  janeiro: '01', fevereiro: '02', marco: '03', abril: '04', maio: '05', junho: '06',
+  julho: '07', agosto: '08', setembro: '09', outubro: '10', novembro: '11', dezembro: '12',
+};
+
+// O PDF traz "Folha Mensal <Mês> de <Ano>" (ex.: "Folha Mensal Julho de
+// 2026") em cada página — usado para pré-preencher o Mês/Ano de Referência
+// automaticamente e evitar erro de digitação por parte de quem importa.
+const extractMesAnoRef = (rows) => {
+  for (const row of rows) {
+    for (const it of row.items) {
+      const m = it.str.trim().match(/^([A-Za-zçÇ]+)\s+de\s+(\d{4})$/);
+      if (!m) continue;
+      const mesKey = stripAccents(m[1].toLowerCase());
+      if (MESES[mesKey]) return `${m[2]}-${MESES[mesKey]}`;
+    }
+  }
+  return '';
+};
 
 // Os valores monetários costumam vir alguma linhas abaixo do rótulo e
 // levemente deslocados à direita (alinhamento à direita da coluna). Em vez
@@ -48,38 +117,72 @@ const readValuesInOrder = (rows, labelRowIndex, labelCount, maxRowsAhead = 5) =>
   return new Array(labelCount).fill(0);
 };
 
+// Devolve { nome, cargo } separados. O PDF traz o nome na linha de valores
+// logo abaixo do cabeçalho e, quando o texto quebra linha, o cargo/função
+// aparece sozinho na linha seguinte, na mesma coluna do Nome — antes os
+// dois eram concatenados num único campo "nome", o que juntava por exemplo
+// "JESREEL JHEELK LINO MOTTA" com "MECANICO II".
 const extractNome = (rows, headerRowIndex) => {
   const headerRow = rows[headerRowIndex];
-  const nomeIdx = headerRow.items.findIndex(it => /^nome do funcion/i.test(it.str));
-  if (nomeIdx === -1) return null;
+  const nomeLabel = findItem(headerRow, 'Nome do Funcion');
+  if (!nomeLabel) return null;
 
-  // A linha de valores logo abaixo segue a mesma ordem de colunas do
-  // cabeçalho (Código, Nome, CBO, Departamento, Filial) — usar o índice
-  // evita confundir o nome com o valor do CBO, que às vezes fica deslocado
-  // para a esquerda o suficiente para invadir a faixa de X do nome.
   const valueRow = rows[headerRowIndex + 1];
-  if (!valueRow || valueRow.items.length <= nomeIdx) return null;
-  const nameParts = [valueRow.items[nomeIdx].str];
+  if (!valueRow) return null;
 
-  // Cargo, quando quebra linha, fica na linha seguinte, na mesma coluna do Nome
-  const nomeLabel = headerRow.items[nomeIdx];
-  const nextLabel = headerRow.items[nomeIdx + 1];
   const nomeMinX = nomeLabel.x - 5;
-  const nomeMaxX = (nextLabel ? nextLabel.x : nomeLabel.x + 300) - 5;
 
-  const wrapRow = rows[headerRowIndex + 2];
-  if (wrapRow) {
-    const admissaoItem = wrapRow.items.find(it => ADMISSAO_RE.test(it.str));
+  // O nome às vezes vem como um único item, às vezes quebrado em várias
+  // palavras separadas na mesma linha (ex.: "JESREEL" "JHEELK" "LINO"
+  // "MOTTA" como 4 itens distintos) — nesse caso o índice do cabeçalho não
+  // alinha mais com a coluna certa da linha de valores. Por isso o fim da
+  // coluna do nome é delimitado pelo código CBO (sempre 6 dígitos), que é
+  // um marcador confiável independente de quantos itens o nome ocupa.
+  const cboItem = valueRow.items.find(it => CBO_RE.test(it.str));
+  const nomeMaxX = (cboItem ? cboItem.x : nomeLabel.x + 300) - 5;
+
+  const nomeItemsRow1 = valueRow.items.filter(it => it.x >= nomeMinX && it.x < nomeMaxX);
+  if (nomeItemsRow1.length === 0) return null;
+  const nomeParts = [nomeItemsRow1.map(it => it.str).join(' ').trim()];
+
+  // Código do funcionário fica à esquerda do Nome; Departamento e Filial
+  // ficam à direita do CBO, nessa ordem.
+  const codigoItem = valueRow.items.find(it => it.x < nomeMinX);
+  const codigo = codigoItem ? codigoItem.str : '';
+  const cbo = cboItem ? cboItem.str : '';
+  const cboIdx = cboItem ? valueRow.items.indexOf(cboItem) : -1;
+  const departamento = cboIdx >= 0 && valueRow.items[cboIdx + 1] ? valueRow.items[cboIdx + 1].str : '';
+  const filial = cboIdx >= 0 && valueRow.items[cboIdx + 2] ? valueRow.items[cboIdx + 2].str : '';
+
+  // Se o nome (ou o cargo, quando não cabe na mesma linha) continuar nas
+  // próximas linhas, elas ficam na mesma coluna — a linha que contém
+  // "Admissão:" é sempre a que traz o cargo/função e a data de admissão;
+  // linhas antes dela, se houver, são continuação do nome.
+  let cargo = '';
+  let admissao = '';
+  for (let j = headerRowIndex + 2; j < Math.min(rows.length, headerRowIndex + 5); j++) {
+    const row = rows[j];
+    const admissaoItem = row.items.find(it => ADMISSAO_RE.test(it.str));
     const rightBound = admissaoItem ? Math.min(nomeMaxX, admissaoItem.x - 5) : nomeMaxX;
-    const inCol = wrapRow.items.filter(it => it.x >= nomeMinX && it.x < rightBound && !DATE_RE.test(it.str));
-    nameParts.push(...inCol.map(it => it.str));
+    const inCol = row.items.filter(it => it.x >= nomeMinX && it.x < rightBound && !DATE_RE.test(it.str));
+    if (inCol.length === 0) break;
+
+    const text = inCol.map(it => it.str).join(' ').trim();
+    if (admissaoItem) {
+      cargo = text;
+      const dateItem = row.items.find(it => DATE_RE.test(it.str));
+      admissao = dateItem ? dateItem.str : '';
+      break;
+    }
+    nomeParts.push(text);
   }
 
-  return nameParts.join(' ').trim();
+  return { nome: nomeParts.join(' ').trim(), cargo, codigo, cbo, departamento, filial, admissao };
 };
 
 const extractTotals = (rows, headerRowIndex) => {
   let totalVencimentosPdf = 0, totalDescontosPdf = 0, liquidoPdf = 0, salarioBase = 0;
+  let salContrInss = 0, baseCalcFgts = 0, fgtsDoMes = 0, baseCalcIrrf = 0, faixaIrrf = 0;
 
   for (let j = headerRowIndex + 1; j < Math.min(rows.length, headerRowIndex + 30); j++) {
     const vLabel = findItem(rows[j], 'Total de Vencimentos');
@@ -98,19 +201,29 @@ const extractTotals = (rows, headerRowIndex) => {
 
     const salLabel = findItem(rows[j], 'Salário Base') || findItem(rows[j], 'Salario Base');
     if (salLabel) {
-      salarioBase = readValuesInOrder(rows, j, 1, 2)[0];
+      // A mesma linha traz Salário Base, Sal. Contr. INSS, Base Cálc.
+      // FGTS, F.G.T.S do Mês, Base Cálc. IRRF e Faixa IRRF, nessa ordem.
+      const [salBase, inss, fgtsBase, fgtsMes, irrfBase, irrfFaixa] = readValuesInOrder(rows, j, 6, 2);
+      salarioBase = salBase;
+      salContrInss = inss;
+      baseCalcFgts = fgtsBase;
+      fgtsDoMes = fgtsMes;
+      baseCalcIrrf = irrfBase;
+      faixaIrrf = irrfFaixa;
       break; // último rótulo do bloco do funcionário na página
     }
   }
 
   if (!liquidoPdf) liquidoPdf = totalVencimentosPdf - totalDescontosPdf;
-  return { totalVencimentosPdf, totalDescontosPdf, liquidoPdf, salarioBase };
+  return {
+    totalVencimentosPdf, totalDescontosPdf, liquidoPdf, salarioBase,
+    salContrInss, baseCalcFgts, fgtsDoMes, baseCalcIrrf, faixaIrrf,
+  };
 };
 
 // "Assinatura do Funcionário" é o rodapé do recibo; quando a última rubrica
 // fica perto dele em Y, o texto vaza para dentro da descrição da linha.
 const FOOTER_NOISE_RE = /\s*ASSINATURA DO FUNCION[ÁA]RIO.*$/i;
-const FALTA_RE = /FALTA|SUSPENS/;
 
 // Lê a tabela "Código | Descrição | Referência | Vencimentos | Descontos" e
 // devolve tanto os campos manuais conhecidos (Horas Extras 50%/100% e
@@ -120,7 +233,7 @@ const FALTA_RE = /FALTA|SUSPENS/;
 // somar nada nelas nos campos manuais, já que são descontos oficiais que já
 // estão refletidos no Total de Descontos do próprio PDF.
 const extractRubricas = (rows, headerRowIndex) => {
-  const result = { h50: 0, horasEx50: 0, h100: 0, horasEx100: 0, faltas: 0, rubricas: [] };
+  const result = { rubricas: [] };
 
   let tableHeaderIdx = -1;
   for (let j = headerRowIndex + 1; j < Math.min(rows.length, headerRowIndex + 30); j++) {
@@ -152,29 +265,22 @@ const extractRubricas = (rows, headerRowIndex) => {
 
     // O código da rubrica normalmente vem como item separado, mas às vezes
     // aparece grudado ao texto da descrição no mesmo fragmento (ex.: "8069
-    // HORAS FALTAS") — por isso remove-se o número por regex em vez de
-    // simplesmente descartar o primeiro item não-monetário.
-    const descricao = nonMoneyItems.map(it => it.str).join(' ').trim()
-      .replace(/^\d+\s+/, '')
+    // HORAS FALTAS") — por isso é extraído por regex em vez de simplesmente
+    // descartar o primeiro item não-monetário.
+    const rawDescricao = nonMoneyItems.map(it => it.str).join(' ').trim();
+    const codeMatch = rawDescricao.match(/^(\d+)\s+(.*)$/);
+    const codigoRubrica = codeMatch ? codeMatch[1] : '';
+    const descricao = (codeMatch ? codeMatch[2] : rawDescricao)
       .replace(FOOTER_NOISE_RE, '')
       .trim()
       .toUpperCase();
-    if (!descricao || descricao === 'DIAS NORMAIS') continue; // já coberto pelo Salário Base
+    if (!descricao) continue;
 
     const byCol = { ref: 0, venc: 0, desc: 0 };
     moneyItems.forEach(it => { byCol[classify(it.x)] = parseNumber(it.str); });
 
-    if (descricao.includes('100%')) {
-      result.h100 += byCol.ref;
-      result.horasEx100 += byCol.venc;
-    } else if (descricao.startsWith('HORAS EXTRAS')) {
-      result.h50 += byCol.ref;
-      result.horasEx50 += byCol.venc;
-    } else if (byCol.desc && FALTA_RE.test(descricao)) {
-      result.faltas += byCol.desc;
-    }
-
     result.rubricas.push({
+      codigo: codigoRubrica,
       descricao,
       tipo: byCol.desc ? 'desconto' : 'vencimento',
       referencia: byCol.ref,
@@ -196,39 +302,56 @@ export const extractHoleritesFromPDF = async (file) => {
         const totalPages = pdf.numPages;
 
         let employees = [];
+        let mesAnoRef = '';
 
         for (let p = 1; p <= totalPages; p++) {
           const page = await pdf.getPage(p);
           const textContent = await page.getTextContent();
+          if (!textContent || !textContent.items || textContent.items.length === 0) continue;
           const rows = buildRows(textContent.items);
+          if (!rows || rows.length === 0) continue;
+
+          if (!mesAnoRef) mesAnoRef = extractMesAnoRef(rows);
 
           for (let k = 0; k < rows.length; k++) {
             if (!findItem(rows[k], 'Nome do Funcion')) continue;
+            if (!rows[k] || !rows[k].items) continue;
 
-            const nome = extractNome(rows, k);
-            if (!nome) continue;
+            const extractedNome = extractNome(rows, k);
+            if (!extractedNome || !extractedNome.nome) continue;
+            const { nome, cargo: cargoPdf, codigo, cbo, departamento, filial, admissao } = extractedNome;
             if (employees.find(emp => emp.nome === nome)) continue;
 
-            const { totalVencimentosPdf, totalDescontosPdf, liquidoPdf, salarioBase } = extractTotals(rows, k);
-            const { h50, horasEx50, h100, horasEx100, faltas, rubricas } = extractRubricas(rows, k);
+            const {
+              totalVencimentosPdf, totalDescontosPdf, liquidoPdf, salarioBase,
+              salContrInss, baseCalcFgts, fgtsDoMes, baseCalcIrrf, faixaIrrf,
+            } = extractTotals(rows, k);
+            const { rubricas } = extractRubricas(rows, k);
 
             employees.push({
               nome,
+              cargoPdf, // cargo/função conforme o PDF, separado do nome
+              codigo, cbo, departamento, filial, admissao,
               salarioBase,
               totalVencimentosPdf,
               totalDescontosPdf,
               liquidoPdf,
-              rubricas, // detalhamento completo de todas as linhas do PDF, só para conferência
-              // Rubricas extraídas do PDF, editáveis manualmente na tela
+              salContrInss, baseCalcFgts, fgtsDoMes, baseCalcIrrf, faixaIrrf,
+              rubricas, // detalhamento completo de todas as linhas do PDF, para reconstruir o holerite no recibo
+              // Campos "extra" 100% manuais — o recibo já mostra a rubrica
+              // oficial completa (rubricas acima), então esses começam
+              // zerados e representam só o que for lançado A MAIS do que
+              // já está no holerite oficial (evita contar o mesmo valor
+              // duas vezes no recibo final).
               extraFolha: 0,
               comissao: 0,
-              h50,
-              horasEx50,
-              h100,
-              horasEx100,
+              h50: 0,
+              horasEx50: 0,
+              h100: 0,
+              horasEx100: 0,
               hDss: 0,
               dssHex: 0,
-              faltas,
+              faltas: 0,
               vale: 0,
             });
           }
@@ -240,11 +363,17 @@ export const extractHoleritesFromPDF = async (file) => {
           throw new Error("DEBUG_TEXT: " + debugText);
         }
 
-        resolve(employees);
+        resolve({ employees, mesAnoRef });
       } catch (err) {
-        reject(err);
+        const msg = err.message || String(err);
+        if (msg.startsWith('DEBUG_TEXT:')) {
+          reject(new Error('Nenhum funcionário encontrado no PDF. Verifique se o arquivo é um holerite válido.'));
+        } else {
+          reject(err);
+        }
       }
     };
+    fileReader.onerror = () => reject(new Error('Erro ao ler o arquivo. Tente novamente.'));
     fileReader.readAsArrayBuffer(file);
   });
 };
