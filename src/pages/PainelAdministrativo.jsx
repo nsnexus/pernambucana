@@ -143,6 +143,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const handlePdfUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    alert("Iniciando leitura do arquivo PDF: " + file.name + ". Aguarde...");
     setIsParsingPdf(true);
     try {
       const data = await extractHoleritesFromPDF(file);
@@ -880,7 +882,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <input type="month" value={holeriteMesAnoRef} onChange={e => setHoleriteMesAnoRef(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)' }} title="Mês/Ano Ref." />
                     <label className="btn outline sm" style={{ margin: 0, cursor: 'pointer' }}>
                         {isParsingPdf ? 'Processando...' : '📄 Importar PDF'}
-                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: 'none' }} disabled={isParsingPdf} />
+                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} onClick={(e) => { e.target.value = null; }} style={{ display: 'none' }} disabled={isParsingPdf} />
                     </label>
                     <button className="btn primary sm" onClick={handleSaveHolerites} disabled={holeritesParsed.length === 0}>
                         🖨️ Salvar e Imprimir Recibos
