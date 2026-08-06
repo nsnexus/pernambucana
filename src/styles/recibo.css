@@ -1,102 +1,223 @@
-/* Estilos apenas para impressão */
+/* ── Esconde na tela normal, mostra só no export/print ── */
 @media screen {
-    .recibo-print-container {
-        display: none !important;
-    }
+    .recibo-print-container { display: none !important; }
+}
+
+.pdf-export-target { width: 794px !important; }
+
+.pdf-export-target .recibo-print-container,
+.recibo-preview-modal .recibo-print-container {
+    display: block !important;
+    position: static !important;
+    background: white !important;
+    color: black !important;
+    width: 794px !important;
+}
+
+.recibo-preview-modal {
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
 }
 
 @media print {
-    body * {
-        visibility: hidden;
-    }
-    
-    .recibo-print-container, .recibo-print-container * {
-        visibility: visible;
-    }
-    
-    .recibo-print-container {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        background: white !important;
-        color: black !important;
-    }
-    
-    .recibo-page {
-        page-break-after: always;
-        padding: 20px;
-        box-sizing: border-box;
-    }
-    
-    .recibo-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        margin-bottom: 20px;
-        border: 2px solid #000;
-    }
-    
-    .recibo-table th, .recibo-table td {
-        border: 1px solid #000;
-        padding: 8px 12px;
-    }
-    
-    .recibo-header-title {
-        text-align: center;
-        font-size: 18px;
-        font-weight: bold;
-        text-transform: uppercase;
-        padding: 12px !important;
-    }
-    
-    .recibo-empresa-info {
-        text-align: left;
-        font-weight: normal;
-        padding: 15px !important;
-    }
-    
-    .recibo-col-headers th {
-        font-weight: bold;
-        text-align: center;
-        background-color: #f0f0f0 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    
-    .text-right {
-        text-align: right;
-    }
-    
-    .empty-row td {
-        height: 25px;
-    }
-    
-    .recibo-totals td {
-        border-top: 2px solid #000;
-    }
-    
-    .recibo-liquido td {
-        padding: 15px 12px !important;
-    }
-    
-    .recibo-footer {
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        text-align: center;
-        margin-top: 30px;
-    }
-    
-    .recibo-footer p {
-        margin-bottom: 40px;
-        font-weight: bold;
-    }
-    
-    .recibo-assinatura {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        padding: 0 20px;
-    }
+    body * { visibility: hidden; }
+    .recibo-print-container, .recibo-print-container * { visibility: visible; }
+    .recibo-print-container { position: absolute; left: 0; top: 0; width: 100%; }
+}
+
+/* ── Reset de cor/fonte para todo o conteúdo do recibo ── */
+.recibo-print-container,
+.recibo-print-container * {
+    color: #000 !important;
+    background-color: transparent !important;
+    font-family: "Courier New", Courier, monospace;
+    letter-spacing: normal !important;
+    box-sizing: border-box;
+}
+
+/* ══════════════════════════════════════════════
+   ESTRUTURA PRINCIPAL: wrapper flex row
+   ══════════════════════════════════════════════ */
+.hol-wrapper {
+    display: flex;
+    flex-direction: row;
+    width: 754px;
+    min-width: 754px;
+    height: 540px;
+    background: #fff !important;
+    border: 1px solid #000;
+    margin: 20px auto;
+    page-break-inside: avoid;
+    font-size: 11px;
+}
+
+/* ── Coluna principal: 90% ── */
+.hol-main {
+    flex: 0 0 90%;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #000;
+    overflow: hidden;
+}
+
+/* ── Coluna assinatura: 10% ──
+   O conteúdo é uma imagem SVG estática (ver assinaturaColuna.js) — igual em
+   todo recibo e imune às limitações do html2canvas com texto rotacionado. */
+.hol-assinatura {
+    flex: 0 0 10%;
+    width: 10%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+}
+
+.hol-assinatura img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* ══════════════════════════════════════════════
+   CABEÇALHO
+   ══════════════════════════════════════════════ */
+.hol-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 8px;
+    border-bottom: 1px solid #000;
+    font-size: 11px;
+}
+.hol-hd-empresa { display: flex; flex-direction: column; gap: 2px; }
+.hol-hd-titulo  { display: flex; flex-direction: column; align-items: center; font-weight: bold; }
+.hol-hd-folha   { display: flex; flex-direction: column; align-items: flex-end; }
+
+/* ══════════════════════════════════════════════
+   TABELAS GENÉRICAS
+   ══════════════════════════════════════════════ */
+.hol-table {
+    width: 100%;
+    /* O CSS global do sistema (dashboard.css) tem `table { min-width: 850px }`
+       sem escopo nenhum, o que vaza pra cá e força a tabela a 850px dentro de
+       uma coluna de ~713px — jogando a coluna "Descontos" pra fora da área
+       visível. Zerar o min-width aqui é o que mantém a tabela dentro do
+       recibo. */
+    min-width: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.hol-table th {
+    font-size: 9px;
+    font-weight: normal;
+    text-align: left;
+    padding: 2px 4px;
+    border-right: 1px solid #000;
+}
+.hol-table th:last-child { border-right: none; }
+.hol-table td {
+    font-size: 11px;
+    padding: 2px 4px;
+    vertical-align: top;
+    border-right: 1px solid #000;
+}
+.hol-table td:last-child { border-right: none; }
+.td-right { text-align: right; }
+
+/* ══════════════════════════════════════════════
+   SEÇÃO FUNCIONÁRIO
+   ══════════════════════════════════════════════ */
+.hol-funcionario {
+    border-bottom: 1px solid #000;
+}
+.hol-funcionario .hol-table th {
+    border-bottom: 1px solid #000;
+}
+.hol-funcionario .hol-table td {
+    text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════
+   SEÇÃO RUBRICAS
+   ══════════════════════════════════════════════ */
+.hol-rubricas {
+    flex: 1;
+    border-bottom: 1px solid #000;
+    overflow: hidden;
+}
+.hol-rubricas .hol-table {
+    height: 100%;
+}
+.hol-rubricas .hol-table th {
+    border-bottom: 1px solid #000;
+}
+.hol-filler td {
+    height: 100%;
+}
+
+/* ══════════════════════════════════════════════
+   SEÇÃO TOTAIS
+   ══════════════════════════════════════════════ */
+.hol-totais {
+    display: flex;
+    border-bottom: 1px solid #000;
+}
+.hol-totais-blank {
+    flex: 1;
+    border-right: 1px solid #000;
+}
+.hol-totais-box {
+    width: 38%;
+    display: flex;
+    flex-direction: column;
+}
+.hol-totais-linha {
+    display: flex;
+    border-bottom: 1px solid #000;
+}
+.hol-totais-linha span {
+    flex: 1;
+    padding: 3px 6px;
+    text-align: right;
+    border-right: 1px solid #000;
+    font-size: 10px;
+}
+.hol-totais-linha span:last-child { border-right: none; }
+.hol-totais-header span {
+    font-size: 9px;
+    text-align: center;
+}
+.hol-liquido {
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+}
+.hol-liquido span:first-child {
+    flex: 1;
+    padding: 4px 6px;
+    border-right: 1px solid #000;
+}
+.hol-liquido-valor {
+    flex: 1;
+    padding: 4px 6px;
+    text-align: right;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+/* ══════════════════════════════════════════════
+   SEÇÃO BASES
+   ══════════════════════════════════════════════ */
+.hol-bases {
+    border-bottom: 1px solid #000;
+}
+.hol-bases .hol-table th {
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    text-align: center;
+    font-size: 9px;
+}
+.hol-bases .hol-table td {
+    text-align: right;
+    font-size: 11px;
 }
