@@ -85,6 +85,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [holeritesParsed, setHoleritesParsed] = useState([]);
   const [holeriteMesAnoRef, setHoleriteMesAnoRef] = useState('');
   const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [pdfAlertMsg, setPdfAlertMsg] = useState(null);
   const [holeritesHistory, setHoleritesHistory] = useState([]);
 
   const fetchData = async () => {
@@ -144,12 +145,11 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    alert("Iniciando leitura do arquivo PDF: " + file.name + ". Aguarde...");
     setIsParsingPdf(true);
     try {
       const data = await extractHoleritesFromPDF(file);
       if (data.length === 0) {
-        alert("Nenhum funcionário foi encontrado. O arquivo foi lido, mas a estrutura (textos como 'Valor Líquido' e 'Nome do Funcionário') não foi reconhecida no padrão.");
+        setPdfAlertMsg("Nenhum funcionário foi encontrado. O arquivo foi lido, mas a estrutura (textos como 'Valor Líquido' e 'Nome do Funcionário') não foi reconhecida no padrão.");
       }
       // Map effectively to the employee record to get Cargo if possible
       const enrichedData = data.map(hol => {
@@ -159,7 +159,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       setHoleritesParsed(enrichedData);
     } catch (err) {
       console.error(err);
-      alert('Erro ao processar PDF');
+      setPdfAlertMsg('Erro ao processar PDF: ' + err.message);
     } finally {
       setIsParsingPdf(false);
     }
@@ -173,7 +173,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   const handleSaveHolerites = async () => {
     if (!holeriteMesAnoRef) {
-      alert("Por favor, informe o Mês/Ano de Referência.");
+      setPdfAlertMsg("Por favor, informe o Mês/Ano de Referência antes de salvar.");
       return;
     }
     try {
@@ -185,12 +185,15 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           createdAt: serverTimestamp()
         });
       }
-      alert('Dados salvos no histórico com sucesso!');
+      setPdfAlertMsg('Dados salvos no histórico com sucesso! Imprimindo recibos...');
       fetchData();
-      setTimeout(() => window.print(), 500);
+      setTimeout(() => {
+        setPdfAlertMsg(null);
+        window.print();
+      }, 2000);
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar holerites');
+      setPdfAlertMsg('Erro ao salvar holerites: ' + err.message);
     }
   };
 
@@ -1369,6 +1372,39 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           </form>
         </div>
       )}
+
+      {/* ═══ LOADING MODAL PARA PDF ═══ */}
+      {isParsingPdf && (
+        <div className="modal show" style={{ zIndex: 9999 }}>
+          <div className="modal-backdrop"></div>
+          <div className="modal-form-card glass" style={{ textAlign: 'center', padding: '40px', maxWidth: '400px' }}>
+            <div className="spinner" style={{ border: '4px solid rgba(0,0,0,0.1)', borderLeftColor: 'var(--primary)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div>
+            <h3 style={{ marginBottom: '8px' }}>Processando Holerites...</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Lendo o arquivo PDF e extraindo os dados. Por favor, aguarde.</p>
+            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ALERT MODAL CUSTOMIZADO ═══ */}
+      {pdfAlertMsg && (
+        <div className="modal show" style={{ zIndex: 10000 }}>
+          <div className="modal-backdrop" onClick={() => setPdfAlertMsg(null)}></div>
+          <div className="modal-form-card glass" style={{ maxWidth: '450px' }}>
+            <div className="modal-header">
+              <h3>Aviso do Sistema</h3>
+              <button className="close" onClick={() => setPdfAlertMsg(null)}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px', fontSize: '14px', lineHeight: '1.6' }}>
+              <p>{pdfAlertMsg}</p>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
+              <button className="btn primary" onClick={() => setPdfAlertMsg(null)} style={{ width: '100%' }}>Entendi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
