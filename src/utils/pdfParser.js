@@ -20,69 +20,28 @@ export const extractHoleritesFromPDF = async (file) => {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           
-          // Agrupar os textos do PDF por linha aproximada (mesmo Y)
-          const items = textContent.items;
-          items.sort((a, b) => {
-             // sort by Y descending, then X ascending
-             if (Math.abs(a.transform[5] - b.transform[5]) > 5) {
-                 return b.transform[5] - a.transform[5];
-             }
-             return a.transform[4] - b.transform[4];
-          });
-
-          // Juntar itens que estão na mesma linha
-          let lines = [];
-          let currentLine = [];
-          let lastY = null;
+          // Usar o texto puro exatamente na ordem que o PDFJS extrai
+          const rawText = items.map(i => i.str).join(' ');
           
-          for (let item of items) {
-             const y = item.transform[5];
-             if (lastY === null || Math.abs(y - lastY) <= 5) {
-                currentLine.push(item.str);
-             } else {
-                lines.push(currentLine.join(' '));
-                currentLine = [item.str];
-             }
-             lastY = y;
-          }
-          if (currentLine.length > 0) lines.push(currentLine.join(' '));
-          
-          // Processar as linhas para achar funcionários
-          const pageText = lines.join('\n');
-          
-          // Dividir a página em recibos (se houver a marca 'Valor Líquido' ou similar)
-          const receipts = pageText.split(/Valor L[ií]quido/gi);
+          // Dividir por Valor Líquido
+          const receipts = rawText.split(/Valor\s*L[ií]quido/gi);
           
           for (let j = 0; j < receipts.length - 1; j++) {
             const receiptText = receipts[j];
             
-            // Tentar extrair o nome identificando a linha com Código, Nome e CBO
-            // Exemplo: "8 ABMAEL SOUZA OLIVEIRA 724315 1 1"
-            const nameMatch = receiptText.match(/(?:^|\n)\s*\d+\s+([A-Za-zÀ-Úà-ú][A-Za-zÀ-Úà-ú\s]+?)\s+\d{4,6}/);
+            // Extrair nome (tudo maiúsculo entre "Nome do Funcionário" e a próxima palavra CamelCase ou número)
+            const nameMatch = receiptText.match(/Nome do Funcion[aá]rio\s+([A-ZÀ-Ú\s]+?)\s+(?:[A-Z][a-z]|CBO|\d)/);
             const rawName = nameMatch ? nameMatch[1].trim() : 'Desconhecido';
             
-            const nomeParts = rawName.split(/  +/);
-            const nome = nomeParts[0].trim();
+            // O cargo acaba vindo junto (ex: ABMAEL SOUZA OLIVEIRA SOLDADOR). Vamos usar a string toda,
+            // no Painel a busca vai dar match se contiver o nome.
+            const nome = rawName;
             
             if (nome === 'Desconhecido' || nome.length < 3) continue;
 
             if (employees.find(e => e.nome === nome)) continue;
 
-            // Extrair Salário Base
-            let salarioBase = 0;
-            const baseMatch = receiptText.match(/Salário Base\s*([0-9.,]+)/i);
-            if (baseMatch) {
-              salarioBase = parseFloat(baseMatch[1].replace(/\./g, '').replace(',', '.'));
-            } else {
-                // Tentar procurar na linha de baixo (muitas vezes os valores ficam separados)
-                const sBaseRegex = /Salário Base[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/;
-                const match2 = receiptText.match(sBaseRegex);
-                if (match2) {
-                     salarioBase = parseFloat(match2[1].replace(/\./g, '').replace(',', '.'));
-                }
-            }
-
-            // Extrair Vencimentos Oficiais e Descontos Oficiais (soma)
+            // Extrair Vencimentos Oficiais e Descontos Oficiais
             let totalVencimentosPdf = 0;
             let totalDescontosPdf = 0;
             
@@ -92,13 +51,22 @@ export const extractHoleritesFromPDF = async (file) => {
                 totalDescontosPdf = parseFloat(totalMatch[2].replace(/\./g, '').replace(',', '.'));
             }
 
-            // Vencimento Liquido parcial
+            // Vencimento Liquido e Salário Base ficam na próxima parte do split
             let liquidoPdf = 0;
+            let salarioBase = 0;
             const nextPart = receipts[j+1];
+            
             if (nextPart) {
+               // Liquido é o primeiro número logo após o Valor Líquido
                const valMatch = nextPart.match(/^\s*[\n\r]*\s*(?:[^\d]*)?(\d{1,3}(?:\.\d{3})*,\d{2})/);
                if (valMatch) {
                   liquidoPdf = parseFloat(valMatch[1].replace(/\./g, '').replace(',', '.'));
+               }
+               
+               // Salário base
+               const sBaseMatch = nextPart.match(/Sal[aá]rio\s*Base[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+               if (sBaseMatch) {
+                  salarioBase = parseFloat(sBaseMatch[1].replace(/\./g, '').replace(',', '.'));
                }
             }
 

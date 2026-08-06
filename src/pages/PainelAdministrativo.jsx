@@ -153,7 +153,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       }
       // Map effectively to the employee record to get Cargo if possible
       const enrichedData = data.map(hol => {
-         const funcObj = efetivos.find(ef => ef.nome.toLowerCase() === hol.nome.toLowerCase());
+         const funcObj = efetivos.find(ef => hol.nome.toLowerCase().includes(ef.nome.toLowerCase()) || ef.nome.toLowerCase().includes(hol.nome.toLowerCase()));
          return { ...hol, cargo: funcObj ? (funcObj.cargo || 'Funcionário') : 'Funcionário' };
       });
       setHoleritesParsed(enrichedData);
