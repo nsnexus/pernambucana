@@ -13,7 +13,21 @@ export const generatePdfFromContainer = async (containerEl, filename) => {
   const pageHeight = pdf.internal.pageSize.getHeight();
 
   for (let i = 0; i < pages.length; i++) {
-    const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const el = pages[i];
+    // O container fica posicionado fora da tela (left: -99999px) pra não
+    // aparecer durante a geração — sem passar width/height/windowWidth/
+    // windowHeight explícitos, o html2canvas às vezes calcula a área de
+    // captura com base no viewport em vez do tamanho real do elemento, e
+    // corta o que passa da borda direita.
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+    });
     const imgData = canvas.toDataURL('image/png');
     const imgHeight = (canvas.height * pageWidth) / canvas.width;
 

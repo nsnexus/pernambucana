@@ -19,11 +19,16 @@
     overflow-x: auto !important;
 }
 
-@media print {
-    body * { visibility: hidden; }
-    .recibo-print-container, .recibo-print-container * { visibility: visible; }
-    .recibo-print-container { position: absolute; left: 0; top: 0; width: 100%; }
-}
+/* Não existe mais nenhum window.print() para o recibo (o download vira PDF
+   via html2canvas/jsPDF, e a visualização usa o modal .recibo-preview-modal)
+   — por isso não há regra @media print aqui. Esse CSS é carregado
+   globalmente no app (ReciboPrint é importado a partir de
+   PainelAdministrativo, que é importado a partir de App.jsx), então uma
+   regra `@media print { body * { visibility: hidden } }` aqui escondia TUDO
+   ao imprimir de qualquer outra página do sistema — foi isso que quebrou o
+   botão "Imprimir" das abas Serviços/Compras/Boletos/Recebíveis da
+   Pernambucana (e o equivalente do Auto Geral), que dependem do próprio
+   @media print definido em index.css para funcionar. */
 
 /* ── Reset de cor/fonte para todo o conteúdo do recibo ── */
 .recibo-print-container,
