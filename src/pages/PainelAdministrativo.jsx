@@ -8,7 +8,9 @@ import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { extractHoleritesFromPDF } from '../utils/pdfParser';
 import { generatePdfFromContainer } from '../utils/pdfGenerator';
+import { exportFolhaPGXlsx } from '../utils/holeriteExport';
 import ReciboPrint from '../components/ReciboPrint';
+import FolhaCompletaTable from '../components/FolhaCompletaTable';
 
 function addYearToDate(dateStr) {
   if (!dateStr) return '';
@@ -94,6 +96,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [exportHolerites, setExportHolerites] = useState(null);
   const exportContainerRef = useRef(null);
   const [previewHolerite, setPreviewHolerite] = useState(null);
+  const [folhaCompletaHolerites, setFolhaCompletaHolerites] = useState(null);
   const [pdfAlertMsg, setPdfAlertMsg] = useState(null);
   const [holeritesHistory, setHoleritesHistory] = useState([]);
 
@@ -999,6 +1002,24 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <input type="file" accept="application/pdf" onChange={handlePdfUpload} onClick={(e) => { e.target.value = null; }} style={{ display: 'none' }} disabled={isParsingPdf} />
                     </label>
                     {holeritesParsed.length > 0 && (
+                      <button
+                        className="btn outline sm"
+                        title="Mostra a planilha completa (holerite oficial + lançamentos manuais) na tela"
+                        onClick={() => setFolhaCompletaHolerites(holeritesParsed)}
+                      >
+                        📋 Ver Planilha Completa
+                      </button>
+                    )}
+                    {holeritesParsed.length > 0 && (
+                      <button
+                        className="btn outline sm"
+                        title="Baixa uma planilha com todas as colunas do holerite oficial + lançamentos manuais, pra conferência"
+                        onClick={() => exportFolhaPGXlsx(holeritesParsed, holeriteMesAnoRef, `Folha_de_PG_${holeriteMesAnoRef || 'sem-data'}.xlsx`)}
+                      >
+                        📊 Baixar XLSX
+                      </button>
+                    )}
+                    {holeritesParsed.length > 0 && (
                       <button className="btn outline sm" onClick={handleCancelHoleriteEdit} disabled={isSavingHolerites}>
                         Cancelar
                       </button>
@@ -1133,6 +1154,22 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                           onClick={() => handleDownloadPdf(selectedRecords, `Recibos_Selecionados_${selectedRecords.length}.pdf`)}
                         >
                           {isExportingPdf ? 'Gerando PDF...' : `⬇️ Baixar Selecionados (${selectedRecords.length})`}
+                        </button>
+                        <button
+                          className="btn outline sm"
+                          disabled={selectedRecords.length === 0}
+                          title="Mostra a planilha completa dos selecionados na tela"
+                          onClick={() => setFolhaCompletaHolerites(selectedRecords)}
+                        >
+                          📋 Ver Completo ({selectedRecords.length})
+                        </button>
+                        <button
+                          className="btn outline sm"
+                          disabled={selectedRecords.length === 0}
+                          title="Baixa uma planilha com todas as colunas do holerite oficial + lançamentos manuais dos selecionados"
+                          onClick={() => exportFolhaPGXlsx(selectedRecords, selectedRecords[0]?.mesAnoRef, `Folha_de_PG_Selecionados_${selectedRecords.length}.xlsx`)}
+                        >
+                          📊 XLSX Selecionados ({selectedRecords.length})
                         </button>
                         <button
                           className="btn outline sm"
@@ -1407,6 +1444,31 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
             </div>
             <div className="modal-body recibo-preview-modal" style={{ display: 'flex', justifyContent: 'center' }}>
               <ReciboPrint holerites={[previewHolerite]} mesAnoRef="" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL PLANILHA COMPLETA (holerite oficial + manual, colunas da "Folha de PG") ═══ */}
+      {folhaCompletaHolerites && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setFolhaCompletaHolerites(null)}></div>
+          <div className="modal-form-card glass" style={{ zIndex: 10, maxWidth: '95vw', width: '1400px', maxHeight: '92vh' }}>
+            <div className="modal-header">
+              <h3>Planilha Completa ({folhaCompletaHolerites.length})</h3>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn outline sm"
+                  onClick={() => exportFolhaPGXlsx(folhaCompletaHolerites, folhaCompletaHolerites[0]?.mesAnoRef, `Folha_de_PG_${folhaCompletaHolerites[0]?.mesAnoRef || 'sem-data'}.xlsx`)}
+                >
+                  📊 Baixar XLSX
+                </button>
+                <button className="close" type="button" onClick={() => setFolhaCompletaHolerites(null)}>×</button>
+              </div>
+            </div>
+            <div className="modal-body">
+              <FolhaCompletaTable holerites={folhaCompletaHolerites} />
             </div>
           </div>
         </div>

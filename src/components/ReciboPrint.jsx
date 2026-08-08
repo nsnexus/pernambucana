@@ -12,25 +12,24 @@ const formatMesAnoRef = (value) => {
   return mesNome ? `${mesNome} de ${m[1]}` : value;
 };
 
-const buildLinhas = (hol) => {
-  const linhas = (hol.rubricas || []).map(r => ({ codigo: r.codigo, descricao: r.descricao, referencia: r.referencia, valor: r.valor, tipo: r.tipo }));
-  const extras = [
-    { campo: 'extraFolha', descricao: 'Salário Extra', tipo: 'vencimento' },
-    { campo: 'comissao', descricao: 'Comissão (Extra)', tipo: 'vencimento' },
-    { campo: 'horasEx50', descricao: 'Horas Extras 50% (Extra)', tipo: 'vencimento', refCampo: 'h50' },
-    { campo: 'horasEx100', descricao: 'Horas Extras 100% (Extra)', tipo: 'vencimento', refCampo: 'h100' },
-    { campo: 'dssHex', descricao: 'DSS (Extra)', tipo: 'vencimento', refCampo: 'hDss' },
-    { campo: 'faltas', descricao: 'Faltas (Extra)', tipo: 'desconto' },
-    { campo: 'vale', descricao: 'Vale (Extra)', tipo: 'desconto' },
-  ];
-  extras.forEach(({ campo, descricao, tipo, refCampo }) => {
-    const valor = Number(hol[campo] || 0);
-    if (valor > 0) linhas.push({ codigo: '', descricao, referencia: refCampo ? Number(hol[refCampo] || 0) : 0, valor, tipo });
-  });
-  return linhas;
-};
-
 const f = (val) => Number(val || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Só o que é lançado manualmente (Extra Folha, Comissão, Horas Extras, DSS,
+// Faltas, Vale) entra no recibo — os dados do holerite oficial (importados
+// do PDF) ficam só na tela do sistema, como referência de conferência; não
+// são impressos de novo aqui. Reflete exatamente a planilha "Folha de PG"
+// da cliente: "Salário Avista" (AN) = soma dos proventos extra (AM) menos
+// Faltas e Vale, sem nenhuma coluna do holerite oficial (A–AB) entrando na
+// conta.
+const buildLinhas = (hol) => ([
+  { descricao: 'Extra Folha', referencia: 0, valor: Number(hol.extraFolha || 0), tipo: 'vencimento' },
+  { descricao: 'Comissão', referencia: 0, valor: Number(hol.comissao || 0), tipo: 'vencimento' },
+  { descricao: 'Horas Extras 50%', referencia: Number(hol.h50 || 0), valor: Number(hol.horasEx50 || 0), tipo: 'vencimento' },
+  { descricao: 'Horas Extras 100%', referencia: Number(hol.h100 || 0), valor: Number(hol.horasEx100 || 0), tipo: 'vencimento' },
+  { descricao: 'DSS', referencia: Number(hol.hDss || 0), valor: Number(hol.dssHex || 0), tipo: 'vencimento' },
+  { descricao: 'Faltas', referencia: 0, valor: Number(hol.faltas || 0), tipo: 'desconto' },
+  { descricao: 'Vale', referencia: 0, valor: Number(hol.vale || 0), tipo: 'desconto' },
+].filter(l => l.valor > 0));
 
 const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
   if (!holerites || holerites.length === 0) return null;
@@ -39,11 +38,12 @@ const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
     <div className="recibo-print-container">
       {holerites.map((hol, index) => {
         const linhas = buildLinhas(hol);
-        const extrasV = Number(hol.extraFolha || 0) + Number(hol.comissao || 0) + Number(hol.horasEx50 || 0) + Number(hol.horasEx100 || 0) + Number(hol.dssHex || 0);
-        const extrasD = Number(hol.faltas || 0) + Number(hol.vale || 0);
-        const totalV = Number(hol.totalVencimentosPdf || 0) + extrasV;
-        const totalD = Number(hol.totalDescontosPdf || 0) + extrasD;
-        const liquido = totalV - totalD;
+
+        // AM da planilha: soma dos proventos extra
+        const totalProventos = Number(hol.extraFolha || 0) + Number(hol.comissao || 0) + Number(hol.horasEx50 || 0) + Number(hol.horasEx100 || 0) + Number(hol.dssHex || 0);
+        const totalDescontos = Number(hol.faltas || 0) + Number(hol.vale || 0);
+        // AN da planilha: "Salário Avista" = AM - Vale - Faltas
+        const salarioAvista = totalProventos - totalDescontos;
 
         return (
           <div key={index} className="hol-wrapper recibo-page">
@@ -58,8 +58,8 @@ const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
                   <span>CNPJ: 66.477.205/0001-70</span>
                 </div>
                 <div className="hol-hd-titulo">
-                  <strong>RECIBO DE PAGAMENTO</strong>
-                  <span>Mensalista</span>
+                  <strong>RECIBO DE PAGAMENTO EXTRA</strong>
+                  <span>{hol.nome}{hol.cargo ? ` — ${hol.cargo}` : ''}</span>
                 </div>
                 <div className="hol-hd-folha">
                   <span>Folha Mensal</span>
@@ -67,56 +67,36 @@ const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
                 </div>
               </div>
 
-              {/* Dados do funcionário */}
-              <div className="hol-funcionario">
-                <table className="hol-table">
-                  <thead>
-                    <tr>
-                      <th style={{width:'8%'}}>Código</th>
-                      <th style={{width:'44%'}}>Nome do Funcionário</th>
-                      <th style={{width:'22%'}}>CBO</th>
-                      <th style={{width:'13%'}}>Departamento</th>
-                      <th style={{width:'13%'}}>Filial</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{hol.codigo}</td>
-                      <td>
-                        <div>{hol.nome}</div>
-                        <div>{hol.cargo || ''}</div>
-                      </td>
-                      <td><div>{hol.cbo}</div><div>Admissão: {hol.admissao}</div></td>
-                      <td>{hol.departamento}</td>
-                      <td>{hol.filial}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Rubricas */}
+              {/* Rubricas lançadas manualmente */}
               <div className="hol-rubricas">
                 <table className="hol-table">
+                  <colgroup>
+                    <col style={{ width: '46%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '18%' }} />
+                  </colgroup>
                   <thead>
                     <tr>
-                      <th style={{width:'8%'}}>Código</th>
-                      <th style={{width:'42%'}}>Descrição</th>
-                      <th style={{width:'14%'}}>Referência</th>
-                      <th style={{width:'18%'}}>Vencimentos</th>
-                      <th style={{width:'18%'}}>Descontos</th>
+                      <th>Descrição</th>
+                      <th className="td-right">Referência</th>
+                      <th className="td-right">Vencimentos</th>
+                      <th className="td-right">Descontos</th>
                     </tr>
                   </thead>
                   <tbody>
                     {linhas.map((l, i) => (
                       <tr key={i}>
-                        <td>{l.codigo}</td>
                         <td>{l.descricao}</td>
                         <td className="td-right">{l.referencia > 0 ? f(l.referencia) : ''}</td>
                         <td className="td-right">{l.tipo === 'vencimento' ? f(l.valor) : ''}</td>
                         <td className="td-right">{l.tipo === 'desconto' ? f(l.valor) : ''}</td>
                       </tr>
                     ))}
-                    <tr className="hol-filler"><td colSpan="5"></td></tr>
+                    {linhas.length === 0 && (
+                      <tr><td colSpan="4" style={{ textAlign: 'center', color: '#666' }}>Nenhum lançamento extra</td></tr>
+                    )}
+                    <tr className="hol-filler"><td colSpan="4"></td></tr>
                   </tbody>
                 </table>
               </div>
@@ -130,40 +110,14 @@ const ReciboPrint = ({ holerites = [], mesAnoRef = '' }) => {
                     <span>Total de Descontos</span>
                   </div>
                   <div className="hol-totais-linha">
-                    <span className="td-right">{f(totalV)}</span>
-                    <span className="td-right">{f(totalD)}</span>
+                    <span className="td-right">{f(totalProventos)}</span>
+                    <span className="td-right">{f(totalDescontos)}</span>
                   </div>
                   <div className="hol-liquido">
-                    <span>Valor Líquido ⇨</span>
-                    <span className="hol-liquido-valor">{f(liquido)}</span>
+                    <span>Salário Avista ⇨</span>
+                    <span className="hol-liquido-valor">{f(salarioAvista)}</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Bases */}
-              <div className="hol-bases">
-                <table className="hol-table">
-                  <thead>
-                    <tr>
-                      <th>Salário Base</th>
-                      <th>Sal. Contr. INSS</th>
-                      <th>Base Cálc. FGTS</th>
-                      <th>F.G.T.S do Mês</th>
-                      <th>Base Cálc. IRRF</th>
-                      <th>Faixa IRRF</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="td-right">{f(hol.salarioBase)}</td>
-                      <td className="td-right">{f(hol.salContrInss)}</td>
-                      <td className="td-right">{f(hol.baseCalcFgts)}</td>
-                      <td className="td-right">{f(hol.fgtsDoMes)}</td>
-                      <td className="td-right">{f(hol.baseCalcIrrf)}</td>
-                      <td className="td-right">{f(hol.faixaIrrf)}</td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
 
             </div>{/* fim hol-main */}

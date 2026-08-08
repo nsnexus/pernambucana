@@ -291,6 +291,56 @@ const extractRubricas = (rows, headerRowIndex) => {
   return result;
 };
 
+// Mapeia cada rubrica do PDF pras colunas oficiais da planilha "Folha de
+// PG" da cliente (G até AB) — usado pra exportação em XLSX e pra visão
+// completa dentro do sistema. Cada regra é checada nessa ordem (a primeira
+// que bater vence); o que não encaixa em nenhuma vai pra "outros" — nunca
+// é descartado, só fica sem coluna específica.
+const REGRAS_CLASSIFICACAO_OFICIAL = [
+  { campo: 'horaExtra100', re: /100\s*%/ },
+  { campo: 'horaExtra50', re: /^HORAS EXTRAS/ },
+  { campo: 'adicionalNoturno', re: /ADICIONAL NOTURNO/ },
+  { campo: 'salarioFamilia', re: /SALARIO FAMILIA|SALÁRIO FAMÍLIA/ },
+  { campo: 'licencaMedica', re: /LICEN[CÇ]A M[EÉ]DICA|AFAST(AMENTO)?.*DOEN[CÇ]A|MEDIA AFAST/ },
+  { campo: 'periculosidade', re: /PERICULOSIDADE/ },
+  { campo: 'tempoServico', re: /^(SEXENIO|QUINQUENIO|QUATRIENIO|TRIENIO|BIENIO|ANUENIO|DECENIO|OITOCENIO|SETECENIO|NOVENIO)\b|TEMPO DE SERVI[CÇ]O/ },
+  { campo: 'dsr', re: /REFLEXO.*DSR|^DSR\b/ },
+  { campo: 'comissaoOficial', re: /COMISS[AÃ]O/ },
+  { campo: 'contConf', re: /CONFEDERATIVA/ },
+  { campo: 'inss', re: /I\.?N\.?S\.?S\.?/ },
+  { campo: 'suspensao', re: /SUSPENS/ },
+  { campo: 'faltasHoras', re: /HORAS FALTAS/ },
+  { campo: 'irrf', re: /IRRF/ },
+  { campo: 'falta', re: /FALTA/ },
+  { campo: 'odonto', re: /ODONTOL[OÓ]GICA|^ODON\b/ },
+  { campo: 'emprestimo', re: /EMP\.?\s*CRED|EMPRESTIMO/ },
+  { campo: 'vale', re: /^VALE\b|ADIANT/ },
+];
+
+// Soma cada rubrica na coluna oficial correspondente (ver tabela acima).
+// O que não bate com nenhuma regra entra em "outros" — nem soma escondida,
+// nem rubrica perdida, só sem coluna própria pra não inventar categoria.
+const classificarRubricas = (rubricas) => {
+  const oficial = {
+    horaExtra50: 0, horaExtra100: 0, adicionalNoturno: 0, salarioFamilia: 0,
+    licencaMedica: 0, periculosidade: 0, tempoServico: 0, dsr: 0, comissaoOficial: 0,
+    contConf: 0, inss: 0, suspensao: 0, faltasHoras: 0, irrf: 0, falta: 0,
+    odonto: 0, emprestimo: 0, vale: 0, outros: [],
+  };
+
+  for (const r of rubricas || []) {
+    if (r.descricao === 'DIAS NORMAIS') continue; // já é o Salário Base (G), não é "outros"
+    const regra = REGRAS_CLASSIFICACAO_OFICIAL.find(({ re }) => re.test(r.descricao));
+    if (regra) {
+      oficial[regra.campo] += r.valor;
+    } else {
+      oficial.outros.push({ descricao: r.descricao, tipo: r.tipo, valor: r.valor });
+    }
+  }
+
+  return oficial;
+};
+
 export const extractHoleritesFromPDF = async (file) => {
   const fileReader = new FileReader();
 
@@ -327,6 +377,7 @@ export const extractHoleritesFromPDF = async (file) => {
               salContrInss, baseCalcFgts, fgtsDoMes, baseCalcIrrf, faixaIrrf,
             } = extractTotals(rows, k);
             const { rubricas } = extractRubricas(rows, k);
+            const oficial = classificarRubricas(rubricas);
 
             employees.push({
               nome,
@@ -338,6 +389,7 @@ export const extractHoleritesFromPDF = async (file) => {
               liquidoPdf,
               salContrInss, baseCalcFgts, fgtsDoMes, baseCalcIrrf, faixaIrrf,
               rubricas, // detalhamento completo de todas as linhas do PDF, para reconstruir o holerite no recibo
+              oficial, // rubricas classificadas nas colunas da planilha "Folha de PG" (G–AB), só pra conferência/exportação
               // Campos "extra" 100% manuais — o recibo já mostra a rubrica
               // oficial completa (rubricas acima), então esses começam
               // zerados e representam só o que for lançado A MAIS do que
