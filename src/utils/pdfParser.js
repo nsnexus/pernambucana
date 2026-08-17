@@ -341,6 +341,21 @@ const classificarRubricas = (rubricas) => {
   return oficial;
 };
 
+// Cálculo de Horas Extras com base no Salário Extra Folha:
+// Hora normal = Salário ÷ 220
+// Hora extra 50% = (Salário ÷ 220) × 1,5 × Qtd Horas
+// Hora extra 100% = (Salário ÷ 220) × 2 × Qtd Horas
+export const calcHorasExtras = (extraFolha, h50, h100) => {
+  const sal = Number(extraFolha) || 0;
+  const qtd50 = Number(h50) || 0;
+  const qtd100 = Number(h100) || 0;
+
+  const horasEx50 = sal > 0 && qtd50 > 0 ? Number(((sal / 220) * 1.5 * qtd50).toFixed(2)) : 0;
+  const horasEx100 = sal > 0 && qtd100 > 0 ? Number(((sal / 220) * 2.0 * qtd100).toFixed(2)) : 0;
+
+  return { horasEx50, horasEx100 };
+};
+
 export const extractHoleritesFromPDF = async (file) => {
   const fileReader = new FileReader();
 
@@ -379,6 +394,20 @@ export const extractHoleritesFromPDF = async (file) => {
             const { rubricas } = extractRubricas(rows, k);
             const oficial = classificarRubricas(rubricas);
 
+            // Extrai quantidade de horas extras (50% e 100%) a partir das rubricas do PDF
+            let h50 = 0;
+            let h100 = 0;
+            for (const r of rubricas || []) {
+              if (/100\s*%/.test(r.descricao)) {
+                h100 += Number(r.referencia || 0);
+              } else if (/50\s*%|^HORAS?\s+EXTRAS?/i.test(r.descricao)) {
+                h50 += Number(r.referencia || 0);
+              }
+            }
+
+            const extraFolha = 0;
+            const { horasEx50, horasEx100 } = calcHorasExtras(extraFolha, h50, h100);
+
             employees.push({
               nome,
               cargoPdf, // cargo/função conforme o PDF, separado do nome
@@ -395,12 +424,12 @@ export const extractHoleritesFromPDF = async (file) => {
               // zerados e representam só o que for lançado A MAIS do que
               // já está no holerite oficial (evita contar o mesmo valor
               // duas vezes no recibo final).
-              extraFolha: 0,
+              extraFolha,
               comissao: 0,
-              h50: 0,
-              horasEx50: 0,
-              h100: 0,
-              horasEx100: 0,
+              h50,
+              horasEx50,
+              h100,
+              horasEx100,
               hDss: 0,
               dssHex: 0,
               faltas: 0,

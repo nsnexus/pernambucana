@@ -6,7 +6,7 @@ import { db, storage } from '../context/AuthContext';
 import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { extractHoleritesFromPDF } from '../utils/pdfParser';
+import { extractHoleritesFromPDF, calcHorasExtras } from '../utils/pdfParser';
 import { generatePdfFromContainer } from '../utils/pdfGenerator';
 import { exportFolhaPGXlsx } from '../utils/holeriteExport';
 import ReciboPrint from '../components/ReciboPrint';
@@ -184,7 +184,20 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   const handleHoleriteChange = (index, field, value) => {
     const updated = [...holeritesParsed];
-    updated[index][field] = value;
+    const item = { ...updated[index], [field]: value };
+
+    // Auto-cálculo de Horas Extras 50% e 100% com base no Extra Folha (salário base extra folha)
+    if (field === 'extraFolha' || field === 'h50' || field === 'h100') {
+      const sal = field === 'extraFolha' ? value : item.extraFolha;
+      const qtd50 = field === 'h50' ? value : item.h50;
+      const qtd100 = field === 'h100' ? value : item.h100;
+
+      const { horasEx50, horasEx100 } = calcHorasExtras(sal, qtd50, qtd100);
+      item.horasEx50 = horasEx50;
+      item.horasEx100 = horasEx100;
+    }
+
+    updated[index] = item;
     setHoleritesParsed(updated);
   };
 
