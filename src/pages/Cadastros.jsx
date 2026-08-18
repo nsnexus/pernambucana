@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
+import ProgressModal from '../components/ProgressModal';
 import { IconEdit, IconTrash } from '../components/Icons';
 import * as XLSX from 'xlsx';
 import '../styles/cadastros.css';
@@ -223,13 +224,13 @@ const Cadastros = () => {
     setServicoForm({
       data: item.data,
       setor: item.setor,
-      pagamento: item.pagamento,
-      tipoServico: item.tipoServico,
+      pagamento: item.pagamento || 'À vista',
+      tipoServico: item.tipoServico || 'Serviços',
       os: item.os || '',
       cliente: item.cliente || '',
       descricao: item.descricao || '',
       qtd: item.qtd || 1,
-      valorUnitario: item.valorUnitario || 0,
+      valorUnitario: item.valorUnitario || (item.valorTotal / (item.qtd || 1)) || 0,
       valorTotal: item.valorTotal || 0,
       material: item.material || 0,
       produtivo: item.produtivo || '',
@@ -241,6 +242,17 @@ const Cadastros = () => {
 
   const handleServicoSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingServico(true);
+    setProgressModal({
+      open: true,
+      title: servicoEditId ? 'Atualizando Serviço' : 'Gravando Novo Serviço',
+      current: 0,
+      total: 0,
+      message: 'Salvando no banco de dados...',
+      subMessage: 'Por favor, aguarde a gravação para evitar duplicidades.'
+    });
     try {
       if (servicoEditId) {
         await updateServico(servicoEditId, servicoForm);
@@ -252,6 +264,10 @@ const Cadastros = () => {
       setServicoModalOpen(false);
     } catch (err) {
       alert(err.message || 'Erro ao gravar serviço.');
+    } finally {
+      setIsSavingServico(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -309,6 +325,17 @@ const Cadastros = () => {
 
   const handleCompraSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingCompra(true);
+    setProgressModal({
+      open: true,
+      title: compraEditId ? 'Atualizando Lançamento' : 'Gravando Novo Lançamento',
+      current: 0,
+      total: 0,
+      message: 'Salvando no banco de dados...',
+      subMessage: 'Por favor, aguarde a gravação para evitar duplicidades.'
+    });
     try {
       if (compraEditId) {
         await updateCompra(compraEditId, compraForm);
@@ -320,6 +347,10 @@ const Cadastros = () => {
       setCompraModalOpen(false);
     } catch (err) {
       alert(err.message || 'Erro ao salvar compra.');
+    } finally {
+      setIsSavingCompra(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -420,34 +451,88 @@ const Cadastros = () => {
       const cols = lines[i];
       if (cols.length === 1 && cols[0].trim() === '') continue;
 
-      while (cols.length < (detectedType === 'servicos' ? 16 : 12)) {
-        cols.push('');
-      }
-
       if (detectedType === 'servicos') {
-        const totalVal = parseExcelNumber(cols[10]);
-        const unitVal = parseExcelNumber(cols[9]);
-        const qtdVal = parseExcelNumber(cols[7]) || 1;
-        
+        let dataVal = '';
+        let mesVal = '';
+        let setorVal = '';
+        let pagamentoVal = 'À vista';
+        let clienteVal = '';
+        let descricaoVal = '';
+        let qtdVal = 1;
+        let osVal = '';
+        let unitVal = 0;
+        let totalVal = 0;
+        let produtivoVal = '';
+        let valorProdutivoVal = 0;
+        let descontoVal = 0;
+        let tipoServicoVal = '';
+        let materialVal = 0;
+
+        if (cols.length === 12) {
+          dataVal = cols[0];
+          mesVal = cols[1];
+          setorVal = cols[2];
+          pagamentoVal = cols[3] || 'À vista';
+          clienteVal = cols[4];
+          descricaoVal = cols[5];
+          osVal = cols[6];
+          totalVal = parseExcelNumber(cols[7]);
+          unitVal = totalVal;
+          materialVal = parseExcelNumber(cols[10]);
+          produtivoVal = cols[11];
+          tipoServicoVal = cols[2] || 'Torneadora';
+        } else {
+          while (cols.length < 16) cols.push('');
+          dataVal = cols[0];
+          mesVal = cols[1];
+          setorVal = cols[2];
+          pagamentoVal = cols[3] || 'À vista';
+          clienteVal = cols[5];
+          descricaoVal = cols[6];
+          qtdVal = parseExcelNumber(cols[7]) || 1;
+          osVal = cols[8];
+          unitVal = parseExcelNumber(cols[9]);
+          totalVal = parseExcelNumber(cols[10]);
+          produtivoVal = cols[11];
+          valorProdutivoVal = parseExcelNumber(cols[12]);
+          descontoVal = parseExcelNumber(cols[13]);
+          tipoServicoVal = cols[14] || cols[2];
+          materialVal = parseExcelNumber(cols[15]);
+        }
+
+        const cleanSetor = cleanExcelCell(setorVal);
+        const cleanTipo = cleanExcelCell(tipoServicoVal);
+        let resolvedSector = normalizeSector(cleanSetor);
+        const normTipo = normalizeSector(cleanTipo);
+
+        if (['Torneadora', 'Caldeiraria', 'Retifica', 'Mecanica', 'Peças'].includes(normTipo)) {
+          if (!cleanSetor || resolvedSector === 'Retifica' || (resolvedSector === 'Torneadora' && normTipo === 'Caldeiraria')) {
+            resolvedSector = normTipo;
+          }
+        }
+        if (!resolvedSector) {
+          resolvedSector = (currentUser && currentUser.sector !== 'all' ? currentUser.sector : 'Torneadora');
+        }
+
         parsedList.push({
-          data: parseExcelDate(cols[0]),
-          mes: cleanExcelCell(cols[1]),
-          setor: cleanExcelCell(cols[2]),
-          pagamento: cleanExcelCell(cols[3]) || 'À vista',
-          codigoServico: cleanExcelCell(cols[4]),
-          cliente: cleanExcelCell(cols[5]) || 'Cliente Importado',
-          descricao: cleanExcelCell(cols[6]),
+          data: parseExcelDate(dataVal),
+          mes: cleanExcelCell(mesVal),
+          setor: resolvedSector,
+          pagamento: cleanExcelCell(pagamentoVal) || 'À vista',
+          cliente: cleanExcelCell(clienteVal) || 'Cliente Importado',
+          descricao: cleanExcelCell(descricaoVal),
           qtd: qtdVal,
-          os: cleanExcelCell(cols[8]),
+          os: cleanExcelCell(osVal),
           valorUnitario: unitVal || (totalVal / qtdVal) || 0,
           valorTotal: totalVal || (unitVal * qtdVal) || 0,
-          produtivo: cleanExcelCell(cols[11]),
-          valorProdutivo: parseExcelNumber(cols[12]),
-          desconto: parseExcelNumber(cols[13]),
-          tipoServico: cleanExcelCell(cols[14]) || 'Serviços',
-          material: parseExcelNumber(cols[15])
+          produtivo: cleanExcelCell(produtivoVal),
+          valorProdutivo: valorProdutivoVal,
+          desconto: descontoVal,
+          tipoServico: cleanTipo || resolvedSector || 'Serviços',
+          material: materialVal
         });
       } else {
+        while (cols.length < 12) cols.push('');
         parsedList.push({
           data: parseExcelDate(cols[0]),
           mes: cleanExcelCell(cols[1]),
@@ -477,15 +562,42 @@ const Cadastros = () => {
   };
 
   const confirmExcelImport = async () => {
-    if (parsedExcelItems.length === 0 || !detectedExcelType) return;
-    
+    if (parsedExcelItems.length === 0 || !detectedExcelType || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsImporting(true);
+    const total = parsedExcelItems.length;
+    setProgressModal({
+      open: true,
+      title: 'Importando Planilha Excel',
+      current: 0,
+      total,
+      message: 'Iniciando importação...',
+      subMessage: 'Gravando registros no banco de dados. Não feche a janela para evitar duplicidades.'
+    });
     let count = 0;
     try {
-      for (const item of parsedExcelItems) {
+      for (let i = 0; i < total; i++) {
+        const item = parsedExcelItems[i];
         if (currentUser && !currentUser.isAdmin) {
-          item.setor = currentUser.sector;
+          const itemSec = normalizeSector(item.setor);
+          const isAllowed = currentUser.allowedSectors && currentUser.allowedSectors.includes(itemSec);
+          if (!isAllowed) {
+            item.setor = currentUser.sector;
+          } else {
+            item.setor = itemSec;
+          }
         }
         
+        const desc = item.cliente || item.fornecedor || item.descricao || `Linha ${i + 1}`;
+        setProgressModal({
+          open: true,
+          title: 'Importando Planilha Excel',
+          current: i + 1,
+          total,
+          message: `Gravando (${i + 1}/${total}): ${desc}`,
+          subMessage: 'Gravando registros no banco de dados. Não feche a janela para evitar duplicidades.'
+        });
+
         if (detectedExcelType === 'servicos') {
           await addServico(item);
         } else {
@@ -499,6 +611,10 @@ const Cadastros = () => {
       setExcelPreview(null);
     } catch (err) {
       alert('Erro ao realizar a importação: ' + err.message);
+    } finally {
+      setIsImporting(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -934,8 +1050,10 @@ const Cadastros = () => {
             </div>
 
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button className="btn ghost" type="button" onClick={() => setServicoModalOpen(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">Salvar</button>
+              <button className="btn ghost" type="button" disabled={isSavingServico} onClick={() => setServicoModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingServico}>
+                {isSavingServico ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar'}
+              </button>
             </div>
           </form>
         </div>
@@ -944,11 +1062,11 @@ const Cadastros = () => {
       {/* Modal Cadastro de Compra / Despesa / Folha / Custo Fixo */}
       {compraModalOpen && (
         <div className="modal show" id="compraModal">
-          <div className="modal-backdrop" onClick={() => setCompraModalOpen(false)}></div>
+          <div className="modal-backdrop" onClick={() => !isSavingCompra && setCompraModalOpen(false)}></div>
           <form className="login-card modal-form-card glass" onSubmit={handleCompraSubmit} style={{ maxWidth: '640px' }}>
             <div className="modal-header">
               <h2>{compraEditId ? 'Editar Lançamento' : 'Novo Lançamento'}</h2>
-              <button className="close" type="button" onClick={() => setCompraModalOpen(false)}>×</button>
+              <button className="close" type="button" disabled={isSavingCompra} onClick={() => setCompraModalOpen(false)}>×</button>
             </div>
             
             <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -1088,8 +1206,10 @@ const Cadastros = () => {
             </div>
 
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button className="btn ghost" type="button" onClick={() => setCompraModalOpen(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">Salvar</button>
+              <button className="btn ghost" type="button" disabled={isSavingCompra} onClick={() => setCompraModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingCompra}>
+                {isSavingCompra ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar'}
+              </button>
             </div>
           </form>
         </div>
@@ -1098,11 +1218,11 @@ const Cadastros = () => {
       {/* Modal Excel Paste */}
       {excelModalOpen && (
         <div className="modal show" id="pasteExcelModal">
-          <div className="modal-backdrop" onClick={() => setExcelModalOpen(false)}></div>
+          <div className="modal-backdrop" onClick={() => !isImporting && setExcelModalOpen(false)}></div>
           <div className="login-card modal-form-card glass" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
               <h2>Importar Copiando do Excel</h2>
-              <button className="close" type="button" onClick={() => setExcelModalOpen(false)}>×</button>
+              <button className="close" type="button" disabled={isImporting} onClick={() => setExcelModalOpen(false)}>×</button>
             </div>
             
             <div className="modal-body">
@@ -1112,7 +1232,7 @@ const Cadastros = () => {
               
               <div className="form-group">
                 <label>Forçar Tipo de Importação</label>
-                <select value={excelImportType} onChange={(e) => { setExcelImportType(e.target.value); handleExcelPasteInput(excelText, e.target.value); }}>
+                <select value={excelImportType} disabled={isImporting} onChange={(e) => { setExcelImportType(e.target.value); handleExcelPasteInput(excelText, e.target.value); }}>
                   <option value="auto">Auto-detectar pelas colunas</option>
                   <option value="servicos">Forçar Importação como Serviços (16 colunas)</option>
                   <option value="compras">Forçar Importação como Compras (12 colunas)</option>
@@ -1125,6 +1245,7 @@ const Cadastros = () => {
                   placeholder="Clique aqui e cole os dados do Excel..." 
                   style={{ width: '100%', height: '180px', fontFamily: 'monospace', fontSize: '11px', borderRadius: '12px', border: '1px solid var(--line)', background: 'rgba(2, 9, 17, 0.55)', color: '#fff', padding: '12px', outline: 'none', resize: 'vertical' }}
                   value={excelText}
+                  disabled={isImporting}
                   onChange={(e) => handleExcelPasteInput(e.target.value, excelImportType)}
                 ></textarea>
               </div>
@@ -1135,12 +1256,24 @@ const Cadastros = () => {
             </div>
             
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button className="btn ghost" type="button" onClick={() => setExcelModalOpen(false)}>Cancelar</button>
-              <button className="btn primary" disabled={parsedExcelItems.length === 0} onClick={confirmExcelImport}>Confirmar e Importar</button>
+              <button className="btn ghost" type="button" disabled={isImporting} onClick={() => setExcelModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" disabled={isImporting || parsedExcelItems.length === 0} onClick={confirmExcelImport}>
+                {isImporting ? <><span className="btn-spinner"></span> Importando...</> : 'Confirmar e Importar'}
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Global Process & Progress Modal */}
+      <ProgressModal
+        isOpen={progressModal.open}
+        title={progressModal.title}
+        current={progressModal.current}
+        total={progressModal.total}
+        message={progressModal.message}
+        subMessage={progressModal.subMessage}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

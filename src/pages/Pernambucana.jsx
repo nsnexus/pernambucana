@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
+import ProgressModal from '../components/ProgressModal';
 import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -226,6 +227,15 @@ const Pernambucana = ({ onBackToGateway }) => {
   // Toast
   const [toastMessage, setToastMessage] = useState('');
   const triggerToast = (msg) => { setToastMessage(msg); setTimeout(() => setToastMessage(''), 2600); };
+
+  // Submission & Progress modal states
+  const isSubmittingRef = useRef(false);
+  const [isSavingServico, setIsSavingServico] = useState(false);
+  const [isSavingCompra, setIsSavingCompra] = useState(false);
+  const [isSavingBoleto, setIsSavingBoleto] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isSavingGrid, setIsSavingGrid] = useState(false);
+  const [progressModal, setProgressModal] = useState({ open: false, title: '', current: 0, total: 0, message: '', subMessage: '' });
 
   // Modals state
   const [servicoModal, setServicoModal] = useState(false);
@@ -628,6 +638,17 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const handleServicoSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingServico(true);
+    setProgressModal({
+      open: true,
+      title: servicoEditId ? 'Atualizando Serviço' : 'Gravando Novo Serviço',
+      current: 0,
+      total: 0,
+      message: 'Salvando no banco de dados...',
+      subMessage: 'Por favor, aguarde a confirmação para evitar duplicidade.'
+    });
     try {
       if (servicoEditId) {
         await updateServico(servicoEditId, servicoForm);
@@ -637,7 +658,13 @@ const Pernambucana = ({ onBackToGateway }) => {
         triggerToast('Serviço adicionado.');
       }
       setServicoModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingServico(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   const openAddCompra = () => {
@@ -667,6 +694,17 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const handleCompraSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingCompra(true);
+    setProgressModal({
+      open: true,
+      title: compraEditId ? 'Atualizando Compra' : 'Gravando Nova Compra',
+      current: 0,
+      total: 0,
+      message: 'Salvando no banco de dados...',
+      subMessage: 'Por favor, aguarde a confirmação para evitar duplicidade.'
+    });
     try {
       let sectorLabel = 'Todos';
       if (compraForm.setores.length === 1) {
@@ -694,7 +732,13 @@ const Pernambucana = ({ onBackToGateway }) => {
         triggerToast('Compra adicionada.');
       }
       setCompraModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingCompra(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   const handleBoletoSectorValueChange = (editedSector, rawVal) => {
@@ -749,10 +793,13 @@ const Pernambucana = ({ onBackToGateway }) => {
   const openAddBoleto = () => {
     setBoletoEditId(null);
     const initialSetores = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria'];
+    const eqSplit = helperEqualSplit(initialSetores, 0);
     setBoletoForm({
       dataVencimento: hoje, fornecedor: '', descricao: '', valorBoleto: 0,
-      setor: 'Todos', status: 'Pago', dataPagamento: hoje, setores: initialSetores, titularNota: '',
-      valoresSetores: helperEqualSplit(initialSetores, 0),
+      setor: deptFilter !== 'all' ? deptFilter : 'Todos', status: 'Pago', dataPagamento: hoje,
+      setores: deptFilter !== 'all' ? [deptFilter] : initialSetores,
+      titularNota: '',
+      valoresSetores: eqSplit,
       setoresEditados: [],
       qtdBoletos: 1,
       datasVencimento: [hoje]
@@ -762,27 +809,38 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const openEditBoleto = (item) => {
     setBoletoEditId(item.id);
-    const initialSetores = item.setores || parseBoletoSectors(item.setor);
-    const initialValores = (item.valoresSetores && Object.keys(item.valoresSetores).length > 0)
-      ? item.valoresSetores
-      : helperEqualSplit(initialSetores, item.valorBoleto || 0);
-
-    const itemVenc = item.dataVencimento || hoje;
+    const itemSetores = item.setores || parseBoletoSectors(item.setor);
     setBoletoForm({
-      dataVencimento: itemVenc, fornecedor: item.fornecedor || '',
-      descricao: item.descricao || '', valorBoleto: item.valorBoleto || 0,
-      setor: item.setor || 'Todos', status: 'Pago',
-      dataPagamento: item.dataPagamento || itemVenc, setores: initialSetores, titularNota: item.titularNota || '',
-      valoresSetores: initialValores,
+      dataVencimento: item.dataVencimento || '',
+      fornecedor: item.fornecedor || '',
+      descricao: item.descricao || '',
+      valorBoleto: item.valorBoleto || 0,
+      setor: item.setor || 'Todos',
+      status: item.status || 'Pago',
+      dataPagamento: item.dataPagamento || '',
+      setores: itemSetores,
+      titularNota: item.titularNota || '',
+      valoresSetores: item.valoresSetores || helperEqualSplit(itemSetores, item.valorBoleto || 0),
       setoresEditados: [],
       qtdBoletos: 1,
-      datasVencimento: [itemVenc]
+      datasVencimento: [item.dataVencimento || hoje]
     });
     setBoletoModal(true);
   };
 
   const handleBoletoSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingBoleto(true);
+    setProgressModal({
+      open: true,
+      title: boletoEditId ? 'Atualizando Boleto' : 'Gravando Boletos',
+      current: 0,
+      total: 0,
+      message: 'Salvando no banco de dados...',
+      subMessage: 'Por favor, aguarde a confirmação para evitar duplicidade.'
+    });
     try {
       let sectorLabel = 'Todos';
       if (boletoForm.setores.length === 1) {
@@ -831,7 +889,13 @@ const Pernambucana = ({ onBackToGateway }) => {
         triggerToast(`${count} ${count > 1 ? 'boletos adicionados' : 'boleto adicionado'}.`);
       }
       setBoletoModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingBoleto(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── SPREADSHEET IN-LINE DIRECT GRID SAVING ──
@@ -847,9 +911,29 @@ const Pernambucana = ({ onBackToGateway }) => {
 
   const saveGridChanges = async () => {
     const list = Object.entries(gridChanges);
-    if (list.length === 0) return;
+    if (list.length === 0 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingGrid(true);
+    setProgressModal({
+      open: true,
+      title: 'Salvando Edição de Planilha',
+      current: 0,
+      total: list.length,
+      message: 'Iniciando atualização de registros...',
+      subMessage: 'Por favor, aguarde a gravação no banco para evitar inconsistências.'
+    });
     try {
-      for (const [id, changes] of list) {
+      for (let i = 0; i < list.length; i++) {
+        const [id, changes] = list[i];
+        setProgressModal({
+          open: true,
+          title: 'Salvando Edição de Planilha',
+          current: i + 1,
+          total: list.length,
+          message: `Atualizando item ${i + 1} de ${list.length}...`,
+          subMessage: 'Por favor, aguarde a gravação no banco para evitar inconsistências.'
+        });
+        
         if ('valorTotal' in changes) changes.valorTotal = parseFloat(changes.valorTotal) || 0;
         if ('valorUnitario' in changes) changes.valorUnitario = parseFloat(changes.valorUnitario) || 0;
         if ('valorOS' in changes) changes.valorOS = parseFloat(changes.valorOS) || 0;
@@ -871,41 +955,122 @@ const Pernambucana = ({ onBackToGateway }) => {
       triggerToast('Alterações salvas com sucesso.');
       setGridEditMode(false);
       setGridChanges({});
-    } catch (err) { alert('Erro: ' + err.message); }
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      setIsSavingGrid(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // Bulk deletes
   const handleDeleteSelectedServicos = async () => {
     if (!window.confirm(`Excluir ${selectedServicos.length} serviços selecionados?`)) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    const total = selectedServicos.length;
+    setProgressModal({
+      open: true,
+      title: 'Excluindo Serviços',
+      current: 0,
+      total,
+      message: 'Removendo registros selecionados...',
+      subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+    });
     try {
-      for (const id of selectedServicos) {
+      for (let i = 0; i < total; i++) {
+        const id = selectedServicos[i];
+        setProgressModal({
+          open: true,
+          title: 'Excluindo Serviços',
+          current: i + 1,
+          total,
+          message: `Excluindo registro ${i + 1} de ${total}...`,
+          subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+        });
         await deleteServico(id);
       }
       setSelectedServicos([]);
       triggerToast('Registros excluídos com sucesso.');
-    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   const handleDeleteSelectedCompras = async () => {
     if (!window.confirm(`Excluir ${selectedCompras.length} compras selecionadas?`)) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    const total = selectedCompras.length;
+    setProgressModal({
+      open: true,
+      title: 'Excluindo Compras',
+      current: 0,
+      total,
+      message: 'Removendo compras selecionadas...',
+      subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+    });
     try {
-      for (const id of selectedCompras) {
+      for (let i = 0; i < total; i++) {
+        const id = selectedCompras[i];
+        setProgressModal({
+          open: true,
+          title: 'Excluindo Compras',
+          current: i + 1,
+          total,
+          message: `Excluindo compra ${i + 1} de ${total}...`,
+          subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+        });
         await deleteCompra(id);
       }
       setSelectedCompras([]);
       triggerToast('Registros excluídos com sucesso.');
-    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   const handleDeleteSelectedBoletos = async () => {
     if (!window.confirm(`Excluir ${selectedBoletos.length} boletos selecionados?`)) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    const total = selectedBoletos.length;
+    setProgressModal({
+      open: true,
+      title: 'Excluindo Boletos',
+      current: 0,
+      total,
+      message: 'Removendo boletos selecionados...',
+      subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+    });
     try {
-      for (const id of selectedBoletos) {
+      for (let i = 0; i < total; i++) {
+        const id = selectedBoletos[i];
+        setProgressModal({
+          open: true,
+          title: 'Excluindo Boletos',
+          current: i + 1,
+          total,
+          message: `Excluindo boleto ${i + 1} de ${total}...`,
+          subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+        });
         await deleteBoleto(id);
       }
       setSelectedBoletos([]);
       triggerToast('Registros excluídos com sucesso.');
-    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── EXCEL PASTE PARSE LOGIC ──
@@ -1024,7 +1189,13 @@ const Pernambucana = ({ onBackToGateway }) => {
           produtivoVal = getVal(['produtivo', 'mecanico']);
           valorProdutivoVal = parseExcelNumber(getVal(['comissao', 'valor produtivo']));
           materialVal = parseExcelNumber(getVal(['material', 'valor material']));
-          tipoServicoVal = getVal(['tipo de servico', 'tipo servico']) || 'Serviços';
+          tipoServicoVal = getVal(['tipo de servico', 'tipo servico', 'servico']);
+          if (!tipoServicoVal) {
+            tipoServicoVal = setorVal || 'Serviços';
+          }
+          if (!setorVal && tipoServicoVal) {
+            setorVal = tipoServicoVal;
+          }
         } else {
           const count = cols.length;
           if (count === 12) {
@@ -1039,7 +1210,7 @@ const Pernambucana = ({ onBackToGateway }) => {
             unitVal = totalVal;
             materialVal = parseExcelNumber(cols[10]);
             produtivoVal = cols[11];
-            tipoServicoVal = setorVal || 'Torneadora';
+            tipoServicoVal = cols[2] || 'Torneadora';
           } else if (count === 14) {
             dataVal = cols[0];
             setorVal = cols[1];
@@ -1093,10 +1264,24 @@ const Pernambucana = ({ onBackToGateway }) => {
 
         const isPrazo = norm(pagamentoVal).includes('prazo');
 
+        const cleanSetor = cleanCell(setorVal);
+        const cleanTipo = cleanCell(tipoServicoVal);
+        let resolvedSector = normalizeSector(cleanSetor);
+        const normTipo = normalizeSector(cleanTipo);
+
+        if (['Torneadora', 'Caldeiraria', 'Retifica', 'Mecanica', 'Peças'].includes(normTipo)) {
+          if (!cleanSetor || resolvedSector === 'Retifica' || (resolvedSector === 'Torneadora' && normTipo === 'Caldeiraria')) {
+            resolvedSector = normTipo;
+          }
+        }
+        if (!resolvedSector) {
+          resolvedSector = (currentUser && currentUser.sector !== 'all' ? currentUser.sector : 'Torneadora');
+        }
+
         parsedList.push({
           data: parseExcelDate(dataVal),
           mes: mesVal || getDateInfo(parseExcelDate(dataVal)).mesName,
-          setor: normalizeSector(setorVal) || 'Retifica',
+          setor: resolvedSector,
           pagamento: isPrazo ? 'À prazo' : 'À vista',
           cliente: cleanCell(clienteVal) || 'Cliente Importado',
           descricao: cleanCell(descricaoVal),
@@ -1108,7 +1293,7 @@ const Pernambucana = ({ onBackToGateway }) => {
           valorProdutivo: valorProdutivoVal || 0,
           desconto: descontoVal || 0,
           material: materialVal || 0,
-          tipoServico: cleanCell(tipoServicoVal) || 'Serviços',
+          tipoServico: cleanTipo || resolvedSector || 'Serviços',
           numParcelas: isPrazo ? 1 : 0
         });
       } else if (type === 'compras') {
@@ -1235,13 +1420,43 @@ const Pernambucana = ({ onBackToGateway }) => {
   };
 
   const confirmImport = async () => {
-    if (parsedImportItems.length === 0) return;
+    if (parsedImportItems.length === 0 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsImporting(true);
+    const totalItems = parsedImportItems.length;
+    setProgressModal({
+      open: true,
+      title: 'Importando Planilha',
+      current: 0,
+      total: totalItems,
+      message: 'Iniciando gravação no banco...',
+      subMessage: 'Gravando lançamentos no banco de dados. Não feche a página para evitar duplicidades.'
+    });
     try {
       let count = 0;
-      for (const item of parsedImportItems) {
+      for (let i = 0; i < totalItems; i++) {
+        const item = parsedImportItems[i];
         if (currentUser && !currentUser.isAdmin) {
-          if (importType !== 'boletos') item.setor = currentUser.sector;
+          if (importType !== 'boletos') {
+            const itemSec = normalizeSector(item.setor);
+            const isAllowed = currentUser.allowedSectors && currentUser.allowedSectors.includes(itemSec);
+            if (!isAllowed) {
+              item.setor = currentUser.sector;
+            } else {
+              item.setor = itemSec;
+            }
+          }
         }
+
+        const desc = item.cliente || item.fornecedor || item.descricao || `Linha ${i + 1}`;
+        setProgressModal({
+          open: true,
+          title: 'Importando Planilha',
+          current: i + 1,
+          total: totalItems,
+          message: `Gravando (${i + 1}/${totalItems}): ${desc}`,
+          subMessage: 'Gravando lançamentos no banco de dados. Não feche a página para evitar duplicidades.'
+        });
 
         if (importType === 'servicos') {
           await addServico(item);
@@ -1257,7 +1472,13 @@ const Pernambucana = ({ onBackToGateway }) => {
       setImportText('');
       setImportPreview(null);
       setParsedImportItems([]);
-    } catch (err) { alert('Erro na importação: ' + err.message); }
+    } catch (err) {
+      alert('Erro na importação: ' + err.message);
+    } finally {
+      setIsImporting(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── CHARTS SETUP ──
@@ -1819,7 +2040,9 @@ const Pernambucana = ({ onBackToGateway }) => {
               {gridEditMode && (
                 <div className="grid-save-bar glass">
                   <span>Modo edição de planilha ativo. Modifique os valores abaixo.</span>
-                  <button className="btn" onClick={saveGridChanges}>Salvar Alterações</button>
+                  <button className="btn" disabled={isSavingGrid} onClick={saveGridChanges}>
+                    {isSavingGrid ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar Alterações'}
+                  </button>
                 </div>
               )}
 
@@ -2070,7 +2293,9 @@ const Pernambucana = ({ onBackToGateway }) => {
               {gridEditMode && (
                 <div className="grid-save-bar glass">
                   <span>Modo edição de planilha ativo. Modifique os valores abaixo.</span>
-                  <button className="btn" onClick={saveGridChanges}>Salvar Alterações</button>
+                  <button className="btn" disabled={isSavingGrid} onClick={saveGridChanges}>
+                    {isSavingGrid ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar Alterações'}
+                  </button>
                 </div>
               )}
 
@@ -2275,7 +2500,9 @@ const Pernambucana = ({ onBackToGateway }) => {
               {gridEditMode && (
                 <div className="grid-save-bar glass">
                   <span>Modo edição de planilha ativo. Modifique os valores abaixo.</span>
-                  <button className="btn" onClick={saveGridChanges}>Salvar Alterações</button>
+                  <button className="btn" disabled={isSavingGrid} onClick={saveGridChanges}>
+                    {isSavingGrid ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar Alterações'}
+                  </button>
                 </div>
               )}
 
@@ -2682,8 +2909,10 @@ const Pernambucana = ({ onBackToGateway }) => {
             </div>
 
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setServicoModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">Confirmar</button>
+              <button className="btn ghost" type="button" disabled={isSavingServico} onClick={() => setServicoModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingServico}>
+                {isSavingServico ? <><span className="btn-spinner"></span> Salvando...</> : 'Confirmar'}
+              </button>
             </div>
           </form>
         </div>
@@ -2692,11 +2921,11 @@ const Pernambucana = ({ onBackToGateway }) => {
       {/* Compras Modal */}
       {compraModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setCompraModal(false)}></div>
+          <div className="modal-backdrop" onClick={() => !isSavingCompra && setCompraModal(false)}></div>
           <form className="modal-form-card glass" onSubmit={handleCompraSubmit} style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>{compraEditId ? 'Editar Compra' : 'Nova Compra de Peças'}</h3>
-              <button className="close" type="button" onClick={() => setCompraModal(false)}>×</button>
+              <button className="close" type="button" disabled={isSavingCompra} onClick={() => setCompraModal(false)}>×</button>
             </div>
             
             <div className="modal-body">
@@ -2780,9 +3009,9 @@ const Pernambucana = ({ onBackToGateway }) => {
             </div>
 
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setCompraModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit" disabled={compraForm.setores.length === 0}>
-                Confirmar
+              <button className="btn ghost" type="button" disabled={isSavingCompra} onClick={() => setCompraModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingCompra || compraForm.setores.length === 0}>
+                {isSavingCompra ? <><span className="btn-spinner"></span> Salvando...</> : 'Confirmar'}
               </button>
             </div>
           </form>
@@ -2792,11 +3021,11 @@ const Pernambucana = ({ onBackToGateway }) => {
       {/* Boletos Modal */}
       {boletoModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setBoletoModal(false)}></div>
+          <div className="modal-backdrop" onClick={() => !isSavingBoleto && setBoletoModal(false)}></div>
           <form className="modal-form-card glass" onSubmit={handleBoletoSubmit} style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>{boletoEditId ? 'Editar Boleto' : 'Novo Boleto (Contas/Despesas)'}</h3>
-              <button className="close" type="button" onClick={() => setBoletoModal(false)}>×</button>
+              <button className="close" type="button" disabled={isSavingBoleto} onClick={() => setBoletoModal(false)}>×</button>
             </div>
             
             <div className="modal-body">
@@ -3040,9 +3269,9 @@ const Pernambucana = ({ onBackToGateway }) => {
             </div>
 
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setBoletoModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit" disabled={boletoForm.setores.length === 0}>
-                Confirmar
+              <button className="btn ghost" type="button" disabled={isSavingBoleto} onClick={() => setBoletoModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingBoleto || boletoForm.setores.length === 0}>
+                {isSavingBoleto ? <><span className="btn-spinner"></span> Salvando...</> : 'Confirmar'}
               </button>
             </div>
           </form>
@@ -3052,16 +3281,17 @@ const Pernambucana = ({ onBackToGateway }) => {
       {/* Excel Paste Import Modal */}
       {importModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setImportModal(false)}></div>
+          <div className="modal-backdrop" onClick={() => !isImporting && setImportModal(false)}></div>
           <div className="modal-form-card glass" style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>Importar do Excel (Ctrl+V)</h3>
-              <button className="close" type="button" onClick={() => setImportModal(false)}>×</button>
+              <button className="close" type="button" disabled={isImporting} onClick={() => setImportModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="ag-import-type-selector">
                 {['servicos', 'compras', 'boletos'].map(t => (
                   <button key={t} className={`ag-import-type-btn ${importType === t ? 'active' : ''}`}
+                    disabled={isImporting}
                     onClick={() => { setImportType(t); handleImportParse(importText, t); }}>
                     {t === 'servicos' ? '🔧 Serviços' : t === 'compras' ? '🛒 Compras' : '📄 Boletos'}
                   </button>
@@ -3071,14 +3301,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                 className="ag-import-area"
                 placeholder="Cole aqui os dados copiados do Excel (Ctrl+V)..."
                 value={importText}
+                disabled={isImporting}
                 onChange={(e) => handleImportParse(e.target.value, importType)}
               />
               {importPreview && <div style={{ marginTop: '16px' }}>{importPreview}</div>}
             </div>
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setImportModal(false)}>Cancelar</button>
-              <button className="btn primary" disabled={parsedImportItems.length === 0} onClick={confirmImport}>
-                Confirmar Importação ({parsedImportItems.length} registros)
+              <button className="btn ghost" type="button" disabled={isImporting} onClick={() => setImportModal(false)}>Cancelar</button>
+              <button className="btn primary" disabled={isImporting || parsedImportItems.length === 0} onClick={confirmImport}>
+                {isImporting ? <><span className="btn-spinner"></span> Importando...</> : `Confirmar Importação (${parsedImportItems.length} registros)`}
               </button>
             </div>
           </div>
@@ -3110,9 +3341,11 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <button
                     key={t.key}
                     type="button"
-                    className={`btn ${duplicateTab === t.key ? 'primary' : 'ghost'}`}
-                    style={{ padding: '6px 12px', fontSize: '13px' }}
-                    onClick={() => setDuplicateTab(t.key)}
+                    className={`btn sm ${duplicateTab === t.key ? 'primary' : 'outline'}`}
+                    onClick={() => {
+                      setDuplicateTab(t.key);
+                      setSelectedDuplicates([]);
+                    }}
                   >
                     {t.label}
                   </button>
@@ -3212,6 +3445,16 @@ const Pernambucana = ({ onBackToGateway }) => {
           </div>
         </div>
       )}
+
+      {/* Global Process & Progress Modal */}
+      <ProgressModal
+        isOpen={progressModal.open}
+        title={progressModal.title}
+        current={progressModal.current}
+        total={progressModal.total}
+        message={progressModal.message}
+        subMessage={progressModal.subMessage}
+      />
     </div>
   );
 };

@@ -510,6 +510,34 @@ export const DataProvider = ({ children }) => {
     fixPending();
   }, [servicos, recebiveis, loading]);
 
+  // Retroactive migration to auto-correct services saved as Torneadora when their tipoServico is Caldeiraria
+  const sectorFixRan = React.useRef(false);
+  useEffect(() => {
+    if (loading || servicos.length === 0 || sectorFixRan.current) return;
+    sectorFixRan.current = true;
+
+    const autoCorrectSectors = async () => {
+      for (const s of servicos) {
+        const normTipo = normalizeSector(s.tipoServico);
+        if (['Caldeiraria', 'Torneadora', 'Retifica', 'Mecanica', 'Peças'].includes(normTipo)) {
+          const currentNorm = normalizeSector(s.setor);
+          if (currentNorm === 'Torneadora' && normTipo === 'Caldeiraria') {
+            try {
+              await setDoc(doc(db, 'servicos', s.id), { setor: 'Caldeiraria' }, { merge: true });
+              const recs = recebiveis.filter(r => r.servicoId === s.id);
+              for (const r of recs) {
+                await setDoc(doc(db, 'p_recebiveis', r.id), { setor: 'Caldeiraria' }, { merge: true });
+              }
+            } catch (err) {
+              console.warn("Erro ao auto-corrigir setor:", err);
+            }
+          }
+        }
+      }
+    };
+    autoCorrectSectors();
+  }, [servicos, recebiveis, loading]);
+
   const consolidationMigrationRan = React.useRef(false);
   useEffect(() => {
     if (loading || consolidado.length > 0 || !rawQueriesActive || consolidationMigrationRan.current) return;
@@ -531,12 +559,25 @@ export const DataProvider = ({ children }) => {
       parsedParcelas = 1;
     }
 
+    let sectorCandidate = item.setor;
+    const normTipo = normalizeSector(item.tipoServico);
+    if (['Torneadora', 'Caldeiraria', 'Retifica', 'Mecanica', 'Peças'].includes(normTipo)) {
+      if (!sectorCandidate || (sectorCandidate === 'Torneadora' && normTipo === 'Caldeiraria') || (sectorCandidate === 'Retifica' && normTipo !== 'Retifica')) {
+        sectorCandidate = normTipo;
+      }
+    }
+    if (!sectorCandidate) {
+      sectorCandidate = (currentUser ? currentUser.sector : 'all');
+    }
+    const finalSetor = normalizeSector(sectorCandidate);
+
     const docData = {
       ...item,
       id,
       mes: dateInfo.mesName,
       mesNum: dateInfo.mesNum,
-      setor: normalizeSector(item.setor || (currentUser ? currentUser.sector : 'all')),
+      setor: finalSetor,
+      tipoServico: item.tipoServico || finalSetor || 'Serviços',
       valorTotal: parseFloat(item.valorTotal) || 0,
       valorUnitario: parseFloat(item.valorUnitario) || 0,
       numParcelas: parsedParcelas,
@@ -559,7 +600,7 @@ export const DataProvider = ({ children }) => {
           cliente: docData.cliente || '',
           descricao: docData.descricao || '',
           produtivo: docData.produtivo || '',
-          setor: docData.setor,
+          setor: finalSetor,
           parcela: i,
           totalParcelas: parsedParcelas,
           valorParcela: Math.round(valorParcela * 100) / 100,
@@ -588,6 +629,17 @@ export const DataProvider = ({ children }) => {
       ...data,
       atualizadoEm: new Date().toISOString()
     };
+    if (data.setor) {
+      updateData.setor = normalizeSector(data.setor);
+    }
+    if (data.tipoServico) {
+      const normTipo = normalizeSector(data.tipoServico);
+      if (['Torneadora', 'Caldeiraria', 'Retifica', 'Mecanica', 'Peças'].includes(normTipo)) {
+        if (!updateData.setor || (updateData.setor === 'Torneadora' && normTipo === 'Caldeiraria')) {
+          updateData.setor = normTipo;
+        }
+      }
+    }
     if (dateInfo) {
       updateData.mes = dateInfo.mesName;
       updateData.mesNum = dateInfo.mesNum;
@@ -599,6 +651,13 @@ export const DataProvider = ({ children }) => {
       updateData.valorUnitario = parseFloat(data.valorUnitario) || 0;
     }
     await setDoc(docRef, updateData, { merge: true });
+
+    if (updateData.setor) {
+      const associatedRecs = recebiveis.filter(r => r.servicoId === id);
+      for (const r of associatedRecs) {
+        await setDoc(doc(db, 'p_recebiveis', r.id), { setor: updateData.setor }, { merge: true });
+      }
+    }
 
     if (oldDate) await triggerConsolidationUpdate(oldDate);
     if (data.data) await triggerConsolidationUpdate(data.data);

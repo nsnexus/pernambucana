@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAutoGeral } from '../context/AutoGeralContext';
 import TopNav from '../components/TopNav';
+import ProgressModal from '../components/ProgressModal';
 import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -82,6 +83,15 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [toastMessage, setToastMessage] = useState('');
   const triggerToast = (msg) => { setToastMessage(msg); setTimeout(() => setToastMessage(''), 2600); };
 
+  // Submission & Progress modal states
+  const isSubmittingRef = useRef(false);
+  const [isSavingServico, setIsSavingServico] = useState(false);
+  const [isSavingCompra, setIsSavingCompra] = useState(false);
+  const [isSavingBoleto, setIsSavingBoleto] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isSavingGrid, setIsSavingGrid] = useState(false);
+  const [progressModal, setProgressModal] = useState({ open: false, title: '', current: 0, total: 0, message: '', subMessage: '' });
+
   // Modals
   const [servicoModal, setServicoModal] = useState(false);
   const [servicoEditId, setServicoEditId] = useState(null);
@@ -132,15 +142,34 @@ const AutoGeral = ({ onBackToGateway }) => {
   };
 
   const saveGridChanges = async () => {
+    const changedIds = Object.keys(gridChanges);
+    if (changedIds.length === 0 || isSubmittingRef.current) {
+      setGridEditMode(false);
+      return;
+    }
+    isSubmittingRef.current = true;
+    setIsSavingGrid(true);
+    setProgressModal({
+      open: true,
+      title: 'Salvando Edições em Linha',
+      current: 0,
+      total: changedIds.length,
+      message: 'Iniciando atualização de linhas...',
+      subMessage: 'Gravando dados no banco. Por favor, aguarde.'
+    });
     try {
-      const changedIds = Object.keys(gridChanges);
-      if (changedIds.length === 0) {
-        setGridEditMode(false);
-        return;
-      }
-      
-      for (const id of changedIds) {
+      for (let i = 0; i < changedIds.length; i++) {
+        const id = changedIds[i];
         const changes = gridChanges[id];
+
+        setProgressModal({
+          open: true,
+          title: 'Salvando Edições em Linha',
+          current: i + 1,
+          total: changedIds.length,
+          message: `Atualizando item ${i + 1} de ${changedIds.length}...`,
+          subMessage: 'Gravando dados no banco. Por favor, aguarde.'
+        });
         
         // Clean numeric inputs
         if ('valorOS' in changes) changes.valorOS = parseFloat(changes.valorOS) || 0;
@@ -166,6 +195,10 @@ const AutoGeral = ({ onBackToGateway }) => {
       triggerToast('Alterações salvas com sucesso.');
     } catch (err) {
       alert('Erro ao salvar alterações: ' + err.message);
+    } finally {
+      setIsSavingGrid(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -518,6 +551,17 @@ const AutoGeral = ({ onBackToGateway }) => {
 
   const handleServicoSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingServico(true);
+    setProgressModal({
+      open: true,
+      title: servicoEditId ? 'Atualizando Serviço' : 'Cadastrando Serviço',
+      current: 0,
+      total: 0,
+      message: 'Gravando dados do serviço...',
+      subMessage: 'Por favor, aguarde a gravação no banco de dados.'
+    });
     try {
       if (servicoEditId) {
         await updateServico(servicoEditId, servicoForm);
@@ -527,7 +571,13 @@ const AutoGeral = ({ onBackToGateway }) => {
         triggerToast('Serviço cadastrado' + (String(servicoForm.formaCompra).toLowerCase().includes('prazo') && servicoForm.numParcelas > 0 ? ` com ${servicoForm.numParcelas} recebíveis gerados.` : '.'));
       }
       setServicoModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingServico(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── COMPRA ACTIONS ──
@@ -555,6 +605,17 @@ const AutoGeral = ({ onBackToGateway }) => {
 
   const handleCompraSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingCompra(true);
+    setProgressModal({
+      open: true,
+      title: compraEditId ? 'Atualizando Compra' : 'Registrando Compra',
+      current: 0,
+      total: 0,
+      message: 'Gravando dados da compra...',
+      subMessage: 'Por favor, aguarde a gravação no banco de dados.'
+    });
     try {
       if (compraEditId) {
         await updateCompra(compraEditId, compraForm);
@@ -564,7 +625,13 @@ const AutoGeral = ({ onBackToGateway }) => {
         triggerToast('Compra registrada.');
       }
       setCompraModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingCompra(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── BOLETO ACTIONS ──
@@ -594,6 +661,17 @@ const AutoGeral = ({ onBackToGateway }) => {
 
   const handleBoletoSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSavingBoleto(true);
+    setProgressModal({
+      open: true,
+      title: boletoEditId ? 'Atualizando Boleto' : 'Registrando Boleto',
+      current: 0,
+      total: 0,
+      message: 'Gravando dados do boleto...',
+      subMessage: 'Por favor, aguarde a gravação no banco de dados.'
+    });
     try {
       if (boletoEditId) {
         const payload = { ...boletoForm };
@@ -623,7 +701,13 @@ const AutoGeral = ({ onBackToGateway }) => {
         triggerToast(`${count} ${count > 1 ? 'boletos registrados' : 'boleto registrado'}.`);
       }
       setBoletoModal(false);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSavingBoleto(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── EXCEL IMPORT ──
@@ -756,7 +840,17 @@ const AutoGeral = ({ onBackToGateway }) => {
   };
 
   const confirmImport = async () => {
-    if (parsedImportItems.length === 0) return;
+    if (parsedImportItems.length === 0 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsImporting(true);
+    setProgressModal({
+      open: true,
+      title: 'Importando Planilha Auto Geral',
+      current: 0,
+      total: parsedImportItems.length,
+      message: 'Iniciando gravação no banco de dados...',
+      subMessage: 'Gravando lançamentos no banco de dados. Não feche a página para evitar duplicidades.'
+    });
     try {
       let count = 0;
       if (importType === 'servicos') count = await importServicosFromExcel(parsedImportItems);
@@ -767,7 +861,13 @@ const AutoGeral = ({ onBackToGateway }) => {
       setImportText('');
       setImportPreview(null);
       setParsedImportItems([]);
-    } catch (err) { alert('Erro: ' + err.message); }
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      setIsImporting(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
   };
 
   // ── CHART HELPERS ──
@@ -1936,8 +2036,10 @@ const AutoGeral = ({ onBackToGateway }) => {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setServicoModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">{servicoEditId ? 'Salvar' : 'Cadastrar'}</button>
+              <button className="btn ghost" type="button" disabled={isSavingServico} onClick={() => setServicoModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingServico}>
+                {isSavingServico ? <><span className="btn-spinner"></span> Salvando...</> : (servicoEditId ? 'Salvar' : 'Cadastrar')}
+              </button>
             </div>
           </form>
         </div>
@@ -1946,11 +2048,11 @@ const AutoGeral = ({ onBackToGateway }) => {
       {/* Compra Modal */}
       {compraModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setCompraModal(false)} />
+          <div className="modal-backdrop" onClick={() => !isSavingCompra && setCompraModal(false)} />
           <form className="modal-form-card glass" onSubmit={handleCompraSubmit} style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>{compraEditId ? 'Editar Compra' : 'Nova Compra'}</h3>
-              <button className="close" type="button" onClick={() => setCompraModal(false)}>×</button>
+              <button className="close" type="button" disabled={isSavingCompra} onClick={() => setCompraModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-grid">
@@ -1967,8 +2069,10 @@ const AutoGeral = ({ onBackToGateway }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setCompraModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">{compraEditId ? 'Salvar' : 'Cadastrar'}</button>
+              <button className="btn ghost" type="button" disabled={isSavingCompra} onClick={() => setCompraModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingCompra}>
+                {isSavingCompra ? <><span className="btn-spinner"></span> Salvando...</> : (compraEditId ? 'Salvar' : 'Cadastrar')}
+              </button>
             </div>
           </form>
         </div>
@@ -1977,11 +2081,11 @@ const AutoGeral = ({ onBackToGateway }) => {
       {/* Boleto Modal */}
       {boletoModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setBoletoModal(false)} />
+          <div className="modal-backdrop" onClick={() => !isSavingBoleto && setBoletoModal(false)} />
           <form className="modal-form-card glass" onSubmit={handleBoletoSubmit} style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>{boletoEditId ? 'Editar Boleto' : 'Novo Boleto'}</h3>
-              <button className="close" type="button" onClick={() => setBoletoModal(false)}>×</button>
+              <button className="close" type="button" disabled={isSavingBoleto} onClick={() => setBoletoModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-grid">
@@ -2067,8 +2171,10 @@ const AutoGeral = ({ onBackToGateway }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setBoletoModal(false)}>Cancelar</button>
-              <button className="btn primary" type="submit">{boletoEditId ? 'Salvar' : 'Cadastrar'}</button>
+              <button className="btn ghost" type="button" disabled={isSavingBoleto} onClick={() => setBoletoModal(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isSavingBoleto}>
+                {isSavingBoleto ? <><span className="btn-spinner"></span> Salvando...</> : (boletoEditId ? 'Salvar' : 'Cadastrar')}
+              </button>
             </div>
           </form>
         </div>
@@ -2077,16 +2183,17 @@ const AutoGeral = ({ onBackToGateway }) => {
       {/* Import Modal */}
       {importModal && (
         <div className="modal show">
-          <div className="modal-backdrop" onClick={() => setImportModal(false)} />
+          <div className="modal-backdrop" onClick={() => !isImporting && setImportModal(false)} />
           <div className="modal-form-card glass" style={{ zIndex: 10 }}>
             <div className="modal-header">
               <h3>Importar do Excel (Ctrl+V)</h3>
-              <button className="close" type="button" onClick={() => setImportModal(false)}>×</button>
+              <button className="close" type="button" disabled={isImporting} onClick={() => setImportModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="ag-import-type-selector">
                 {['servicos', 'compras', 'boletos'].map(t => (
                   <button key={t} className={`ag-import-type-btn ${importType === t ? 'active' : ''}`}
+                    disabled={isImporting}
                     onClick={() => { setImportType(t); handleImportParse(importText, t); }}>
                     {t === 'servicos' ? '🔧 Serviços' : t === 'compras' ? '🛒 Compras' : '📄 Boletos'}
                   </button>
@@ -2096,14 +2203,15 @@ const AutoGeral = ({ onBackToGateway }) => {
                 className="ag-import-area"
                 placeholder="Cole aqui os dados copiados do Excel (Ctrl+V)..."
                 value={importText}
+                disabled={isImporting}
                 onChange={(e) => handleImportParse(e.target.value, importType)}
               />
               {importPreview && <div style={{ marginTop: '16px' }}>{importPreview}</div>}
             </div>
             <div className="modal-footer">
-              <button className="btn ghost" type="button" onClick={() => setImportModal(false)}>Cancelar</button>
-              <button className="btn primary" disabled={parsedImportItems.length === 0} onClick={confirmImport}>
-                Confirmar Importação ({parsedImportItems.length} registros)
+              <button className="btn ghost" type="button" disabled={isImporting} onClick={() => setImportModal(false)}>Cancelar</button>
+              <button className="btn primary" disabled={isImporting || parsedImportItems.length === 0} onClick={confirmImport}>
+                {isImporting ? <><span className="btn-spinner"></span> Importando...</> : `Confirmar Importação (${parsedImportItems.length} registros)`}
               </button>
             </div>
           </div>
@@ -2121,8 +2229,10 @@ const AutoGeral = ({ onBackToGateway }) => {
           <span style={{ color: 'var(--yellow)', fontWeight: 'bold', fontSize: '13px' }}>
             ⚠️ Existem {Object.keys(gridChanges).length} linhas com alterações não salvas.
           </span>
-          <button className="btn primary" style={{ height: '36px', padding: '0 16px' }} onClick={saveGridChanges}>Salvar Alterações</button>
-          <button className="btn ghost" style={{ height: '36px', padding: '0 16px', color: 'var(--red)', borderColor: 'rgba(244,63,94,0.3)' }} onClick={discardGridChanges}>Descartar</button>
+          <button className="btn primary" style={{ height: '36px', padding: '0 16px' }} disabled={isSavingGrid} onClick={saveGridChanges}>
+            {isSavingGrid ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar Alterações'}
+          </button>
+          <button className="btn ghost" style={{ height: '36px', padding: '0 16px', color: 'var(--red)', borderColor: 'rgba(244,63,94,0.3)' }} disabled={isSavingGrid} onClick={discardGridChanges}>Descartar</button>
         </div>
       )}
 
@@ -2175,7 +2285,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                     } else if (duplicateTab === 'compras') {
                       headerText = `${first.fornecedor || 'Sem Fornecedor'} - ${first.data ? first.data.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorPeca)})`;
                     } else {
-                      headerText = `${first.fornecedor || 'Sem Fornecedor'} - ${first.dataVencimento ? first.dataVencimento.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorBoleto)})`;
+                      headerText = `${first.nomeFornecedor || 'Sem Fornecedor'} - ${first.dataVencimento ? first.dataVencimento.split('-').reverse().join('/') : ''} (${fmtMoney.format(first.valorBoleto)})`;
                     }
 
                     const sortedGroup = [...group].sort((a, b) => {
@@ -2253,6 +2363,16 @@ const AutoGeral = ({ onBackToGateway }) => {
           </div>
         </div>
       )}
+
+      {/* Global Process & Progress Modal */}
+      <ProgressModal
+        isOpen={progressModal.open}
+        title={progressModal.title}
+        current={progressModal.current}
+        total={progressModal.total}
+        message={progressModal.message}
+        subMessage={progressModal.subMessage}
+      />
 
       {/* Toast */}
       {toastMessage && <div className="toast show" id="toast">{toastMessage}</div>}
