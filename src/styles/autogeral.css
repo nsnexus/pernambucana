@@ -498,26 +498,36 @@ body.theme-white tr.grid-changed-row {
   background: rgba(245, 158, 11, 0.03) !important;
 }
 
-/* Compact spreadsheet-like tables (fits on screen without horizontal scrollbar) */
+/* Compact spreadsheet-like tables. Não quebram linha: cada coluna ocupa o
+   espaço que precisa e a tabela rola horizontal dentro do .table-wrap. */
 .compact-table {
   border-collapse: collapse !important;
-  width: 100% !important;
+  width: auto !important;
   min-width: 100% !important;
   table-layout: auto !important;
 }
 
 .compact-table th {
-  font-size: 9px !important;
-  padding: 6px 4px !important;
+  font-size: 10px !important;
+  padding: 7px 8px !important;
   font-weight: 800 !important;
-  line-height: 1.1 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
 }
 
 .compact-table td {
-  font-size: 10px !important;
-  padding: 6px 4px !important;
-  line-height: 1.2 !important;
-  word-break: break-word !important;
+  font-size: 11px !important;
+  padding: 7px 8px !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+/* Colunas de texto livre: limita a largura e corta com reticências
+   (o título completo continua no atributo title da célula). */
+.compact-table td.cell-truncate {
+  max-width: 240px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 /* Edit mode cell elements */

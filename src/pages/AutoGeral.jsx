@@ -1435,14 +1435,14 @@ const AutoGeral = ({ onBackToGateway }) => {
                                 <span className={`table-badge ${String(item.formaCompra || '').toLowerCase().includes('prazo') ? 'prazo' : 'vista'}`}>{item.formaCompra}</span>
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.nomeCliente || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.nomeCliente || ''} onChange={e => handleGridCellChange(item.id, 'nomeCliente', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 item.nomeCliente || '-'
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.descricaoMaterial || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.descricaoMaterial || ''} onChange={e => handleGridCellChange(item.id, 'descricaoMaterial', e.target.value)} className="ag-grid-input" />
                               ) : (
@@ -1652,14 +1652,14 @@ const AutoGeral = ({ onBackToGateway }) => {
                                 <span className={`table-badge ${String(item.formaCompra || '').toLowerCase().includes('prazo') ? 'prazo' : 'vista'}`}>{item.formaCompra}</span>
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.nomeCliente || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.nomeCliente || ''} onChange={e => handleGridCellChange(item.id, 'nomeCliente', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 item.nomeCliente || '-'
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.descricaoMaterial || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.descricaoMaterial || ''} onChange={e => handleGridCellChange(item.id, 'descricaoMaterial', e.target.value)} className="ag-grid-input" />
                               ) : (

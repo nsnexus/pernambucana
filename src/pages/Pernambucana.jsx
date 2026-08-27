@@ -2157,14 +2157,14 @@ const Pernambucana = ({ onBackToGateway }) => {
                                 DEPT_LABELS[item.setor] || item.setor
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.cliente || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.cliente || ''} onChange={e => handleGridCellChange(item.id, 'cliente', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 item.cliente || '-'
                               )}
                             </td>
-                            <td>
+                            <td className={gridEditMode ? '' : 'cell-truncate'} title={!gridEditMode ? (item.descricao || '') : undefined}>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.descricao || ''} onChange={e => handleGridCellChange(item.id, 'descricao', e.target.value)} className="ag-grid-input" />
                               ) : (
