@@ -643,6 +643,11 @@ const Pernambucana = ({ onBackToGateway }) => {
   const handleServicoSubmit = async (e) => {
     e.preventDefault();
     if (isSubmittingRef.current) return;
+    const ehPrazo = String(servicoForm.pagamento).toLowerCase().includes('prazo');
+    if (ehPrazo && (parseInt(servicoForm.numParcelas) || 0) < 1) {
+      alert('Informe o número de parcelas (mínimo 1) para venda a prazo.');
+      return;
+    }
     isSubmittingRef.current = true;
     setIsSavingServico(true);
     setProgressModal({
@@ -2864,7 +2869,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                 </div>
                 <div className="form-group">
                   <label>Condição de Pagamento</label>
-                  <select value={servicoForm.pagamento} onChange={e => setServicoForm(prev => ({ ...prev, pagamento: e.target.value }))}>
+                  <select value={servicoForm.pagamento} onChange={e => {
+                    const novo = e.target.value;
+                    const ehPrazo = novo.toLowerCase().includes('prazo');
+                    setServicoForm(prev => ({
+                      ...prev,
+                      pagamento: novo,
+                      ...(ehPrazo ? {} : { numParcelas: 0, vendaValidada: false, notaFiscal: '', dataNotaFiscal: '' })
+                    }));
+                  }}>
                     <option value="À vista">À vista</option>
                     <option value="Pix">Pix</option>
                     <option value="Dinheiro">Dinheiro</option>
@@ -2873,16 +2886,15 @@ const Pernambucana = ({ onBackToGateway }) => {
                     <option value="À prazo">À prazo</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>
-                    Nº de Parcelas (se A Prazo)
-                    <InfoHint text="Quantidade de parcelas do recebível. Cada parcela vence a cada 30 dias a partir da data de referência (data da nota fiscal ou, na falta dela, a data do serviço)." />
-                  </label>
-                  <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
-                </div>
-
                 {String(servicoForm.pagamento).toLowerCase().includes('prazo') && (
                   <>
+                    <div className="form-group">
+                      <label>
+                        Nº de Parcelas *
+                        <InfoHint text="Obrigatório para venda a prazo. Cada parcela vence a cada 30 dias a partir da data de referência (data da nota fiscal ou, na falta dela, a data do serviço)." />
+                      </label>
+                      <input type="number" min="1" required value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                    </div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center' }}>
                         <input
