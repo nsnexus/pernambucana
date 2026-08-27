@@ -21,10 +21,18 @@ function addYearToDate(dateStr) {
 }
 
 const CATEGORIES = {
-  'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas'],
+  'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas', 'Acidente do Trabalho'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
-  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'],
+  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento'],
   'Pagamentos': ['Holerites']
+};
+
+// Normaliza os anexos de um registro. Registros antigos guardam um único
+// arquivo em fileUrl/filePath/fileName; os novos guardam a lista em `anexos`.
+const normalizeAnexos = (arq) => {
+  if (Array.isArray(arq?.anexos) && arq.anexos.length) return arq.anexos;
+  if (arq?.fileUrl) return [{ url: arq.fileUrl, path: arq.filePath || null, name: arq.fileName || 'arquivo' }];
+  return [];
 };
 
 const PainelAdministrativo = ({ brand, onBackToGateway }) => {
@@ -59,13 +67,15 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [fileForm, setFileForm] = useState({ 
     titulo: '', 
     categoria: activeCat, 
-    subcategoria: activeSub, 
-    file: null, 
-    funcionarioId: '', 
+    subcategoria: activeSub,
+    files: [],
+    anexosExistentes: [],
+    funcionarioId: '',
     dataVencimento: '',
     tipoAso: 'Admissional',
     dataExame: '',
-    mesAnoRef: ''
+    mesAnoRef: '',
+    valor: ''
   });
   const [editingFileId, setEditingFileId] = useState(null);
   
@@ -406,9 +416,19 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
   // ═══ FILE ACTIONS ═══
   const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setFileForm({ ...fileForm, file: e.target.files[0] });
+    const picked = Array.from(e.target.files || []);
+    if (picked.length) {
+      setFileForm(prev => ({ ...prev, files: [...prev.files, ...picked] }));
     }
+    e.target.value = '';
+  };
+
+  const removeNovoAnexo = (idx) => {
+    setFileForm(prev => ({ ...prev, files: prev.files.filter((_, i) => i !== idx) }));
+  };
+
+  const removeAnexoExistente = (idx) => {
+    setFileForm(prev => ({ ...prev, anexosExistentes: prev.anexosExistentes.filter((_, i) => i !== idx) }));
   };
 
   const handleEditFile = (arq) => {
@@ -417,12 +437,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       titulo: arq.titulo || '',
       categoria: arq.categoria,
       subcategoria: arq.subcategoria,
-      file: null,
+      files: [],
+      anexosExistentes: normalizeAnexos(arq),
       funcionarioId: arq.funcionarioId || '',
       dataVencimento: arq.dataVencimento || '',
       tipoAso: arq.tipoAso || (arq.subcategoria === 'Aso Demissional' ? 'Demissional' : 'Admissional'),
       dataExame: arq.dataExame || '',
-      mesAnoRef: arq.mesAnoRef || ''
+      mesAnoRef: arq.mesAnoRef || '',
+      valor: arq.valor != null ? String(arq.valor) : ''
     });
     setFileModalOpen(true);
   };
@@ -432,6 +454,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
 
     const isAso = ['Aso', 'Aso Demissional'].includes(fileForm.subcategoria);
     const isInspecao = fileForm.subcategoria === 'Inspeções';
+    const isVendaSucata = fileForm.subcategoria === 'Venda de sucatas';
     let calculatedTitle = fileForm.titulo;
 
     if (isAso) {
@@ -460,6 +483,16 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         return;
       }
       calculatedTitle = `Inspeção - ${fileForm.mesAnoRef}`;
+    } else if (isVendaSucata) {
+      if (!fileForm.mesAnoRef) {
+        alert("Informe o Mês/Ano de Referência da venda.");
+        return;
+      }
+      if (fileForm.valor === '' || isNaN(Number(fileForm.valor)) || Number(fileForm.valor) < 0) {
+        alert("Informe um valor apurado válido.");
+        return;
+      }
+      calculatedTitle = fileForm.titulo || `Venda de sucatas - ${fileForm.mesAnoRef}`;
     } else {
       if (!fileForm.titulo) {
         alert("Preencha o título.");
@@ -467,60 +500,58 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       }
     }
 
-    if (!editingFileId && !fileForm.file) {
-      alert("Selecione um arquivo para cadastrar.");
+    const totalAnexos = (fileForm.anexosExistentes?.length || 0) + (fileForm.files?.length || 0);
+    if (!editingFileId && totalAnexos === 0) {
+      alert("Selecione ao menos um arquivo para cadastrar.");
+      return;
+    }
+    if (editingFileId && totalAnexos === 0) {
+      alert("O registro precisa de ao menos um anexo.");
       return;
     }
 
     try {
       setIsUploading(true);
-      let newFileUrl = null;
-      let newFilePath = null;
-      let newFileName = null;
 
-      if (fileForm.file) {
-        const file = fileForm.file;
-        const subPath = fileForm.subcategoria ? `/${fileForm.subcategoria}` : '';
-        newFilePath = `arquivos_v2/${brand}/${fileForm.categoria}${subPath}/${Date.now()}_${file.name}`;
-        const fileRef = ref(storage, newFilePath);
+      // Sobe cada arquivo novo selecionado e monta a lista final de anexos
+      const subPath = fileForm.subcategoria ? `/${fileForm.subcategoria}` : '';
+      const novosAnexos = [];
+      for (const file of (fileForm.files || [])) {
+        const filePath = `arquivos_v2/${brand}/${fileForm.categoria}${subPath}/${Date.now()}_${file.name}`;
+        const fileRef = ref(storage, filePath);
         const snapshot = await uploadBytes(fileRef, file);
-        newFileUrl = await getDownloadURL(snapshot.ref);
-        newFileName = file.name;
+        const url = await getDownloadURL(snapshot.ref);
+        novosAnexos.push({ url, path: filePath, name: file.name });
       }
+
+      const anexos = [...(fileForm.anexosExistentes || []), ...novosAnexos];
+      const primeiro = anexos[0] || null;
 
       const actualTipoAso = isAso ? (fileForm.subcategoria === 'Aso Demissional' ? 'Demissional' : fileForm.tipoAso) : null;
 
-      if (editingFileId) {
-        const updateData = {
-          titulo: calculatedTitle,
-          funcionarioId: fileForm.funcionarioId || null,
-          tipoAso: actualTipoAso,
-          dataExame: isAso ? (fileForm.dataExame || null) : null,
-          dataVencimento: isAso ? (fileForm.dataVencimento || null) : null,
-          mesAnoRef: isInspecao ? (fileForm.mesAnoRef || null) : null
-        };
-        
-        if (newFileUrl) {
-          updateData.fileUrl = newFileUrl;
-          updateData.filePath = newFilePath;
-          updateData.fileName = newFileName;
-        }
+      const commonData = {
+        titulo: calculatedTitle,
+        funcionarioId: fileForm.funcionarioId || null,
+        tipoAso: actualTipoAso,
+        dataExame: isAso ? (fileForm.dataExame || null) : null,
+        dataVencimento: isAso ? (fileForm.dataVencimento || null) : null,
+        mesAnoRef: (isInspecao || isVendaSucata) ? (fileForm.mesAnoRef || null) : null,
+        valor: isVendaSucata ? (Number(fileForm.valor) || 0) : null,
+        anexos,
+        // Espelha o primeiro anexo nos campos legados (compatibilidade)
+        fileUrl: primeiro?.url || null,
+        filePath: primeiro?.path || null,
+        fileName: primeiro?.name || null,
+      };
 
-        await updateDoc(doc(db, 'arquivos', editingFileId), updateData);
+      if (editingFileId) {
+        await updateDoc(doc(db, 'arquivos', editingFileId), commonData);
         alert('Arquivo atualizado com sucesso!');
       } else {
         await addDoc(collection(db, 'arquivos'), {
-          titulo: calculatedTitle,
+          ...commonData,
           categoria: fileForm.categoria,
           subcategoria: fileForm.subcategoria,
-          fileName: newFileName,
-          filePath: newFilePath,
-          fileUrl: newFileUrl,
-          funcionarioId: fileForm.funcionarioId || null,
-          tipoAso: actualTipoAso,
-          dataExame: isAso ? (fileForm.dataExame || null) : null,
-          dataVencimento: isAso ? (fileForm.dataVencimento || null) : null,
-          mesAnoRef: isInspecao ? (fileForm.mesAnoRef || null) : null,
           brand,
           uploadedBy: currentUser?.email || 'Desconhecido',
           createdAt: serverTimestamp()
@@ -529,9 +560,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       }
 
       setFileModalOpen(false);
-      setFileForm({ 
-        titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', 
-        dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '' 
+      setFileForm({
+        titulo: '', categoria: activeCat, subcategoria: activeSub, files: [], anexosExistentes: [], funcionarioId: '',
+        dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '', valor: ''
       });
       setEditingFileId(null);
       fetchData();
@@ -546,9 +577,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const handleDeleteFile = async (arquivo) => {
     if (!window.confirm(`Tem certeza que deseja excluir o arquivo: ${arquivo.titulo}?`)) return;
     try {
-      if (arquivo.filePath) {
-        const fileRef = ref(storage, arquivo.filePath);
-        await deleteObject(fileRef).catch(err => console.warn("Arquivo não encontrado no storage, mas será removido do banco."));
+      const paths = normalizeAnexos(arquivo).map(a => a.path).filter(Boolean);
+      for (const p of paths) {
+        await deleteObject(ref(storage, p)).catch(() => console.warn("Anexo não encontrado no storage:", p));
       }
       await deleteDoc(doc(db, 'arquivos', arquivo.id));
       fetchData();
@@ -582,15 +613,71 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     if (filterName && !a.titulo?.toLowerCase().includes(filterName.toLowerCase())) return false;
     if (filterFunc && a.funcionarioId !== filterFunc) return false;
     if (filterDate) {
-      if (!a.createdAt) return false;
-      const dateObj = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-      const yyyy = dateObj.getFullYear();
-      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-      if (`${yyyy}-${mm}` !== filterDate) return false;
+      if (a.subcategoria === 'Venda de sucatas') {
+        // Filtra pelo mês/ano de referência da venda, não pela data de upload
+        if ((a.mesAnoRef || '') !== filterDate) return false;
+      } else {
+        if (!a.createdAt) return false;
+        const dateObj = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        if (`${yyyy}-${mm}` !== filterDate) return false;
+      }
     }
     
     return true;
   });
+
+  // Venda de sucatas: valor apurado por mês + total no ano selecionado
+  const vendaSucataStats = (() => {
+    if (activeSub !== 'Venda de sucatas') return null;
+    const registros = arquivos.filter(a => a.categoria === activeCat && a.subcategoria === 'Venda de sucatas');
+    const anos = [...new Set(registros.map(r => (r.mesAnoRef || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+    const ano = (filterDate && filterDate.slice(0, 4)) || anos[0] || String(new Date().getFullYear());
+    const porMes = Array.from({ length: 12 }, () => 0);
+    let total = 0;
+    registros.forEach(r => {
+      if ((r.mesAnoRef || '').slice(0, 4) !== ano) return;
+      const mesIdx = Number((r.mesAnoRef || '').slice(5, 7)) - 1;
+      const v = Number(r.valor) || 0;
+      if (mesIdx >= 0 && mesIdx < 12) porMes[mesIdx] += v;
+      total += v;
+    });
+    return { ano, anos, porMes, total, max: Math.max(1, ...porMes) };
+  })();
+
+  const brl = v => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const renderAnexoLinks = (arq, sizeClass = '') => {
+    const list = normalizeAnexos(arq);
+    if (!list.length) return <span style={{ color: 'var(--muted)' }}>—</span>;
+    if (list.length === 1) {
+      return (
+        <a href={list[0].url} target="_blank" rel="noopener noreferrer" className={`btn icon-only ${sizeClass}`} title={list[0].name || 'Visualizar'}>
+          <IconEye />
+        </a>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {list.map((a, i) => (
+          <a
+            key={i}
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn outline sm"
+            style={{ padding: '2px 8px', fontSize: '12px' }}
+            title={a.name || `Anexo ${i + 1}`}
+          >
+            👁️ {i + 1}
+          </a>
+        ))}
+      </div>
+    );
+  };
+
+  const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   return (
     <div className="painel-layout" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -759,7 +846,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </div>
               <button className="btn primary sm" onClick={() => {
                 setEditingFileId(null);
-                setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', file: null, funcionarioId: '', dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '' });
+                setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', files: [], anexosExistentes: [], funcionarioId: '', dataVencimento: '', tipoAso: 'Admissional', dataExame: '', mesAnoRef: '', valor: '' });
                 setFileModalOpen(true);
               }}><IconPlus /> Novo ASO</button>
             </div>
@@ -842,11 +929,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                             )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {arq.fileUrl && (
-                              <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento (PDF/Imagem)">
-                                <IconEye />
-                              </a>
-                            )}
+                            {renderAnexoLinks(arq, 'sm')}
                             <button className="btn icon-only edit sm" title="Editar ASO" onClick={() => handleEditFile(arq)}>
                               <IconEdit />
                             </button>
@@ -891,7 +974,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                             className="btn primary sm" 
                             onClick={() => {
                               setEditingFileId(null);
-                              setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', file: null, funcionarioId: ef.id, dataVencimento: '', tipoAso: 'Periódico', dataExame: '', mesAnoRef: '' });
+                              setFileForm({ titulo: '', categoria: 'Segurança', subcategoria: 'Aso', files: [], anexosExistentes: [], funcionarioId: ef.id, dataVencimento: '', tipoAso: 'Periódico', dataExame: '', mesAnoRef: '', valor: '' });
                               setFileModalOpen(true);
                             }}
                           >
@@ -1216,25 +1299,36 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                         })}
                                       />
                                     </th>
-                                    <th>Data Lançamento</th>
-                                    <th>Funcionário</th>
                                     <th>Mês/Ano Ref.</th>
-                                    <th>Salário Base (Oficial)</th>
-                                    <th>Líquido Final Pago (Extra)</th>
+                                    <th>Funcionário</th>
+                                    <th>Salário Base</th>
+                                    <th>Total (Contracheque)</th>
+                                    <th>Valor Desconto</th>
+                                    <th>Comissão</th>
+                                    <th>Salário à Vista</th>
+                                    <th>Valor Depósito</th>
+                                    <th>Salário Bruto</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {visibleHistory.map(h => (
+                                {visibleHistory.map(h => {
+                                    const brl = v => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                                    const salarioAvista = (Number(h.extraFolha) || 0) + (Number(h.comissao) || 0) + (Number(h.horasEx50) || 0) + (Number(h.horasEx100) || 0) + (Number(h.dssHex) || 0) - (Number(h.faltas) || 0) - (Number(h.vale) || 0);
+                                    const valorDeposito = (Number(h.totalVencimentosPdf) || 0) - (Number(h.totalDescontosPdf) || 0);
+                                    const salarioBruto = salarioAvista + valorDeposito;
+                                    return (
                                     <tr key={h.id}>
                                         <td><input type="checkbox" checked={selectedHistoryIds.has(h.id)} onChange={() => toggleHistorySelection(h.id)} /></td>
-                                        <td>{h.createdAt?.toDate ? h.createdAt.toDate().toLocaleDateString('pt-BR') : '-'}</td>
-                                        <td><strong>{h.nome}</strong></td>
                                         <td>{h.mesAnoRef}</td>
-                                        <td>R$ {Number(h.salarioBase||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
-                                        <td>
-                                            R$ { ((Number(h.extraFolha)||0) + (Number(h.comissao)||0) + (Number(h.horasEx50)||0) + (Number(h.horasEx100)||0) + (Number(h.dssHex)||0) - (Number(h.faltas)||0) - (Number(h.vale)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2}) }
-                                        </td>
+                                        <td><strong>{h.nome}</strong></td>
+                                        <td>{brl(h.salarioBase)}</td>
+                                        <td>{brl(h.totalVencimentosPdf)}</td>
+                                        <td>{brl(h.totalDescontosPdf)}</td>
+                                        <td>{brl(h.comissao)}</td>
+                                        <td>{brl(salarioAvista)}</td>
+                                        <td>{brl(valorDeposito)}</td>
+                                        <td>{brl(salarioBruto)}</td>
                                         <td style={{ display: 'flex', gap: '6px' }}>
                                           <button
                                             type="button"
@@ -1272,7 +1366,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                           </button>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -1290,13 +1385,41 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </div>
               <button className="btn primary sm" onClick={() => {
                 setEditingFileId(null);
-                setFileForm({ 
-                  titulo: '', categoria: activeCat, subcategoria: activeSub, file: null, funcionarioId: '', 
-                  dataVencimento: '', tipoAso: activeSub === 'Aso Demissional' ? 'Demissional' : 'Admissional', dataExame: '', mesAnoRef: '' 
+                setFileForm({
+                  titulo: '', categoria: activeCat, subcategoria: activeSub, files: [], anexosExistentes: [], funcionarioId: '',
+                  dataVencimento: '', tipoAso: activeSub === 'Aso Demissional' ? 'Demissional' : 'Admissional', dataExame: '', mesAnoRef: '', valor: ''
                 });
                 setFileModalOpen(true);
               }}><IconPlus /> Novo Arquivo</button>
             </div>
+
+            {vendaSucataStats && (
+              <div className="glass" style={{ padding: '16px', borderRadius: '12px', marginBottom: '16px', background: 'rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px' }}>
+                  <h4 style={{ margin: 0 }}>Valor apurado — {vendaSucataStats.ano}</h4>
+                  <strong style={{ fontSize: '18px', color: 'var(--green, #16a34a)' }}>Total no ano: {brl(vendaSucataStats.total)}</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '140px', marginTop: '16px' }}>
+                  {vendaSucataStats.porMes.map((v, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{v ? brl(v).replace('R$', '').trim() : ''}</span>
+                      <div
+                        title={`${MESES_CURTOS[i]}: ${brl(v)}`}
+                        style={{
+                          width: '100%',
+                          height: `${Math.round((v / vendaSucataStats.max) * 100)}%`,
+                          minHeight: v ? '3px' : '0',
+                          background: 'var(--green, #16a34a)',
+                          borderRadius: '4px 4px 0 0',
+                          transition: 'height .2s',
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{MESES_CURTOS[i]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Filtrar por título/nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
@@ -1306,7 +1429,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                   {efetivos.map(ef => <option key={ef.id} value={ef.id}>{ef.nome}</option>)}
                 </select>
               )}
-              {['Folha de pagamento', 'Advertências', 'Inspeções', 'Acidente do Trabalho'].includes(activeSub) && (
+              {['Folha de pagamento', 'Advertências', 'Inspeções', 'Acidente do Trabalho', 'Venda de sucatas'].includes(activeSub) && (
                 <input type="month" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
               )}
             </div>
@@ -1316,6 +1439,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <thead>
                   <tr>
                     {activeSub === 'Inspeções' ? <th>Mês/Ano Ref.</th> : <th>Título</th>}
+                    {activeSub === 'Venda de sucatas' && <th>Mês Ref.</th>}
+                    {activeSub === 'Venda de sucatas' && <th>Valor Apurado</th>}
                     {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(activeSub) && <th>Funcionário Vinculado</th>}
                     {activeSub === 'Aso Demissional' && <th>Data do Exame</th>}
                     <th>Enviado por</th>
@@ -1325,8 +1450,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 </thead>
                 <tbody>
                   {filteredArquivos.length === 0 ? (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum arquivo encontrado para {activeSub}.</td></tr>
+                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum arquivo encontrado para {activeSub}.</td></tr>
                   ) : [...filteredArquivos].sort((a, b) => {
+                    if (activeSub === 'Venda de sucatas') return (b.mesAnoRef || '').localeCompare(a.mesAnoRef || '');
                     const funcA = a.funcionarioId ? efetivos.find(e => e.id === a.funcionarioId) : null;
                     const funcB = b.funcionarioId ? efetivos.find(e => e.id === b.funcionarioId) : null;
                     const nameA = funcA ? funcA.nome : (a.titulo || '');
@@ -1337,6 +1463,12 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     return (
                       <tr key={arq.id}>
                         <td><strong>{activeSub === 'Inspeções' ? (arq.mesAnoRef || arq.titulo) : arq.titulo}</strong></td>
+                        {activeSub === 'Venda de sucatas' && (
+                          <td>{arq.mesAnoRef ? arq.mesAnoRef.split('-').reverse().join('/') : '-'}</td>
+                        )}
+                        {activeSub === 'Venda de sucatas' && (
+                          <td><strong>{brl(arq.valor)}</strong></td>
+                        )}
                         {['Aso', 'Aso Demissional', 'Advertências', 'Folha de pagamento', 'Acidente do Trabalho'].includes(activeSub) && (
                           <td>{func ? func.nome : <span style={{ color: 'var(--muted)' }}>Não vinculado</span>}</td>
                         )}
@@ -1347,9 +1479,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td>{arq.createdAt?.toDate ? new Date(arq.createdAt.toDate()).toLocaleDateString() : 'Recente'}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '6px' }}>
-                            <a href={arq.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only" title="Visualizar Documento">
-                              <IconEye />
-                            </a>
+                            {renderAnexoLinks(arq)}
                             <button className="btn icon-only edit" title="Editar Documento" onClick={() => handleEditFile(arq)}>
                               <IconEdit />
                             </button>
@@ -1556,13 +1686,48 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               ) : fileForm.subcategoria === 'Inspeções' ? (
                 <div className="form-group">
                   <label>Mês/Ano de Referência *</label>
-                  <input 
-                    type="month" 
-                    required 
-                    value={fileForm.mesAnoRef || ''} 
-                    onChange={e => setFileForm({ ...fileForm, mesAnoRef: e.target.value })} 
+                  <input
+                    type="month"
+                    required
+                    value={fileForm.mesAnoRef || ''}
+                    onChange={e => setFileForm({ ...fileForm, mesAnoRef: e.target.value })}
                   />
                 </div>
+              ) : fileForm.subcategoria === 'Venda de sucatas' ? (
+                <>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Mês/Ano de Referência *</label>
+                      <input
+                        type="month"
+                        required
+                        value={fileForm.mesAnoRef || ''}
+                        onChange={e => setFileForm({ ...fileForm, mesAnoRef: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Valor Apurado (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        placeholder="0,00"
+                        value={fileForm.valor}
+                        onChange={e => setFileForm({ ...fileForm, valor: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Título / Observação (opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Venda de sucata metálica"
+                      value={fileForm.titulo}
+                      onChange={e => setFileForm({ ...fileForm, titulo: e.target.value })}
+                    />
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="form-group">
@@ -1583,8 +1748,34 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               )}
 
               <div className="form-group" style={{ marginTop: '16px' }}>
-                <label>Selecione o Arquivo (PDF, Imagem, etc) {!editingFileId ? '*' : '(Opcional se quiser manter o atual)'}</label>
-                <input type="file" required={!editingFileId} onChange={handleFileChange} />
+                <label>Anexos (PDF, Imagem, etc) — pode selecionar vários</label>
+
+                {fileForm.anexosExistentes.length > 0 && (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 8px' }}>
+                    {fileForm.anexosExistentes.map((a, i) => (
+                      <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', fontSize: '13px' }}>
+                        <a href={a.url} target="_blank" rel="noopener noreferrer">📎 {a.name || `Anexo ${i + 1}`}</a>
+                        <button type="button" className="btn ghost sm" style={{ padding: '0 6px', color: '#dc2626' }} onClick={() => removeAnexoExistente(i)}>remover</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {fileForm.files.length > 0 && (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 8px' }}>
+                    {fileForm.files.map((f, i) => (
+                      <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', fontSize: '13px' }}>
+                        <span>⬆️ {f.name}</span>
+                        <button type="button" className="btn ghost sm" style={{ padding: '0 6px', color: '#dc2626' }} onClick={() => removeNovoAnexo(i)}>remover</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <input type="file" multiple onChange={handleFileChange} />
+                {!editingFileId && fileForm.anexosExistentes.length + fileForm.files.length === 0 && (
+                  <small style={{ color: 'var(--muted)' }}>Selecione ao menos um arquivo.</small>
+                )}
               </div>
             </div>
             <div className="modal-footer">
@@ -1655,11 +1846,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '6px' }}>
-                              {file.fileUrl && (
-                                <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn icon-only sm" title="Visualizar Documento (PDF)">
-                                  <IconEye />
-                                </a>
-                              )}
+                              {renderAnexoLinks(file, 'sm')}
                               <button className="btn icon-only edit sm" title="Editar Documento/Datas" onClick={() => { setHistoryModalOpen(false); handleEditFile(file); }}>
                                 <IconEdit />
                               </button>
