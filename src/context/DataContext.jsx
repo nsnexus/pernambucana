@@ -739,6 +739,14 @@ export const DataProvider = ({ children }) => {
     await setDoc(docRef, { status: newStatus, dataRecebimento }, { merge: true });
   };
 
+  const deleteRecebivel = async (id) => {
+    await deleteDoc(doc(db, 'p_recebiveis', id));
+  };
+
+  const deleteRecebiveisEmLote = async (ids) => {
+    await Promise.all((ids || []).map(id => deleteDoc(doc(db, 'p_recebiveis', id))));
+  };
+
   // Boletos CRUD
   const addBoleto = async (item) => {
     const id = item.id || generateUUID();
@@ -1016,6 +1024,8 @@ export const DataProvider = ({ children }) => {
     updateBoleto,
     deleteBoleto,
     toggleRecebivel,
+    deleteRecebivel,
+    deleteRecebiveisEmLote,
     clearAll,
     importRawData,
     buildFinancePayload,

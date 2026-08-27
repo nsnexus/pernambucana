@@ -41,7 +41,7 @@ const AutoGeral = ({ onBackToGateway }) => {
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
-    toggleRecebivel, deleteRecebivel,
+    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote,
     importServicosFromExcel, importComprasFromExcel, importBoletosFromExcel,
     consolidado, rawQueriesActive, enableRawQueries
   } = useAutoGeral();
@@ -75,6 +75,8 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [dayFilter, setDayFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [validadoFilter, setValidadoFilter] = useState('all'); // all | validados | pendentes
+  const [selectedRecebiveis, setSelectedRecebiveis] = useState([]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -329,12 +331,15 @@ const AutoGeral = ({ onBackToGateway }) => {
     setGridEditMode(false);
     setGridChanges({});
     setDayFilter('all');
+    setValidadoFilter('all');
+    setSelectedRecebiveis([]);
   }, [activeTab]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [monthFilter, yearFilter, dayFilter, searchQuery, statusFilter]);
+    setSelectedRecebiveis([]);
+  }, [monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, validadoFilter]);
 
   // Extract years dynamically from data
   const yearsList = useMemo(() => {
@@ -500,7 +505,12 @@ const AutoGeral = ({ onBackToGateway }) => {
     });
   };
 
-  const filteredServicos = useMemo(() => filterList(servicos), [servicos, monthFilter, yearFilter, dayFilter, searchQuery]);
+  const filteredServicos = useMemo(() => filterList(servicos, (s) => {
+    if (validadoFilter === 'all') return true;
+    const ehPrazo = String(s.formaCompra || '').toLowerCase().includes('prazo');
+    if (!ehPrazo) return false;
+    return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
+  }), [servicos, monthFilter, yearFilter, dayFilter, searchQuery, validadoFilter]);
   const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, yearFilter, dayFilter, searchQuery]);
   const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, yearFilter, dayFilter, searchQuery]);
   const filteredRecebiveis = useMemo(() => filterList(recebiveis, (item) => {
@@ -586,6 +596,30 @@ const AutoGeral = ({ onBackToGateway }) => {
       setIsSavingServico(false);
       isSubmittingRef.current = false;
       setProgressModal(prev => ({ ...prev, open: false }));
+    }
+  };
+
+  // ── RECEBÍVEIS ACTIONS ──
+  const handleDeleteRecebivel = async (item) => {
+    if (!window.confirm(`Excluir a parcela ${item.parcela}/${item.totalParcelas} da OS ${item.numOS || '-'}?`)) return;
+    try {
+      await deleteRecebivel(item.id);
+      setSelectedRecebiveis(prev => prev.filter(x => x !== item.id));
+      triggerToast('Recebível excluído.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedRecebiveis = async () => {
+    if (selectedRecebiveis.length === 0) return;
+    if (!window.confirm(`Excluir ${selectedRecebiveis.length} recebível(is) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteRecebiveisEmLote(selectedRecebiveis);
+      setSelectedRecebiveis([]);
+      triggerToast('Recebíveis excluídos com sucesso.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
     }
   };
 
@@ -1106,7 +1140,7 @@ const AutoGeral = ({ onBackToGateway }) => {
     </div>
   );
 
-  const renderFilters = (showStatus = false) => (
+  const renderFilters = (showStatus = false, showValidado = false) => (
     <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px' }}>
       <label>
         Ano
@@ -1139,6 +1173,16 @@ const AutoGeral = ({ onBackToGateway }) => {
             <option value="Pendente">A Vencer</option>
             <option value="Vencido">Vencidos</option>
             <option value="Recebido">Recebidos</option>
+          </select>
+        </label>
+      )}
+      {showValidado && (
+        <label>
+          Validação (a prazo)
+          <select value={validadoFilter} onChange={(e) => setValidadoFilter(e.target.value)}>
+            <option value="all">Todos</option>
+            <option value="validados">Validados</option>
+            <option value="pendentes">Não validados</option>
           </select>
         </label>
       )}
@@ -1347,7 +1391,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <p>Relatório de serviços do setor Alto Geral. Serviços à prazo geram recebíveis automaticamente.</p>
                 </div>
               </div>
-              {renderFilters()}
+              {renderFilters(false, true)}
 
               {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
               <div className="print-only-container">
@@ -1910,6 +1954,11 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <h1>Recebíveis</h1>
                   <p>Parcelas geradas automaticamente de serviços à prazo. Marque como "Recebido" para contabilizar no caixa.</p>
                 </div>
+                {selectedRecebiveis.length > 0 && (
+                  <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
+                    <IconTrash /> Excluir ({selectedRecebiveis.length})
+                  </button>
+                )}
               </div>
               {renderFilters(true)}
 
@@ -1993,8 +2042,19 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <table className="compact-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={p.paginated.length > 0 && p.paginated.every(item => selectedRecebiveis.includes(item.id))}
+                            onChange={() => {
+                              const pageIds = p.paginated.map(item => item.id);
+                              const allSel = pageIds.every(id => selectedRecebiveis.includes(id));
+                              setSelectedRecebiveis(prev => allSel ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
+                            }}
+                          />
+                        </th>
                         <th>OS</th><th>Cliente</th><th>Descrição</th><th>Mecânico</th>
-                        <th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Recebido em</th>
+                        <th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Recebido em</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2002,9 +2062,16 @@ const AutoGeral = ({ onBackToGateway }) => {
                         const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
                         return (
                           <tr key={item.id} style={isVencido ? { background: 'rgba(244,63,94,.06)' } : {}}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedRecebiveis.includes(item.id)}
+                                onChange={() => setSelectedRecebiveis(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                              />
+                            </td>
                             <td>{item.numOS || '-'}</td>
-                            <td>{item.nomeCliente || '-'}</td>
-                            <td>{item.descricao || '-'}</td>
+                            <td className="cell-truncate" title={item.nomeCliente || ''}>{item.nomeCliente || '-'}</td>
+                            <td className="cell-truncate" title={item.descricao || ''}>{item.descricao || '-'}</td>
                             <td>{item.mecanico || '-'}</td>
                             <td><strong>{item.parcela}/{item.totalParcelas}</strong></td>
                             <td><strong>{fmtMoney.format(item.valorParcela)}</strong></td>
@@ -2022,11 +2089,16 @@ const AutoGeral = ({ onBackToGateway }) => {
                               </button>
                             </td>
                             <td>{formatDateBR(item.dataRecebimento)}</td>
+                            <td>
+                              <button className="btn icon-only danger" title="Excluir recebível" onClick={() => handleDeleteRecebivel(item)}>
+                                <IconTrash />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="9" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum recebível encontrado.</td></tr>
+                        <tr><td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum recebível encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>

@@ -140,7 +140,7 @@ const Pernambucana = ({ onBackToGateway }) => {
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
-    toggleRecebivel, normalizeSector, enableRawQueries
+    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote, normalizeSector, enableRawQueries
   } = useData();
 
   useEffect(() => {
@@ -216,13 +216,18 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [selectedServicos, setSelectedServicos] = useState([]);
   const [selectedCompras, setSelectedCompras] = useState([]);
   const [selectedBoletos, setSelectedBoletos] = useState([]);
+  const [selectedRecebiveis, setSelectedRecebiveis] = useState([]);
+  const [validadoFilter, setValidadoFilter] = useState('all'); // all | validados | pendentes (serviços a prazo)
 
   // Reset selections on tab/filter changes to avoid deleting wrong/hidden items
   useEffect(() => {
     setSelectedServicos([]);
     setSelectedCompras([]);
     setSelectedBoletos([]);
+    setSelectedRecebiveis([]);
   }, [activeTab, monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, deptFilter]);
+
+  useEffect(() => { setValidadoFilter('all'); }, [activeTab]);
 
 
   // Toast
@@ -581,7 +586,12 @@ const Pernambucana = ({ onBackToGateway }) => {
     });
   };
 
-  const filteredServicos = useMemo(() => filterList(allServicos), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
+  const filteredServicos = useMemo(() => filterList(allServicos, (s) => {
+    if (validadoFilter === 'all') return true;
+    const ehPrazo = String(s.pagamento || '').toLowerCase().includes('prazo');
+    if (!ehPrazo) return false; // filtro de validação só faz sentido em venda a prazo
+    return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
+  }), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, validadoFilter]);
   const filteredCompras = useMemo(() => filterList(allCompras), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
   const filteredBoletos = useMemo(() => filterList(allBoletos, (item) => {
     if (titularFilter === 'all') return true;
@@ -1002,6 +1012,42 @@ const Pernambucana = ({ onBackToGateway }) => {
       }
       setSelectedServicos([]);
       triggerToast('Registros excluídos com sucesso.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
+  };
+
+  const handleDeleteRecebivel = async (item) => {
+    if (!window.confirm(`Excluir a parcela ${item.parcela}/${item.totalParcelas} da OS ${item.os || '-'}?`)) return;
+    try {
+      await deleteRecebivel(item.id);
+      setSelectedRecebiveis(prev => prev.filter(x => x !== item.id));
+      triggerToast('Recebível excluído.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedRecebiveis = async () => {
+    if (selectedRecebiveis.length === 0) return;
+    if (!window.confirm(`Excluir ${selectedRecebiveis.length} recebível(is) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setProgressModal({
+      open: true,
+      title: 'Excluindo Recebíveis',
+      current: 0,
+      total: selectedRecebiveis.length,
+      message: 'Removendo parcelas selecionadas...',
+      subMessage: 'Aguarde a exclusão permanente no banco de dados.'
+    });
+    try {
+      await deleteRecebiveisEmLote(selectedRecebiveis);
+      setSelectedRecebiveis([]);
+      triggerToast('Recebíveis excluídos com sucesso.');
     } catch (err) {
       alert('Erro ao excluir: ' + err.message);
     } finally {
@@ -1747,7 +1793,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   };
 
   // ── FILTER BAR RENDERING ──
-  const renderFilters = (showStatus = false) => (
+  const renderFilters = (showStatus = false, showValidado = false) => (
     <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px' }}>
       <label>
         Ano
@@ -1804,6 +1850,17 @@ const Pernambucana = ({ onBackToGateway }) => {
         </label>
       )}
 
+      {showValidado && (
+        <label>
+          Validação (a prazo)
+          <select value={validadoFilter} onChange={(e) => setValidadoFilter(e.target.value)}>
+            <option value="all">Todos</option>
+            <option value="validados">Validados</option>
+            <option value="pendentes">Não validados</option>
+          </select>
+        </label>
+      )}
+
       {activeTab === 'boletos' && (
         <label>
           Titular
@@ -1845,6 +1902,11 @@ const Pernambucana = ({ onBackToGateway }) => {
         {activeTab === 'boletos' && selectedBoletos.length > 0 && (
           <button className="btn danger sm" onClick={handleDeleteSelectedBoletos}>
             <IconTrash /> Excluir ({selectedBoletos.length})
+          </button>
+        )}
+        {activeTab === 'recebiveis' && selectedRecebiveis.length > 0 && (
+          <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
+            <IconTrash /> Excluir ({selectedRecebiveis.length})
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
@@ -2044,7 +2106,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <p>Retífica, Peças, Mecânica, Torneadora e Caldeiraria.</p>
                 </div>
               </div>
-              {renderFilters()}
+              {renderFilters(false, true)}
 
               {gridEditMode && (
                 <div className="grid-save-bar glass">
@@ -2798,8 +2860,19 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <table className="compact-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={p.paginated.length > 0 && p.paginated.every(item => selectedRecebiveis.includes(item.id))}
+                            onChange={() => {
+                              const pageIds = p.paginated.map(item => item.id);
+                              const allSel = pageIds.every(id => selectedRecebiveis.includes(id));
+                              setSelectedRecebiveis(prev => allSel ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
+                            }}
+                          />
+                        </th>
                         <th>OS</th><th>Setor</th><th>Cliente</th><th>Descrição</th>
-                        <th>Parcela</th><th>Valor Parcela</th><th>Vencimento</th><th>Status</th><th>Recebido Em</th>
+                        <th>Parcela</th><th>Valor Parcela</th><th>Vencimento</th><th>Status</th><th>Recebido Em</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2807,10 +2880,17 @@ const Pernambucana = ({ onBackToGateway }) => {
                         const isVencido = item.status === 'Pendente' && item.dataVencimento < hoje;
                         return (
                           <tr key={item.id} style={isVencido ? { background: 'rgba(244,63,94,.06)' } : {}}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedRecebiveis.includes(item.id)}
+                                onChange={() => setSelectedRecebiveis(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                              />
+                            </td>
                             <td>{item.os || '-'}</td>
                             <td>{DEPT_LABELS[item.setor] || item.setor}</td>
-                            <td>{item.cliente || '-'}</td>
-                            <td>{item.descricao || '-'}</td>
+                            <td className="cell-truncate" title={item.cliente || ''}>{item.cliente || '-'}</td>
+                            <td className="cell-truncate" title={item.descricao || ''}>{item.descricao || '-'}</td>
                             <td><strong>{item.parcela}/{item.totalParcelas}</strong></td>
                             <td><strong>{fmtMoney.format(item.valorParcela)}</strong></td>
                             <td style={isVencido ? { color: 'var(--red)', fontWeight: 800 } : {}}>{formatDateBR(item.dataVencimento)}</td>
@@ -2827,11 +2907,16 @@ const Pernambucana = ({ onBackToGateway }) => {
                               </button>
                             </td>
                             <td>{formatDateBR(item.dataRecebimento)}</td>
+                            <td>
+                              <button className="btn icon-only danger" title="Excluir recebível" onClick={() => handleDeleteRecebivel(item)}>
+                                <IconTrash />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="9" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum recebível encontrado.</td></tr>
+                        <tr><td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum recebível encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>

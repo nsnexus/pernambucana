@@ -585,6 +585,16 @@ export const AutoGeralProvider = ({ children }) => {
     if (oldDate) await triggerAutoGeralConsolidation(oldDate);
   };
 
+  const deleteRecebiveisEmLote = async (ids) => {
+    const datas = new Set();
+    for (const id of (ids || [])) {
+      const r = recebiveis.find(x => x.id === id);
+      if (r) datas.add(r.dataRecebimento || r.dataVencimento);
+      await deleteDoc(doc(db, 'ag_recebiveis', id));
+    }
+    for (const d of datas) if (d) await triggerAutoGeralConsolidation(d);
+  };
+
   // ── CAIXA CALCULATION ──
   const caixa = useMemo(() => {
     // Entradas à vista (Pix, Cartão, tudo que NÃO é prazo)
@@ -736,6 +746,7 @@ export const AutoGeralProvider = ({ children }) => {
     // Recebíveis
     toggleRecebivel,
     deleteRecebivel,
+    deleteRecebiveisEmLote,
     // Import
     importServicosFromExcel,
     importComprasFromExcel,
