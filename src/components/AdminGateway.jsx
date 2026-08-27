@@ -5,7 +5,25 @@ import ParticlesBg from './ParticlesBg';
 
 const AdminGateway = ({ children, brand }) => {
   const { currentUser } = useAuth();
-  const [choice, setChoice] = useState(null); // 'financeiro', 'administrativo', or null
+  // Lembra o módulo escolhido pra que o F5 não jogue o usuário de volta pra
+  // tela de seleção. Guardado por marca.
+  const storageKey = `adminGatewayChoice:${brand}`;
+  const [choice, setChoice] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved === 'financeiro' || saved === 'administrativo' ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setChoicePersist = (value) => {
+    setChoice(value);
+    try {
+      if (value) localStorage.setItem(storageKey, value);
+      else localStorage.removeItem(storageKey);
+    } catch { /* ignore */ }
+  };
 
   if (!currentUser?.isAdmin) {
     return children;
@@ -16,11 +34,11 @@ const AdminGateway = ({ children, brand }) => {
   }
 
   if (choice === 'financeiro') {
-    return React.cloneElement(children, { onBackToGateway: () => setChoice(null) });
+    return React.cloneElement(children, { onBackToGateway: () => setChoicePersist(null) });
   }
 
   if (choice === 'administrativo') {
-    return <PainelAdministrativo brand={brand} onBackToGateway={() => setChoice(null)} />;
+    return <PainelAdministrativo brand={brand} onBackToGateway={() => setChoicePersist(null)} />;
   }
 
   const isAutoGeral = brand === 'autogeral';
@@ -47,7 +65,7 @@ const AdminGateway = ({ children, brand }) => {
           <button 
             className="btn primary" 
             style={{ height: '48px', fontSize: '15px', fontWeight: 'bold' }}
-            onClick={() => setChoice('financeiro')}
+            onClick={() => setChoicePersist('financeiro')}
           >
             📊 Painel Financeiro
           </button>
@@ -55,7 +73,7 @@ const AdminGateway = ({ children, brand }) => {
           <button 
             className="btn outline" 
             style={{ height: '48px', fontSize: '15px', fontWeight: 'bold' }}
-            onClick={() => setChoice('administrativo')}
+            onClick={() => setChoicePersist('administrativo')}
           >
             📁 Painel Administrativo
           </button>

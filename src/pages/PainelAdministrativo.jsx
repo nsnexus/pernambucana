@@ -109,6 +109,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [folhaCompletaHolerites, setFolhaCompletaHolerites] = useState(null);
   const [pdfAlertMsg, setPdfAlertMsg] = useState(null);
   const [holeritesHistory, setHoleritesHistory] = useState([]);
+  const [histFilterNome, setHistFilterNome] = useState('');
+  const [histFilterMes, setHistFilterMes] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -163,6 +165,34 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   };
 
   // ═══ PAGAMENTOS ACTIONS ═══
+
+  // "Memória" do Extra Folha por colaborador: pega o último valor salvo
+  // (mês/ano de referência mais recente) pra pré-preencher lançamentos novos.
+  const getExtraFolhaMemoria = () => {
+    const mapa = {};
+    const ordenado = [...holeritesHistory].sort((a, b) => {
+      const ka = a.mesAnoRef || '';
+      const kb = b.mesAnoRef || '';
+      if (ka !== kb) return kb.localeCompare(ka);
+      return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+    });
+    for (const rec of ordenado) {
+      const chave = (rec.nome || '').trim().toLowerCase();
+      if (!chave) continue;
+      if (mapa[chave] == null && (Number(rec.extraFolha) || 0) > 0) {
+        mapa[chave] = Number(rec.extraFolha);
+      }
+    }
+    return mapa;
+  };
+
+  const buscarExtraMemoria = (mapa, nome) => {
+    const chave = (nome || '').trim().toLowerCase();
+    if (mapa[chave] != null) return mapa[chave];
+    const parcial = Object.entries(mapa).find(([k]) => k.includes(chave) || chave.includes(k));
+    return parcial ? parcial[1] : null;
+  };
+
   const handlePdfUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -176,9 +206,17 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       // Prioriza o cargo/função que veio do próprio PDF (separado do nome);
       // só recorre ao cadastro de funcionários ou ao rótulo genérico se o
       // PDF não trouxer essa informação.
+      const extraMemoria = getExtraFolhaMemoria();
       const enrichedData = data.map(hol => {
          const funcObj = efetivos.find(ef => hol.nome.toLowerCase().includes(ef.nome.toLowerCase()) || ef.nome.toLowerCase().includes(hol.nome.toLowerCase()));
-         return { ...hol, cargo: hol.cargoPdf || funcObj?.cargo || 'Funcionário' };
+         const jaTemExtra = (Number(hol.extraFolha) || 0) > 0;
+         const extraPrev = jaTemExtra ? null : buscarExtraMemoria(extraMemoria, hol.nome);
+         return {
+           ...hol,
+           cargo: hol.cargoPdf || funcObj?.cargo || 'Funcionário',
+           extraFolha: extraPrev != null ? extraPrev : hol.extraFolha,
+           extraFolhaPrefilled: extraPrev != null,
+         };
       });
       setHoleritesParsed(enrichedData);
       // Detecta o mês/ano direto do "Folha Mensal <Mês> de <Ano>" do PDF,
@@ -195,6 +233,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const handleHoleriteChange = (index, field, value) => {
     const updated = [...holeritesParsed];
     const item = { ...updated[index], [field]: value };
+    if (field === 'extraFolha') item.extraFolhaPrefilled = false;
 
     // Auto-cálculo de Horas Extras 50% e 100% com base no Extra Folha (salário base extra folha)
     if (field === 'extraFolha' || field === 'h50' || field === 'h100') {
@@ -220,7 +259,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     setIsSavingHolerites(true);
     try {
       for (const hol of holeritesParsed) {
-        const { id, ...fields } = hol;
+        const { id, extraFolhaPrefilled, ...fields } = hol;
         if (id) {
           // Veio da edição de um lançamento já salvo — atualiza em vez de duplicar
           await updateDoc(doc(db, 'holerites_extras', id), {
@@ -1187,7 +1226,17 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                 </td>
                                 <td>R$ {hol.salarioBase?.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
                                 <td>R$ {hol.liquidoPdf?.toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
-                                <td>{renderInput('extraFolha')}</td>
+                                <td>
+                                  {renderInput('extraFolha')}
+                                  {hol.extraFolhaPrefilled && (
+                                    <div
+                                      style={{ fontSize: '10px', color: '#ca8a04', marginTop: '2px', whiteSpace: 'nowrap' }}
+                                      title="Valor trazido do último lançamento salvo deste colaborador. Edite se precisar."
+                                    >
+                                      ↺ mês anterior
+                                    </div>
+                                  )}
+                                </td>
                                 <td>{renderInput('comissao')}</td>
                                 <td>{renderInput('h50')}</td>
                                 <td>{renderInput('horasEx50')}</td>
@@ -1233,11 +1282,22 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               ) : null}
 
               {holeritesHistory.length > 0 && (() => {
-                 const visibleHistory = [...holeritesHistory]
+                 const mesesDisponiveis = [...new Set(holeritesHistory.map(h => h.mesAnoRef).filter(Boolean))].sort().reverse();
+                 const historicoFiltrado = holeritesHistory.filter(h => {
+                   if (histFilterNome && !(h.nome || '').toLowerCase().includes(histFilterNome.toLowerCase())) return false;
+                   if (histFilterMes && h.mesAnoRef !== histFilterMes) return false;
+                   return true;
+                 });
+                 const visibleHistory = [...historicoFiltrado]
                    .sort((a, b) => (b.createdAt?.toMillis()||0) - (a.createdAt?.toMillis()||0))
                    .slice(0, 100);
                  const allVisibleSelected = visibleHistory.length > 0 && visibleHistory.every(h => selectedHistoryIds.has(h.id));
                  const selectedRecords = visibleHistory.filter(h => selectedHistoryIds.has(h.id));
+                 const totalBrutoFiltrado = historicoFiltrado.reduce((s, h) => {
+                   const av = (Number(h.extraFolha) || 0) + (Number(h.comissao) || 0) + (Number(h.horasEx50) || 0) + (Number(h.horasEx100) || 0) + (Number(h.dssHex) || 0) - (Number(h.faltas) || 0) - (Number(h.vale) || 0);
+                   const dep = (Number(h.totalVencimentosPdf) || 0) - (Number(h.totalDescontosPdf) || 0);
+                   return s + av + dep;
+                 }, 0);
 
                  return (
                  <div style={{ marginTop: '40px' }}>
@@ -1283,6 +1343,31 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         </button>
                       </div>
                     </div>
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="Filtrar por colaborador..."
+                        value={histFilterNome}
+                        onChange={e => setHistFilterNome(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '220px' }}
+                      />
+                      <select
+                        value={histFilterMes}
+                        onChange={e => setHistFilterMes(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}
+                      >
+                        <option value="">Todos os meses</option>
+                        {mesesDisponiveis.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      {(histFilterNome || histFilterMes) && (
+                        <button className="btn ghost sm" onClick={() => { setHistFilterNome(''); setHistFilterMes(''); }}>Limpar</button>
+                      )}
+                      <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                        {historicoFiltrado.length} registro(s) · Salário Bruto total: <strong>R$ {totalBrutoFiltrado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                      </span>
+                    </div>
+
                     <div className="table-wrap" style={{ marginTop: '16px', maxHeight: '400px', overflowY: 'auto' }}>
                         <table>
                             <thead>
@@ -1312,6 +1397,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                                 </tr>
                             </thead>
                             <tbody>
+                                {visibleHistory.length === 0 && (
+                                    <tr><td colSpan="11" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum registro para o filtro atual.</td></tr>
+                                )}
                                 {visibleHistory.map(h => {
                                     const brl = v => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
                                     const salarioAvista = (Number(h.extraFolha) || 0) + (Number(h.comissao) || 0) + (Number(h.horasEx50) || 0) + (Number(h.horasEx100) || 0) + (Number(h.dssHex) || 0) - (Number(h.faltas) || 0) - (Number(h.vale) || 0);
