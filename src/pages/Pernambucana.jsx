@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
 import ProgressModal from '../components/ProgressModal';
+import InfoHint from '../components/InfoHint';
 import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -244,7 +245,8 @@ const Pernambucana = ({ onBackToGateway }) => {
     data: '', pagamento: 'À vista', cliente: '', descricao: '',
     os: '', valorTotal: 0, valorUnitario: 0, valorServicos: 0, valorPecas: 0,
     material: 0, produtivo: '', valorProdutivo: 0, desconto: 0,
-    tipoServico: 'Serviços', setor: 'Mecanica', numParcelas: 0
+    tipoServico: 'Serviços', setor: 'Mecanica', numParcelas: 0,
+    vendaValidada: false, notaFiscal: '', dataNotaFiscal: ''
   });
 
   const [compraModal, setCompraModal] = useState(false);
@@ -616,7 +618,8 @@ const Pernambucana = ({ onBackToGateway }) => {
       data: hoje, pagamento: 'À vista', cliente: '', descricao: '',
       os: '', valorTotal: 0, valorUnitario: 0, valorServicos: 0, valorPecas: 0,
       material: 0, produtivo: '', valorProdutivo: 0, desconto: 0,
-      tipoServico: 'Serviços', setor: deptFilter !== 'all' ? deptFilter : 'Mecanica', numParcelas: 0
+      tipoServico: 'Serviços', setor: deptFilter !== 'all' ? deptFilter : 'Mecanica', numParcelas: 0,
+      vendaValidada: false, notaFiscal: '', dataNotaFiscal: ''
     });
     setServicoModal(true);
   };
@@ -631,7 +634,8 @@ const Pernambucana = ({ onBackToGateway }) => {
       valorPecas: item.valorPecas || 0, material: item.material || 0,
       produtivo: item.produtivo || '', valorProdutivo: item.valorProdutivo || 0,
       desconto: item.desconto || 0, tipoServico: item.tipoServico || 'Serviços',
-      setor: item.setor || 'Mecanica', numParcelas: item.numParcelas || 0
+      setor: item.setor || 'Mecanica', numParcelas: item.numParcelas || 0,
+      vendaValidada: !!item.vendaValidada, notaFiscal: item.notaFiscal || '', dataNotaFiscal: item.dataNotaFiscal || ''
     });
     setServicoModal(true);
   };
@@ -651,8 +655,8 @@ const Pernambucana = ({ onBackToGateway }) => {
     });
     try {
       if (servicoEditId) {
-        await updateServico(servicoEditId, servicoForm);
-        triggerToast('Serviço atualizado.');
+        const res = await updateServico(servicoEditId, servicoForm);
+        triggerToast(res?.aviso || 'Serviço atualizado.');
       } else {
         await addServico(servicoForm);
         triggerToast('Serviço adicionado.');
@@ -2114,7 +2118,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <th>Data</th><th>Setor</th><th>Cliente</th><th>Descrição</th>
                         <th>Tipo de Serviço</th><th>Qtd</th><th>OS</th><th>Valor Unit.</th>
                         <th>Valor Total</th><th>Desconto</th><th>Pagamento</th><th>Produtivo</th>
-                        <th>Material</th><th>Ações</th>
+                        <th>Material</th><th>NF</th><th>Data NF</th><th>Validada</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2243,6 +2247,29 @@ const Pernambucana = ({ onBackToGateway }) => {
                               )}
                             </td>
                             <td>
+                              {gridEditMode && String(rowData.pagamento || '').toLowerCase().includes('prazo') ? (
+                                <input type="text" value={rowData.notaFiscal || ''} onChange={e => handleGridCellChange(item.id, 'notaFiscal', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                item.notaFiscal || '-'
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode && String(rowData.pagamento || '').toLowerCase().includes('prazo') ? (
+                                <input type="date" value={rowData.dataNotaFiscal || ''} onChange={e => handleGridCellChange(item.id, 'dataNotaFiscal', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                item.dataNotaFiscal ? formatDateBR(item.dataNotaFiscal) : '-'
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {String(rowData.pagamento || '').toLowerCase().includes('prazo') ? (
+                                gridEditMode ? (
+                                  <input type="checkbox" checked={!!rowData.vendaValidada} onChange={e => handleGridCellChange(item.id, 'vendaValidada', e.target.checked)} />
+                                ) : (
+                                  item.vendaValidada ? '✅' : '⏳'
+                                )
+                              ) : '-'}
+                            </td>
+                            <td>
                               <div className="ag-table-actions">
                                 {!gridEditMode && (
                                   <button className="btn icon-only edit" title="Editar Serviço" onClick={() => openEditServico(item)}>
@@ -2259,7 +2286,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="15" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
+                        <tr><td colSpan="18" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -2847,15 +2874,52 @@ const Pernambucana = ({ onBackToGateway }) => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Nº de Parcelas (se A Prazo)</label>
+                  <label>
+                    Nº de Parcelas (se A Prazo)
+                    <InfoHint text="Quantidade de parcelas do recebível. Cada parcela vence a cada 30 dias a partir da data de referência (data da nota fiscal ou, na falta dela, a data do serviço)." />
+                  </label>
                   <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
                 </div>
+
+                {String(servicoForm.pagamento).toLowerCase().includes('prazo') && (
+                  <>
+                    <div className="form-group">
+                      <label style={{ display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={servicoForm.vendaValidada}
+                          onChange={e => setServicoForm(prev => ({ ...prev, vendaValidada: e.target.checked }))}
+                          style={{ width: 'auto', marginRight: '8px' }}
+                        />
+                        Venda a prazo validada
+                        <InfoHint text="Marque quando esta venda a prazo já foi conferida/aprovada. Só depois de validada o sistema gera as parcelas a receber. Sem nota fiscal, os vencimentos contam a partir da data do serviço." />
+                      </label>
+                    </div>
+                    <div className="form-group">
+                      <label>
+                        Nº da Nota Fiscal
+                        <InfoHint text="Preencha quando a nota for emitida. Geralmente fica em branco no lançamento inicial e você edita depois." />
+                      </label>
+                      <input type="text" value={servicoForm.notaFiscal} onChange={e => setServicoForm(prev => ({ ...prev, notaFiscal: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>
+                        Data da Nota Fiscal
+                        <InfoHint text="Se preenchida, os vencimentos das parcelas passam a contar a partir desta data (e não da data do serviço). Alterar essa data regera as parcelas ainda não recebidas." />
+                      </label>
+                      <input type="date" value={servicoForm.dataNotaFiscal} onChange={e => setServicoForm(prev => ({ ...prev, dataNotaFiscal: e.target.value }))} />
+                    </div>
+                  </>
+                )}
                 <div className="form-group" style={{ flex: 1.5 }}>
                   <label>Descrição dos Serviços</label>
                   <input type="text" required value={servicoForm.descricao} onChange={e => setServicoForm(prev => ({ ...prev, descricao: e.target.value }))} />
                 </div>
                 <div className="form-group" style={{ flex: 0.8 }}>
-                  <label>Tipo de Serviço</label>
+                  <label>
+                    Tipo de Serviço
+                    <InfoHint text="Descrição livre do tipo (ex.: Torno, Solda). Se digitar o nome de um setor, o lançamento é redirecionado para aquele setor automaticamente." />
+                  </label>
                   <input type="text" value={servicoForm.tipoServico} onChange={e => setServicoForm(prev => ({ ...prev, tipoServico: e.target.value }))} />
                 </div>
                 <div className="form-group" style={{ flex: 0.7 }}>
@@ -2879,11 +2943,17 @@ const Pernambucana = ({ onBackToGateway }) => {
                   }} />
                 </div>
                 <div className="form-group">
-                  <label>Valor Total (Faturamento)</label>
+                  <label>
+                    Valor Total (Faturamento)
+                    <InfoHint text="Valor total da venda. É a base do rateio das parcelas a receber quando a venda for a prazo (valor total ÷ nº de parcelas)." />
+                  </label>
                   <input type="number" step="0.01" required value={servicoForm.valorTotal === 0 ? '' : servicoForm.valorTotal} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorTotal: parseFloat(e.target.value) || 0 }))} />
                 </div>
                 <div className="form-group">
-                  <label>Desconto</label>
+                  <label>
+                    Desconto
+                    <InfoHint text="Desconto concedido nesta venda, em reais. Registrado junto ao serviço." />
+                  </label>
                   <input type="number" step="0.01" value={servicoForm.desconto === 0 ? '' : servicoForm.desconto} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, desconto: parseFloat(e.target.value) || 0 }))} />
                 </div>
                 <div className="form-group">
@@ -2891,7 +2961,10 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label>Material Aplicado</label>
+                  <label>
+                    Material Aplicado
+                    <InfoHint text="Custo de material usado no serviço, em reais. Não entra no faturamento — é só controle." />
+                  </label>
                   <input type="number" step="0.01" value={servicoForm.material === 0 ? '' : servicoForm.material} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
                 </div>
               </div>
