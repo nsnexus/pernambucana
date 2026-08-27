@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAutoGeral } from '../context/AutoGeralContext';
 import TopNav from '../components/TopNav';
 import ProgressModal from '../components/ProgressModal';
+import InfoHint from '../components/InfoHint';
 import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -98,7 +99,8 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [servicoForm, setServicoForm] = useState({
     data: '', formaCompra: 'Pix', nomeCliente: '', descricaoMaterial: '',
     numOS: '', valorOS: 0, valorServicos: 0, valorPecas: 0, valorMaterial: 0,
-    mecanico: '', ano: new Date().getFullYear(), numParcelas: 0
+    mecanico: '', ano: new Date().getFullYear(), numParcelas: 0,
+    vendaValidada: false, notaFiscal: '', dataNotaFiscal: ''
   });
 
   const [compraModal, setCompraModal] = useState(false);
@@ -531,7 +533,8 @@ const AutoGeral = ({ onBackToGateway }) => {
       data: new Date().toISOString().split('T')[0], formaCompra: 'Pix',
       nomeCliente: '', descricaoMaterial: '', numOS: '', valorOS: 0,
       valorServicos: 0, valorPecas: 0, valorMaterial: 0,
-      mecanico: '', ano: new Date().getFullYear(), numParcelas: 0
+      mecanico: '', ano: new Date().getFullYear(), numParcelas: 0,
+      vendaValidada: false, notaFiscal: '', dataNotaFiscal: ''
     });
     setServicoModal(true);
   };
@@ -544,7 +547,8 @@ const AutoGeral = ({ onBackToGateway }) => {
       numOS: item.numOS || '', valorOS: item.valorOS || 0,
       valorServicos: item.valorServicos || 0, valorPecas: item.valorPecas || 0,
       valorMaterial: item.valorMaterial || 0, mecanico: item.mecanico || '',
-      ano: item.ano || new Date().getFullYear(), numParcelas: item.numParcelas || 0
+      ano: item.ano || new Date().getFullYear(), numParcelas: item.numParcelas || 0,
+      vendaValidada: !!item.vendaValidada, notaFiscal: item.notaFiscal || '', dataNotaFiscal: item.dataNotaFiscal || ''
     });
     setServicoModal(true);
   };
@@ -552,6 +556,11 @@ const AutoGeral = ({ onBackToGateway }) => {
   const handleServicoSubmit = async (e) => {
     e.preventDefault();
     if (isSubmittingRef.current) return;
+    const ehPrazo = String(servicoForm.formaCompra).toLowerCase().includes('prazo');
+    if (ehPrazo && (parseInt(servicoForm.numParcelas) || 0) < 1) {
+      alert('Informe o número de parcelas (mínimo 1) para venda a prazo.');
+      return;
+    }
     isSubmittingRef.current = true;
     setIsSavingServico(true);
     setProgressModal({
@@ -564,8 +573,8 @@ const AutoGeral = ({ onBackToGateway }) => {
     });
     try {
       if (servicoEditId) {
-        await updateServico(servicoEditId, servicoForm);
-        triggerToast('Serviço atualizado.');
+        const res = await updateServico(servicoEditId, servicoForm);
+        triggerToast(res?.aviso || 'Serviço atualizado.');
       } else {
         await addServico(servicoForm);
         triggerToast('Serviço cadastrado' + (String(servicoForm.formaCompra).toLowerCase().includes('prazo') && servicoForm.numParcelas > 0 ? ` com ${servicoForm.numParcelas} recebíveis gerados.` : '.'));
@@ -1397,7 +1406,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                       <tr>
                         <th>Data</th><th>Forma</th><th>Cliente</th><th>Material/Serviço</th>
                         <th>OS</th><th>Valor OS</th><th>Serviços</th><th>Peças</th>
-                        <th>Material</th><th>Mecânico</th><th>Parcelas</th><th>Ações</th>
+                        <th>Material</th><th>Mecânico</th><th>Parcelas</th><th>NF</th><th>Data NF</th><th>Validada</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1490,6 +1499,33 @@ const AutoGeral = ({ onBackToGateway }) => {
                               )}
                             </td>
                             <td>
+                              {gridEditMode && String(rowData.formaCompra || '').toLowerCase().includes('prazo') ? (
+                                <input type="text" value={rowData.notaFiscal || ''} onChange={e => handleGridCellChange(item.id, 'notaFiscal', e.target.value)} className="ag-grid-input" />
+                              ) : (
+                                item.notaFiscal || '-'
+                              )}
+                            </td>
+                            <td>
+                              {gridEditMode && String(rowData.formaCompra || '').toLowerCase().includes('prazo') ? (
+                                <input type="date" value={rowData.dataNotaFiscal || ''} onChange={e => {
+                                  const d = e.target.value;
+                                  handleGridCellChange(item.id, 'dataNotaFiscal', d);
+                                  if (d) handleGridCellChange(item.id, 'vendaValidada', true);
+                                }} className="ag-grid-input" />
+                              ) : (
+                                item.dataNotaFiscal ? formatDateBR(item.dataNotaFiscal) : '-'
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {String(rowData.formaCompra || '').toLowerCase().includes('prazo') ? (
+                                gridEditMode ? (
+                                  <input type="checkbox" checked={!!rowData.vendaValidada} onChange={e => handleGridCellChange(item.id, 'vendaValidada', e.target.checked)} />
+                                ) : (
+                                  item.vendaValidada ? '✅' : '⏳'
+                                )
+                              ) : '-'}
+                            </td>
+                            <td>
                               <div className="ag-table-actions">
                                 {!gridEditMode && (
                                   <button className="btn icon-only edit" title="Editar Serviço" onClick={() => openEditServico(item)}>
@@ -1506,7 +1542,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="12" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
+                        <tr><td colSpan="15" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -2017,7 +2053,15 @@ const AutoGeral = ({ onBackToGateway }) => {
             <div className="modal-body">
               <div className="form-grid">
                 <Field label="Data" type="date" value={servicoForm.data} onChange={e => setServicoForm({...servicoForm, data: e.target.value})} />
-                <Field label="Forma de Compra" value={servicoForm.formaCompra} onChange={e => setServicoForm({...servicoForm, formaCompra: e.target.value})} options={['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'à Prazo']} />
+                <Field label="Forma de Compra" value={servicoForm.formaCompra} onChange={e => {
+                  const novo = e.target.value;
+                  const ehPrazo = novo.toLowerCase().includes('prazo');
+                  setServicoForm(prev => ({
+                    ...prev,
+                    formaCompra: novo,
+                    ...(ehPrazo ? {} : { numParcelas: 0, vendaValidada: false, notaFiscal: '', dataNotaFiscal: '' })
+                  }));
+                }} options={['Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'à Prazo']} />
                 <Field label="Nome do Cliente" value={servicoForm.nomeCliente} onChange={e => setServicoForm({...servicoForm, nomeCliente: e.target.value})} />
                 <Field label="Descrição do Material" value={servicoForm.descricaoMaterial} onChange={e => setServicoForm({...servicoForm, descricaoMaterial: e.target.value})} />
                 <Field label="Nº da OS" value={servicoForm.numOS} onChange={e => setServicoForm({...servicoForm, numOS: e.target.value})} />
@@ -2027,12 +2071,49 @@ const AutoGeral = ({ onBackToGateway }) => {
                 <Field label="Valor Material" type="number" step="0.01" value={servicoForm.valorMaterial} onChange={e => setServicoForm({...servicoForm, valorMaterial: parseFloat(e.target.value) || 0})} />
                 <Field label="Mecânico" value={servicoForm.mecanico} onChange={e => setServicoForm({...servicoForm, mecanico: e.target.value})} />
                 <Field label="Ano" type="number" value={servicoForm.ano} onChange={e => setServicoForm({...servicoForm, ano: parseInt(e.target.value) || 2026})} />
-                <Field label="Nº Parcelas (0 = à vista)" type="number" value={servicoForm.numParcelas} onChange={e => setServicoForm({...servicoForm, numParcelas: parseInt(e.target.value) || 0})} />
               </div>
-              {String(servicoForm.formaCompra).toLowerCase().includes('prazo') && servicoForm.numParcelas > 0 && (
-                <div className="restricted-info" style={{ marginTop: '16px' }}>
-                  ℹ️ Ao salvar, serão gerados <strong>{servicoForm.numParcelas} recebíveis</strong> de <strong>{fmtMoney.format((servicoForm.valorOS || 0) / (servicoForm.numParcelas || 1))}</strong> cada, com vencimentos a cada 30 dias.
-                </div>
+
+              {String(servicoForm.formaCompra).toLowerCase().includes('prazo') && (
+                <>
+                  <div className="form-grid" style={{ marginTop: '12px' }}>
+                    <Field
+                      label="Nº de Parcelas"
+                      type="number"
+                      required
+                      value={servicoForm.numParcelas}
+                      onChange={e => setServicoForm({...servicoForm, numParcelas: parseInt(e.target.value) || 0})}
+                      hint="Obrigatório para venda a prazo. Cada parcela vence a cada 30 dias a partir da data de referência (data da nota fiscal ou, na falta dela, a data do serviço)."
+                    />
+                    <Field
+                      label="Venda a prazo validada"
+                      type="checkbox"
+                      checked={servicoForm.vendaValidada}
+                      onChange={e => setServicoForm({...servicoForm, vendaValidada: e.target.checked})}
+                      hint="Marque quando esta venda a prazo já foi conferida/aprovada. Só depois de validada o sistema gera as parcelas a receber. Preencher a data da nota fiscal já valida automaticamente."
+                    />
+                    <Field
+                      label="Nº da Nota Fiscal"
+                      value={servicoForm.notaFiscal}
+                      onChange={e => setServicoForm({...servicoForm, notaFiscal: e.target.value})}
+                      hint="Preencha quando a nota for emitida. Geralmente fica em branco no lançamento inicial e você edita depois."
+                    />
+                    <Field
+                      label="Data da Nota Fiscal"
+                      type="date"
+                      value={servicoForm.dataNotaFiscal}
+                      onChange={e => {
+                        const d = e.target.value;
+                        setServicoForm(prev => ({ ...prev, dataNotaFiscal: d, vendaValidada: d ? true : prev.vendaValidada }));
+                      }}
+                      hint="Se preenchida, os vencimentos das parcelas passam a contar a partir desta data (e não da data do serviço) e a venda é validada automaticamente. Alterar essa data regera as parcelas ainda não recebidas."
+                    />
+                  </div>
+                  {servicoForm.numParcelas > 0 && (
+                    <div className="restricted-info" style={{ marginTop: '16px' }}>
+                      ℹ️ {servicoForm.vendaValidada ? 'Ao salvar' : 'Após validar a venda'}, serão gerados <strong>{servicoForm.numParcelas} recebíveis</strong> de <strong>{fmtMoney.format((servicoForm.valorOS || 0) / (servicoForm.numParcelas || 1))}</strong> cada, com vencimentos a cada 30 dias a partir da {servicoForm.dataNotaFiscal ? 'data da nota fiscal' : 'data do serviço'}.
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="modal-footer">
@@ -2381,20 +2462,27 @@ const AutoGeral = ({ onBackToGateway }) => {
 };
 
 // ── FORM FIELD ──
-const Field = ({ label, type = 'text', value, onChange, options, readOnly, step }) => (
+const Field = ({ label, type = 'text', value, onChange, options, readOnly, step, hint, checked, required }) => (
   <div className="form-group">
-    <label>{label}</label>
-    {options ? (
-      <select value={value} onChange={onChange} disabled={readOnly}>
+    <label style={type === 'checkbox' ? { display: 'flex', alignItems: 'center' } : undefined}>
+      {type === 'checkbox' && (
+        <input type="checkbox" checked={!!checked} onChange={onChange} style={{ width: 'auto', marginRight: '8px' }} />
+      )}
+      {label}{required ? ' *' : ''}
+      {hint ? <InfoHint text={hint} /> : null}
+    </label>
+    {type === 'checkbox' ? null : options ? (
+      <select value={value} onChange={onChange} disabled={readOnly} required={required}>
         {options.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
       </select>
     ) : (
-      <input 
-        type={type} 
-        value={type === 'number' && value === 0 ? '' : value} 
-        onChange={onChange} 
-        readOnly={readOnly} 
-        step={step} 
+      <input
+        type={type}
+        value={type === 'number' && value === 0 ? '' : value}
+        onChange={onChange}
+        readOnly={readOnly}
+        step={step}
+        required={required}
         onFocus={(e) => {
           if (type === 'number') {
             e.target.select();

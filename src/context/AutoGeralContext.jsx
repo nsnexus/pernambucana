@@ -277,14 +277,19 @@ export const AutoGeralProvider = ({ children }) => {
       let migrated = false;
       for (const s of servicos) {
         const forma = String(s.formaCompra || '').toLowerCase();
-        if (forma.includes('prazo')) {
+        // Serviços antigos (sem o campo vendaValidada) mantêm o auto-gerar pela
+        // data do serviço. Serviços novos só geram quando a venda for validada —
+        // isso acontece no add/update, não aqui.
+        const legacy = s.vendaValidada === undefined;
+        if (forma.includes('prazo') && legacy) {
           // Check if there are any receivables for this service
           const hasRecebivel = recebiveis.some(r => r.servicoId === s.id);
           if (!hasRecebivel) {
             // Re-run receivable generation for this service
             const parcelas = s.numParcelas > 0 ? s.numParcelas : 1;
             const valorParcela = s.valorOS / parcelas;
-            
+            const baseDate = s.dataNotaFiscal || s.data;
+
             // Update the servico document if it had numParcelas = 0
             if (s.numParcelas === 0) {
               await setDoc(doc(db, 'ag_servicos', s.id), { numParcelas: parcelas }, { merge: true });
@@ -292,7 +297,7 @@ export const AutoGeralProvider = ({ children }) => {
 
             for (let i = 1; i <= parcelas; i++) {
               const recId = generateUUID();
-              const dataVenc = addDays(s.data, 30 * i);
+              const dataVenc = addDays(baseDate, 30 * i);
               const recData = {
                 id: recId,
                 servicoId: s.id,
@@ -334,6 +339,70 @@ export const AutoGeralProvider = ({ children }) => {
   }, [loading, consolidado, rawQueriesActive, servicos, compras, boletos, recebiveis]);
 
   // ── SERVIÇOS CRUD ──
+
+  // Gera as parcelas (ag_recebiveis) de um serviço a prazo.
+  // baseDate = referência do 1º vencimento (+30 dias por parcela).
+  const gerarRecebiveisServico = async (servicoId, s, parcelas, baseDate) => {
+    const valorTotal = parseFloat(s.valorOS) || 0;
+    const valorParcela = parcelas > 0 ? valorTotal / parcelas : valorTotal;
+    for (let i = 1; i <= parcelas; i++) {
+      const recId = generateUUID();
+      const dataVenc = addDays(baseDate, 30 * i);
+      await setDoc(doc(db, 'ag_recebiveis', recId), {
+        id: recId,
+        servicoId,
+        numOS: s.numOS || '',
+        nomeCliente: s.nomeCliente || '',
+        descricao: s.descricaoMaterial || '',
+        mecanico: s.mecanico || '',
+        parcela: i,
+        totalParcelas: parcelas,
+        valorParcela: Math.round(valorParcela * 100) / 100,
+        valorTotalOS: valorTotal,
+        dataVencimento: dataVenc,
+        mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
+        status: 'Pendente',
+        dataRecebimento: '',
+        criadoEm: new Date().toISOString()
+      });
+    }
+  };
+
+  // Regra de recebíveis para serviço a prazo:
+  //  - só gera quando a venda foi validada (vendaValidada = true);
+  //  - base do vencimento = data da nota fiscal, se houver; senão a data do serviço;
+  //  - regera parcelas ainda não recebidas quando a base muda; se alguma já foi
+  //    recebida, não mexe e devolve um aviso.
+  const sincronizarRecebiveisServico = async (servicoId, s) => {
+    const isPrazo = String(s.formaCompra || '').toLowerCase().includes('prazo');
+    const existentes = recebiveis.filter(r => r.servicoId === servicoId);
+
+    if (!isPrazo || !s.vendaValidada) return { aviso: null };
+
+    const parcelas = parseInt(s.numParcelas) || 1;
+    const baseDate = s.dataNotaFiscal || s.data;
+    if (!baseDate) return { aviso: null };
+
+    if (existentes.length === 0) {
+      await gerarRecebiveisServico(servicoId, s, parcelas, baseDate);
+      return { aviso: null };
+    }
+
+    const algumRecebido = existentes.some(r => r.status === 'Recebido');
+    const primeiro = [...existentes].sort((a, b) => a.parcela - b.parcela)[0];
+    const vencEsperado = addDays(baseDate, 30);
+    const precisaRegerar = primeiro.dataVencimento !== vencEsperado || existentes.length !== parcelas;
+
+    if (precisaRegerar) {
+      if (algumRecebido) {
+        return { aviso: 'A data/parcelas mudaram, mas já há parcelas recebidas — os recebíveis não foram regerados. Ajuste manualmente na aba Recebíveis.' };
+      }
+      for (const r of existentes) await deleteDoc(doc(db, 'ag_recebiveis', r.id));
+      await gerarRecebiveisServico(servicoId, s, parcelas, baseDate);
+    }
+    return { aviso: null };
+  };
+
   const addServico = async (item) => {
     const id = item.id || generateUUID();
     const dateInfo = getDateInfo(item.data);
@@ -362,31 +431,12 @@ export const AutoGeralProvider = ({ children }) => {
     };
     await setDoc(doc(db, 'ag_servicos', id), docData);
 
-    // Auto-generate receivables if "à Prazo"
-    if (isPrazo && parsedParcelas > 0) {
-      const valorParcela = docData.valorOS / parsedParcelas;
-      for (let i = 1; i <= parsedParcelas; i++) {
-        const recId = generateUUID();
-        const dataVenc = addDays(docData.data, 30 * i);
-        const recData = {
-          id: recId,
-          servicoId: id,
-          numOS: docData.numOS || '',
-          nomeCliente: docData.nomeCliente || '',
-          descricao: docData.descricaoMaterial || '',
-          mecanico: docData.mecanico || '',
-          parcela: i,
-          totalParcelas: parsedParcelas,
-          valorParcela: Math.round(valorParcela * 100) / 100,
-          valorTotalOS: docData.valorOS,
-          dataVencimento: dataVenc,
-          mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
-          status: 'Pendente',
-          dataRecebimento: '',
-          criadoEm: new Date().toISOString()
-        };
-        await setDoc(doc(db, 'ag_recebiveis', recId), recData);
-      }
+    // Recebíveis a prazo só são gerados quando a venda foi validada
+    // (vendaValidada). Base do vencimento: data da NF, se houver; senão a data
+    // do serviço. Sem validação, o serviço fica sem recebível até ser editado.
+    if (isPrazo && docData.vendaValidada && parsedParcelas > 0) {
+      const baseDate = docData.dataNotaFiscal || docData.data;
+      if (baseDate) await gerarRecebiveisServico(id, docData, parsedParcelas, baseDate);
     }
 
     await triggerAutoGeralConsolidation(docData.data);
@@ -405,8 +455,13 @@ export const AutoGeralProvider = ({ children }) => {
     }
     await setDoc(doc(db, 'ag_servicos', id), updateData, { merge: true });
 
+    // Sincroniza os recebíveis a prazo com a regra de validação/NF
+    const servicoFull = { ...oldDoc, ...updateData };
+    const { aviso } = await sincronizarRecebiveisServico(id, servicoFull);
+
     if (oldDate) await triggerAutoGeralConsolidation(oldDate);
     if (data.data) await triggerAutoGeralConsolidation(data.data);
+    return { aviso };
   };
 
   const deleteServico = async (id) => {

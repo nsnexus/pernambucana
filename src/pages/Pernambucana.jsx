@@ -2260,7 +2260,11 @@ const Pernambucana = ({ onBackToGateway }) => {
                             </td>
                             <td>
                               {gridEditMode && String(rowData.pagamento || '').toLowerCase().includes('prazo') ? (
-                                <input type="date" value={rowData.dataNotaFiscal || ''} onChange={e => handleGridCellChange(item.id, 'dataNotaFiscal', e.target.value)} className="ag-grid-input" />
+                                <input type="date" value={rowData.dataNotaFiscal || ''} onChange={e => {
+                                  const d = e.target.value;
+                                  handleGridCellChange(item.id, 'dataNotaFiscal', d);
+                                  if (d) handleGridCellChange(item.id, 'vendaValidada', true);
+                                }} className="ag-grid-input" />
                               ) : (
                                 item.dataNotaFiscal ? formatDateBR(item.dataNotaFiscal) : '-'
                               )}
@@ -2904,7 +2908,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                           style={{ width: 'auto', marginRight: '8px' }}
                         />
                         Venda a prazo validada
-                        <InfoHint text="Marque quando esta venda a prazo já foi conferida/aprovada. Só depois de validada o sistema gera as parcelas a receber. Sem nota fiscal, os vencimentos contam a partir da data do serviço." />
+                        <InfoHint text="Marque quando esta venda a prazo já foi conferida/aprovada. Só depois de validada o sistema gera as parcelas a receber. Preencher a data da nota fiscal já valida automaticamente." />
                       </label>
                     </div>
                     <div className="form-group">
@@ -2917,9 +2921,9 @@ const Pernambucana = ({ onBackToGateway }) => {
                     <div className="form-group">
                       <label>
                         Data da Nota Fiscal
-                        <InfoHint text="Se preenchida, os vencimentos das parcelas passam a contar a partir desta data (e não da data do serviço). Alterar essa data regera as parcelas ainda não recebidas." />
+                        <InfoHint text="Se preenchida, os vencimentos das parcelas contam a partir desta data (e não da data do serviço) e a venda é validada automaticamente. Alterar essa data regera as parcelas ainda não recebidas." />
                       </label>
-                      <input type="date" value={servicoForm.dataNotaFiscal} onChange={e => setServicoForm(prev => ({ ...prev, dataNotaFiscal: e.target.value }))} />
+                      <input type="date" value={servicoForm.dataNotaFiscal} onChange={e => setServicoForm(prev => ({ ...prev, dataNotaFiscal: e.target.value, vendaValidada: e.target.value ? true : prev.vendaValidada }))} />
                     </div>
                   </>
                 )}
