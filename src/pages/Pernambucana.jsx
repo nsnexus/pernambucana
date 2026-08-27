@@ -2114,7 +2114,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <th>Data</th><th>Setor</th><th>Cliente</th><th>Descrição</th>
                         <th>Tipo de Serviço</th><th>Qtd</th><th>OS</th><th>Valor Unit.</th>
                         <th>Valor Total</th><th>Desconto</th><th>Pagamento</th><th>Produtivo</th>
-                        <th>Comissão</th><th>Material</th><th>Ações</th>
+                        <th>Material</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2237,13 +2237,6 @@ const Pernambucana = ({ onBackToGateway }) => {
                             </td>
                             <td>
                               {gridEditMode ? (
-                                <input type="number" step="0.01" value={rowData.valorProdutivo || 0} onChange={e => handleGridCellChange(item.id, 'valorProdutivo', e.target.value)} className="ag-grid-input" />
-                              ) : (
-                                fmtMoney.format(parseFloat(item.valorProdutivo) || 0)
-                              )}
-                            </td>
-                            <td>
-                              {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.material || 0} onChange={e => handleGridCellChange(item.id, 'material', e.target.value)} className="ag-grid-input" />
                               ) : (
                                 fmtMoney.format(parseFloat(item.material) || 0)
@@ -2266,7 +2259,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="16" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
+                        <tr><td colSpan="15" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -2853,6 +2846,10 @@ const Pernambucana = ({ onBackToGateway }) => {
                     <option value="À prazo">À prazo</option>
                   </select>
                 </div>
+                <div className="form-group">
+                  <label>Nº de Parcelas (se A Prazo)</label>
+                  <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
+                </div>
                 <div className="form-group" style={{ flex: 1.5 }}>
                   <label>Descrição dos Serviços</label>
                   <input type="text" required value={servicoForm.descricao} onChange={e => setServicoForm(prev => ({ ...prev, descricao: e.target.value }))} />
@@ -2894,16 +2891,8 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <input type="text" value={servicoForm.produtivo} onChange={e => setServicoForm(prev => ({ ...prev, produtivo: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label>Comissão (R$)</label>
-                  <input type="number" step="0.01" value={servicoForm.valorProdutivo === 0 ? '' : servicoForm.valorProdutivo} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, valorProdutivo: parseFloat(e.target.value) || 0 }))} />
-                </div>
-                <div className="form-group">
                   <label>Material Aplicado</label>
                   <input type="number" step="0.01" value={servicoForm.material === 0 ? '' : servicoForm.material} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, material: parseFloat(e.target.value) || 0 }))} />
-                </div>
-                <div className="form-group">
-                  <label>Nº de Parcelas (se A Prazo)</label>
-                  <input type="number" min="0" value={servicoForm.numParcelas === 0 ? '' : servicoForm.numParcelas} onFocus={e => e.target.select()} onChange={e => setServicoForm(prev => ({ ...prev, numParcelas: parseInt(e.target.value) || 0 }))} />
                 </div>
               </div>
             </div>
