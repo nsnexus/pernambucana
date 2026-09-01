@@ -345,9 +345,14 @@ export const AutoGeralProvider = ({ children }) => {
   const gerarRecebiveisServico = async (servicoId, s, parcelas, baseDate) => {
     const valorTotal = parseFloat(s.valorOS) || 0;
     const valorParcela = parcelas > 0 ? valorTotal / parcelas : valorTotal;
+    const hojeStr = new Date().toISOString().split('T')[0];
     for (let i = 1; i <= parcelas; i++) {
       const recId = generateUUID();
       const dataVenc = addDays(baseDate, 30 * i);
+      // Parcela com vencimento já passado (lançamento retroativo) nasce Recebida,
+      // com a data de recebimento = data de vencimento. As futuras ficam Pendentes
+      // para o check manual.
+      const jaVenceu = dataVenc < hojeStr;
       await setDoc(doc(db, 'ag_recebiveis', recId), {
         id: recId,
         servicoId,
@@ -361,8 +366,8 @@ export const AutoGeralProvider = ({ children }) => {
         valorTotalOS: valorTotal,
         dataVencimento: dataVenc,
         mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
-        status: 'Pendente',
-        dataRecebimento: '',
+        status: jaVenceu ? 'Recebido' : 'Pendente',
+        dataRecebimento: jaVenceu ? dataVenc : '',
         criadoEm: new Date().toISOString()
       });
     }
@@ -388,13 +393,16 @@ export const AutoGeralProvider = ({ children }) => {
       return { aviso: null };
     }
 
-    const algumRecebido = existentes.some(r => r.status === 'Recebido');
+    // "Recebido" que veio do lançamento retroativo tem dataRecebimento igual à
+    // data de vencimento — esse é regerável. Só bloqueia quando há recebimento
+    // confirmado manualmente (dataRecebimento diferente do vencimento).
+    const algumRecebidoManual = existentes.some(r => r.status === 'Recebido' && r.dataRecebimento && r.dataRecebimento !== r.dataVencimento);
     const primeiro = [...existentes].sort((a, b) => a.parcela - b.parcela)[0];
     const vencEsperado = addDays(baseDate, 30);
     const precisaRegerar = primeiro.dataVencimento !== vencEsperado || existentes.length !== parcelas;
 
     if (precisaRegerar) {
-      if (algumRecebido) {
+      if (algumRecebidoManual) {
         return { aviso: 'A data/parcelas mudaram, mas já há parcelas recebidas — os recebíveis não foram regerados. Ajuste manualmente na aba Recebíveis.' };
       }
       for (const r of existentes) await deleteDoc(doc(db, 'ag_recebiveis', r.id));
