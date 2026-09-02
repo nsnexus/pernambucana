@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, useAuth } from './AuthContext';
 
 const AutoGeralContext = createContext();
@@ -141,48 +141,62 @@ export const AutoGeralProvider = ({ children }) => {
     setRawQueriesActive(true);
   }, []);
 
-  const triggerAutoGeralConsolidation = async (dateStr) => {
-    if (!dateStr || dateStr.length < 7) return;
-    const yearMonth = dateStr.slice(0, 7);
-    try {
-      const start = `${yearMonth}-01`;
-      const end = `${yearMonth}-31`;
-      const [servsSnap, compsSnap, bolsSnap, recsVencSnap, recsRecebSnap] = await Promise.all([
-        getDocs(query(collection(db, 'ag_servicos'), where('data', '>=', start), where('data', '<=', end))),
-        getDocs(query(collection(db, 'ag_compras'), where('data', '>=', start), where('data', '<=', end))),
-        getDocs(query(collection(db, 'ag_boletos'), where('dataVencimento', '>=', start), where('dataVencimento', '<=', end))),
-        getDocs(query(collection(db, 'ag_recebiveis'), where('dataVencimento', '>=', start), where('dataVencimento', '<=', end))),
-        getDocs(query(collection(db, 'ag_recebiveis'), where('dataRecebimento', '>=', start), where('dataRecebimento', '<=', end)))
-      ]);
-      const servsList = [];
-      servsSnap.forEach(d => servsList.push(d.data()));
-      const compsList = [];
-      compsSnap.forEach(d => compsList.push(d.data()));
-      const bolsList = [];
-      bolsSnap.forEach(d => bolsList.push(d.data()));
-      const recsList = [];
-      const seenIds = new Set();
-      const addRec = (d) => {
-        const data = d.data();
-        if (!seenIds.has(data.id)) {
-          seenIds.add(data.id);
-          recsList.push(data);
-        }
-      };
-      recsVencSnap.forEach(addRec);
-      recsRecebSnap.forEach(addRec);
+  // Refs com o estado atual — a consolidação usa os dados já carregados pelos
+  // listeners em vez de reler o Firestore.
+  const servicosRef = useRef([]);
+  const comprasRef = useRef([]);
+  const boletosRef = useRef([]);
+  const recebiveisRef = useRef([]);
+  useEffect(() => { servicosRef.current = servicos; }, [servicos]);
+  useEffect(() => { comprasRef.current = compras; }, [compras]);
+  useEffect(() => { boletosRef.current = boletos; }, [boletos]);
+  useEffect(() => { recebiveisRef.current = recebiveis; }, [recebiveis]);
 
-      const consolidatedData = calculateAutoGeralConsolidation(servsList, compsList, bolsList, recsList, yearMonth);
-      await setDoc(doc(db, 'ag_consolidado_mensal', yearMonth), {
-        id: yearMonth,
-        ...consolidatedData,
-        atualizadoEm: new Date().toISOString()
-      });
-      console.log(`Consolidação Auto Geral atualizada para ${yearMonth}`);
-    } catch (err) {
-      console.error("Erro ao atualizar consolidação Auto Geral:", err);
+  const dirtyConsMonthsRef = useRef(new Set());
+  const consFlushTimerRef = useRef(null);
+
+  const flushAutoGeralConsolidation = async () => {
+    const months = [...dirtyConsMonthsRef.current];
+    dirtyConsMonthsRef.current.clear();
+    for (const yearMonth of months) {
+      try {
+        const inMonth = (v) => (v || '').slice(0, 7) === yearMonth;
+        const servsList = servicosRef.current.filter(s => inMonth(s.data));
+        const compsList = comprasRef.current.filter(c => inMonth(c.data));
+        const bolsList = boletosRef.current.filter(b => inMonth(b.dataVencimento));
+        const recsList = recebiveisRef.current.filter(r => inMonth(r.dataVencimento) || inMonth(r.dataRecebimento));
+        const consolidatedData = calculateAutoGeralConsolidation(servsList, compsList, bolsList, recsList, yearMonth);
+        await setDoc(doc(db, 'ag_consolidado_mensal', yearMonth), {
+          id: yearMonth,
+          ...consolidatedData,
+          atualizadoEm: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Erro ao atualizar consolidação Auto Geral:", err);
+      }
     }
   };
+
+  // Marca o mês como sujo e agenda um único recálculo depois da rajada de
+  // gravações — evita reler coleções por item em operações em lote.
+  const triggerAutoGeralConsolidation = (dateStr) => {
+    if (!dateStr || dateStr.length < 7) return;
+    dirtyConsMonthsRef.current.add(dateStr.slice(0, 7));
+    if (consFlushTimerRef.current) clearTimeout(consFlushTimerRef.current);
+    consFlushTimerRef.current = setTimeout(() => {
+      consFlushTimerRef.current = null;
+      flushAutoGeralConsolidation();
+    }, 1500);
+  };
+
+  useEffect(() => {
+    const flushNow = () => { if (dirtyConsMonthsRef.current.size > 0) flushAutoGeralConsolidation(); };
+    window.addEventListener('beforeunload', flushNow);
+    return () => {
+      window.removeEventListener('beforeunload', flushNow);
+      flushNow();
+    };
+  }, []);
 
   // Real-time listeners for all 4 collections
   useEffect(() => {
@@ -685,21 +699,11 @@ export const AutoGeralProvider = ({ children }) => {
   const runAutoGeralMigration = async () => {
     try {
       console.log("Iniciando migração de consolidação Auto Geral...");
-      const [servsSnap, compsSnap, bolsSnap, recsSnap] = await Promise.all([
-        getDocs(collection(db, 'ag_servicos')),
-        getDocs(collection(db, 'ag_compras')),
-        getDocs(collection(db, 'ag_boletos')),
-        getDocs(collection(db, 'ag_recebiveis'))
-      ]);
-
-      const servsList = [];
-      servsSnap.forEach(d => servsList.push(d.data()));
-      const compsList = [];
-      compsSnap.forEach(d => compsList.push(d.data()));
-      const bolsList = [];
-      bolsSnap.forEach(d => bolsList.push(d.data()));
-      const recsList = [];
-      recsSnap.forEach(d => recsList.push(d.data()));
+      // Usa os dados já carregados pelos listeners (sem leitura extra)
+      const servsList = servicosRef.current;
+      const compsList = comprasRef.current;
+      const bolsList = boletosRef.current;
+      const recsList = recebiveisRef.current;
 
       const months = new Set();
       servsList.forEach(s => { if (s.data && s.data.length >= 7) months.add(s.data.slice(0, 7)); });

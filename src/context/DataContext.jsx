@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -343,31 +343,56 @@ export const DataProvider = ({ children }) => {
     setRawQueriesActive(true);
   }, []);
 
-  const triggerConsolidationUpdate = async (dateStr) => {
-    if (!dateStr || dateStr.length < 7) return;
-    const yearMonth = dateStr.slice(0, 7);
-    try {
-      const start = `${yearMonth}-01`;
-      const end = `${yearMonth}-31`;
-      const [servsSnap, compsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'servicos'), where('data', '>=', start), where('data', '<=', end))),
-        getDocs(query(collection(db, 'compras'), where('data', '>=', start), where('data', '<=', end)))
-      ]);
-      const monthServs = [];
-      servsSnap.forEach(d => monthServs.push(d.data()));
-      const monthComps = [];
-      compsSnap.forEach(d => monthComps.push(d.data()));
-      const consolidatedData = calculateConsolidationForPeriod(monthServs, monthComps);
-      await setDoc(doc(db, 'p_consolidado_mensal', yearMonth), {
-        id: yearMonth,
-        ...consolidatedData,
-        atualizadoEm: new Date().toISOString()
-      });
-      console.log(`Consolidação mensal Pernambucana atualizada para ${yearMonth}`);
-    } catch (err) {
-      console.error("Erro ao atualizar consolidação mensal:", err);
+  // Espelha o estado atual em refs para que a consolidação use os dados já
+  // carregados pelos listeners (zero leitura extra no Firestore).
+  const servicosRef = useRef([]);
+  const comprasRef = useRef([]);
+  useEffect(() => { servicosRef.current = servicos; }, [servicos]);
+  useEffect(() => { comprasRef.current = compras; }, [compras]);
+
+  const dirtyConsMonthsRef = useRef(new Set());
+  const consFlushTimerRef = useRef(null);
+
+  const flushConsolidation = async () => {
+    const months = [...dirtyConsMonthsRef.current];
+    dirtyConsMonthsRef.current.clear();
+    for (const yearMonth of months) {
+      try {
+        const monthServs = servicosRef.current.filter(s => (s.data || '').slice(0, 7) === yearMonth);
+        const monthComps = comprasRef.current.filter(c => (c.data || '').slice(0, 7) === yearMonth);
+        const consolidatedData = calculateConsolidationForPeriod(monthServs, monthComps);
+        await setDoc(doc(db, 'p_consolidado_mensal', yearMonth), {
+          id: yearMonth,
+          ...consolidatedData,
+          atualizadoEm: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Erro ao atualizar consolidação mensal:", err);
+      }
     }
   };
+
+  // Marca o mês como "sujo" e agenda um único recálculo depois da rajada de
+  // gravações — evita 1 recálculo (com leituras) por item em operações em lote.
+  const triggerConsolidationUpdate = (dateStr) => {
+    if (!dateStr || dateStr.length < 7) return;
+    dirtyConsMonthsRef.current.add(dateStr.slice(0, 7));
+    if (consFlushTimerRef.current) clearTimeout(consFlushTimerRef.current);
+    consFlushTimerRef.current = setTimeout(() => {
+      consFlushTimerRef.current = null;
+      flushConsolidation();
+    }, 1500);
+  };
+
+  // Garante o flush se o usuário sair no meio da janela do debounce
+  useEffect(() => {
+    const flushNow = () => { if (dirtyConsMonthsRef.current.size > 0) flushConsolidation(); };
+    window.addEventListener('beforeunload', flushNow);
+    return () => {
+      window.removeEventListener('beforeunload', flushNow);
+      flushNow();
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentUser) {
@@ -973,16 +998,10 @@ export const DataProvider = ({ children }) => {
   const runConsolidationMigration = async () => {
     try {
       console.log("Iniciando migração de consolidação Pernambucana...");
-      const [servsSnap, compsSnap] = await Promise.all([
-        getDocs(collection(db, 'servicos')),
-        getDocs(collection(db, 'compras'))
-      ]);
-      
-      const allS = [];
-      servsSnap.forEach(d => allS.push(d.data()));
-      const allC = [];
-      compsSnap.forEach(d => allC.push(d.data()));
-      
+      // Usa os dados já carregados pelos listeners (sem leitura extra)
+      const allS = servicosRef.current;
+      const allC = comprasRef.current;
+
       const months = new Set();
       allS.forEach(s => { if (s.data && s.data.length >= 7) months.add(s.data.slice(0, 7)); });
       allC.forEach(c => { if (c.data && c.data.length >= 7) months.add(c.data.slice(0, 7)); });
