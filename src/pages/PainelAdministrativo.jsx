@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
 import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { extractHoleritesFromPDF, calcHorasExtras } from '../utils/pdfParser';
 import { generatePdfFromContainer } from '../utils/pdfGenerator';
@@ -24,8 +24,13 @@ const CATEGORIES = {
   'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas', 'Acidente do Trabalho'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
   'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento'],
-  'Pagamentos': ['Holerites']
+  'Pagamentos': ['Holerites'],
+  'Acessos': ['Usuários']
 };
+
+// Setores que podem ser liberados por usuário na aba Acessos
+const SETORES_ACESSO = ['Mecanica', 'Peças', 'Retifica', 'Torneadora', 'Caldeiraria', 'AltoGeral'];
+const SETOR_LABELS = { Mecanica: 'Mecânica', 'Peças': 'Peças', Retifica: 'Retífica', Torneadora: 'Torneadora', Caldeiraria: 'Caldeiraria', AltoGeral: 'Auto Geral' };
 
 // Normaliza os anexos de um registro. Registros antigos guardam um único
 // arquivo em fileUrl/filePath/fileName; os novos guardam a lista em `anexos`.
@@ -115,6 +120,54 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const emptyManualHolerite = { nome: '', cargo: '', salarioBase: '', totalVencimentosPdf: '', totalDescontosPdf: '', extraFolha: '' };
   const [manualHoleriteForm, setManualHoleriteForm] = useState(emptyManualHolerite);
 
+  // Aba Acessos (só admin)
+  const [usersList, setUsersList] = useState([]);
+  const [savingUserEmail, setSavingUserEmail] = useState(null);
+
+  const fetchUsers = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const arr = [];
+      snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+      arr.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+      setUsersList(arr);
+    } catch (err) {
+      console.error('Erro ao buscar usuários:', err);
+    }
+  };
+
+  const salvarUsuario = async (u) => {
+    setSavingUserEmail(u.email);
+    try {
+      await setDoc(doc(db, 'users', u.email), {
+        email: u.email,
+        isAdmin: !!u.isAdmin,
+        isDocumentsOnly: !!u.isDocumentsOnly,
+        allowedSectors: Array.isArray(u.allowedSectors) ? u.allowedSectors : [],
+        sector: u.sector || (u.isAdmin ? 'all' : (u.allowedSectors?.[0] || 'all')),
+      }, { merge: true });
+      setPdfAlertMsg(`Acessos de ${u.email} salvos.`);
+      setTimeout(() => setPdfAlertMsg(null), 3000);
+    } catch (err) {
+      setPdfAlertMsg('Erro ao salvar: ' + err.message);
+    } finally {
+      setSavingUserEmail(null);
+    }
+  };
+
+  const atualizarUsuarioLocal = (email, patch) => {
+    setUsersList(prev => prev.map(u => u.email === email ? { ...u, ...patch } : u));
+  };
+
+  const toggleSetorUsuario = (email, setor) => {
+    setUsersList(prev => prev.map(u => {
+      if (u.email !== email) return u;
+      const atual = Array.isArray(u.allowedSectors) ? u.allowedSectors : [];
+      const nova = atual.includes(setor) ? atual.filter(s => s !== setor) : [...atual, setor];
+      return { ...u, allowedSectors: nova };
+    }));
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -157,6 +210,10 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   useEffect(() => {
     fetchData();
   }, [brand]);
+
+  useEffect(() => {
+    if (currentUser?.isAdmin) fetchUsers();
+  }, [currentUser?.isAdmin]);
 
   // Handle Tab Switch
   const handleCatSwitch = (cat) => {
@@ -675,6 +732,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const isEfetivoTab = activeCat === 'Administração' && activeSub === 'Efetivo';
   const isFeriasTab = activeCat === 'Administração' && activeSub === 'Férias';
   const isPagamentosTab = activeCat === 'Pagamentos' && activeSub === 'Holerites';
+  const isAcessosTab = activeCat === 'Acessos' && currentUser?.isAdmin;
   
   const filteredFerias = efetivos.filter(ef => {
     if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
@@ -803,9 +861,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         
         {/* TAB NAVIGATION MAIN */}
         <div className="tab-nav" style={{ marginBottom: '0' }}>
-          {Object.keys(CATEGORIES).map(cat => (
+          {Object.keys(CATEGORIES).filter(cat => cat !== 'Acessos' || currentUser?.isAdmin).map(cat => (
             <button key={cat} className={`tab-btn ${activeCat === cat ? 'active' : ''}`} onClick={() => handleCatSwitch(cat)}>
-              {cat === 'Segurança' ? '🛡️ Segurança' : cat === 'Meio ambiente' ? '🌱 Meio Ambiente' : cat === 'Administração' ? '🏢 Administração' : '💸 Pagamentos'}
+              {cat === 'Segurança' ? '🛡️ Segurança' : cat === 'Meio ambiente' ? '🌱 Meio Ambiente' : cat === 'Administração' ? '🏢 Administração' : cat === 'Pagamentos' ? '💸 Pagamentos' : '🔑 Acessos'}
             </button>
           ))}
         </div>
@@ -827,6 +885,73 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         {/* CONTENT AREA */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>Carregando dados...</div>
+        ) : isAcessosTab ? (
+          <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+            <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3>Controle de Acessos</h3>
+                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>
+                  Defina o que cada e-mail pode visualizar. <strong>Admin</strong> vê tudo; <strong>Só documentos</strong> restringe ao painel administrativo (sem financeiro); os setores marcados definem quais dados aparecem nos painéis.
+                </p>
+              </div>
+              <button className="btn outline sm" onClick={fetchUsers}>↻ Atualizar</button>
+            </div>
+
+            {pdfAlertMsg && (
+              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(34,197,94,0.1)', color: '#16a34a', marginBottom: '12px', fontSize: '13px' }}>{pdfAlertMsg}</div>
+            )}
+
+            <div className="table-wrap" style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>E-mail</th>
+                    <th style={{ textAlign: 'center' }}>Admin</th>
+                    <th style={{ textAlign: 'center' }}>Só documentos</th>
+                    <th>Setores liberados</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersList.length === 0 && (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>Nenhum usuário encontrado.</td></tr>
+                  )}
+                  {usersList.map(u => (
+                    <tr key={u.email}>
+                      <td><strong>{u.email}</strong>{u.criadoAutomaticamente && <span style={{ color: 'var(--muted)', fontSize: '11px' }}> (auto)</span>}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input type="checkbox" checked={!!u.isAdmin} onChange={e => atualizarUsuarioLocal(u.email, { isAdmin: e.target.checked })} />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input type="checkbox" checked={!!u.isDocumentsOnly} onChange={e => atualizarUsuarioLocal(u.email, { isDocumentsOnly: e.target.checked })} />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                          {SETORES_ACESSO.map(setor => (
+                            <label key={setor} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', opacity: u.isAdmin ? 0.5 : 1 }}>
+                              <input
+                                type="checkbox"
+                                disabled={u.isAdmin}
+                                checked={Array.isArray(u.allowedSectors) && u.allowedSectors.includes(setor)}
+                                onChange={() => toggleSetorUsuario(u.email, setor)}
+                              />
+                              {SETOR_LABELS[setor]}
+                            </label>
+                          ))}
+                        </div>
+                        {u.isAdmin && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Admin já vê todos os setores.</span>}
+                      </td>
+                      <td>
+                        <button className="btn primary sm" disabled={savingUserEmail === u.email} onClick={() => salvarUsuario(u)}>
+                          {savingUserEmail === u.email ? 'Salvando...' : 'Salvar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         ) : isEfetivoTab ? (
           // --- TABELA EFETIVO ---
           <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
