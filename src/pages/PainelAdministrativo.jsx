@@ -211,10 +211,16 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
          const funcObj = efetivos.find(ef => hol.nome.toLowerCase().includes(ef.nome.toLowerCase()) || ef.nome.toLowerCase().includes(hol.nome.toLowerCase()));
          const jaTemExtra = (Number(hol.extraFolha) || 0) > 0;
          const extraPrev = jaTemExtra ? null : buscarExtraMemoria(extraMemoria, hol.nome);
+         const extraFolha = extraPrev != null ? extraPrev : hol.extraFolha;
+         // O parser calcula horas extras com extraFolha = 0. Recalcula agora que
+         // o salário base do extra folha veio da memória do colaborador.
+         const { horasEx50, horasEx100 } = calcHorasExtras(extraFolha, hol.h50, hol.h100);
          return {
            ...hol,
            cargo: hol.cargoPdf || funcObj?.cargo || 'Funcionário',
-           extraFolha: extraPrev != null ? extraPrev : hol.extraFolha,
+           extraFolha,
+           horasEx50,
+           horasEx100,
            extraFolhaPrefilled: extraPrev != null,
          };
       });
