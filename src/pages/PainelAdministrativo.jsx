@@ -111,6 +111,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const [holeritesHistory, setHoleritesHistory] = useState([]);
   const [histFilterNome, setHistFilterNome] = useState('');
   const [histFilterMes, setHistFilterMes] = useState('');
+  const [manualHoleriteModalOpen, setManualHoleriteModalOpen] = useState(false);
+  const emptyManualHolerite = { nome: '', cargo: '', salarioBase: '', totalVencimentosPdf: '', totalDescontosPdf: '', extraFolha: '' };
+  const [manualHoleriteForm, setManualHoleriteForm] = useState(emptyManualHolerite);
 
   const fetchData = async () => {
     setLoading(true);
@@ -234,6 +237,41 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     } finally {
       setIsParsingPdf(false);
     }
+  };
+
+  const abrirHoleriteManual = () => {
+    setManualHoleriteForm(emptyManualHolerite);
+    setManualHoleriteModalOpen(true);
+  };
+
+  const adicionarHoleriteManual = () => {
+    const f = manualHoleriteForm;
+    if (!f.nome.trim()) { setPdfAlertMsg('Informe o nome do colaborador.'); return; }
+    const salarioBase = Number(f.salarioBase) || 0;
+    const totalVenc = Number(f.totalVencimentosPdf) || 0;
+    const totalDesc = Number(f.totalDescontosPdf) || 0;
+    const extraFolha = Number(f.extraFolha) || 0;
+    const novo = {
+      nome: f.nome.trim(),
+      cargo: f.cargo.trim() || 'Funcionário',
+      cargoPdf: f.cargo.trim() || '',
+      salarioBase,
+      totalVencimentosPdf: totalVenc,
+      totalDescontosPdf: totalDesc,
+      liquidoPdf: totalVenc - totalDesc,
+      rubricas: [],
+      oficial: {},
+      extraFolha,
+      comissao: 0,
+      h50: 0, horasEx50: 0,
+      h100: 0, horasEx100: 0,
+      hDss: 0, dssHex: 0,
+      faltas: 0, vale: 0,
+      manual: true,
+    };
+    setHoleritesParsed(prev => [...prev, novo]);
+    setManualHoleriteModalOpen(false);
+    setPdfAlertMsg(null);
   };
 
   const handleHoleriteChange = (index, field, value) => {
@@ -1142,6 +1180,9 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         {isParsingPdf ? 'Processando...' : '📄 Importar PDF'}
                         <input type="file" accept="application/pdf" onChange={handlePdfUpload} onClick={(e) => { e.target.value = null; }} style={{ display: 'none' }} disabled={isParsingPdf} />
                     </label>
+                    <button className="btn outline sm" onClick={abrirHoleriteManual} title="Adicionar um colaborador sem holerite no PDF">
+                        ➕ Manual
+                    </button>
                     {holeritesParsed.length > 0 && (
                       <button
                         className="btn outline sm"
@@ -1659,6 +1700,74 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       <div ref={exportContainerRef} className="pdf-export-target" style={{ position: 'fixed', top: 0, left: '-99999px', zIndex: -1 }}>
         {exportHolerites && <ReciboPrint holerites={exportHolerites} mesAnoRef="" />}
       </div>
+
+      {/* ═══ MODAL HOLERITE MANUAL ═══ */}
+      {manualHoleriteModalOpen && (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => setManualHoleriteModalOpen(false)}></div>
+          <form
+            className="modal-form-card glass"
+            style={{ zIndex: 10 }}
+            onSubmit={(e) => { e.preventDefault(); adicionarHoleriteManual(); }}
+          >
+            <div className="modal-header">
+              <h3>Novo Holerite Manual</h3>
+              <button className="close" type="button" onClick={() => setManualHoleriteModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: 0 }}>
+                Para colaboradores que não vêm no PDF da folha. Depois de adicionar, preencha Extra Folha, comissão e horas na tabela e salve normalmente.
+              </p>
+              <div className="form-group">
+                <label>Colaborador *</label>
+                <input
+                  type="text"
+                  required
+                  list="efetivos-datalist"
+                  value={manualHoleriteForm.nome}
+                  onChange={e => {
+                    const nome = e.target.value;
+                    const ef = efetivos.find(x => x.nome === nome);
+                    setManualHoleriteForm(prev => ({ ...prev, nome, cargo: ef?.cargo || prev.cargo }));
+                  }}
+                />
+                <datalist id="efetivos-datalist">
+                  {efetivos.map(ef => <option key={ef.id} value={ef.nome} />)}
+                </datalist>
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Cargo / Função</label>
+                  <input type="text" value={manualHoleriteForm.cargo} onChange={e => setManualHoleriteForm(prev => ({ ...prev, cargo: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Salário Base</label>
+                  <input type="number" step="0.01" value={manualHoleriteForm.salarioBase} onFocus={e => e.target.select()} onChange={e => setManualHoleriteForm(prev => ({ ...prev, salarioBase: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Total (Contracheque)</label>
+                  <input type="number" step="0.01" value={manualHoleriteForm.totalVencimentosPdf} onFocus={e => e.target.select()} onChange={e => setManualHoleriteForm(prev => ({ ...prev, totalVencimentosPdf: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Valor Desconto</label>
+                  <input type="number" step="0.01" value={manualHoleriteForm.totalDescontosPdf} onFocus={e => e.target.select()} onChange={e => setManualHoleriteForm(prev => ({ ...prev, totalDescontosPdf: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Extra Folha (opcional)</label>
+                  <input type="number" step="0.01" value={manualHoleriteForm.extraFolha} onFocus={e => e.target.select()} onChange={e => setManualHoleriteForm(prev => ({ ...prev, extraFolha: e.target.value }))} />
+                </div>
+              </div>
+              <p style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                Valor Depósito = Total − Desconto = <strong>R$ {((Number(manualHoleriteForm.totalVencimentosPdf) || 0) - (Number(manualHoleriteForm.totalDescontosPdf) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setManualHoleriteModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" type="submit">Adicionar à lista</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ═══ MODAL EXIBIR RECIBO ═══ */}
       {previewHolerite && (
