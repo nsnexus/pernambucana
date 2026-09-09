@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import TopNav from '../components/TopNav';
 import ProgressModal from '../components/ProgressModal';
 import InfoHint from '../components/InfoHint';
+import { carregarAbaRetifica, parseServicosRetifica, parseComprasRetifica } from '../utils/retificaSheet';
 import { IconPrinter, IconEdit, IconTrash, IconPlus, IconSearch, IconExcel, IconCheck } from '../components/Icons';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -277,6 +278,16 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [importText, setImportText] = useState('');
   const [importPreview, setImportPreview] = useState(null);
   const [parsedImportItems, setParsedImportItems] = useState([]);
+
+  // Importação da planilha da Retífica (Google Sheets do formulário)
+  const [retificaModal, setRetificaModal] = useState(false);
+  const [retificaAba, setRetificaAba] = useState('servicos');
+  const [retificaLoading, setRetificaLoading] = useState(false);
+  const [retificaMsg, setRetificaMsg] = useState(null);
+  const [retificaItems, setRetificaItems] = useState([]);
+  const [retificaPage, setRetificaPage] = useState(1);
+  const [retificaMarcarValidada, setRetificaMarcarValidada] = useState(false);
+  const RETIFICA_PAGE_SIZE = 50;
 
   // Duplicate check modal state
   const [duplicateModal, setDuplicateModal] = useState(false);
@@ -1536,6 +1547,80 @@ const Pernambucana = ({ onBackToGateway }) => {
     }
   };
 
+  // ── IMPORTAÇÃO PLANILHA RETÍFICA ──
+  const abrirRetificaImport = (aba) => {
+    setRetificaAba(aba === 'compras' ? 'compras' : 'servicos');
+    setRetificaItems([]);
+    setRetificaMsg(null);
+    setRetificaPage(1);
+    setRetificaMarcarValidada(false);
+    setRetificaModal(true);
+  };
+
+  const puxarRetifica = async () => {
+    setRetificaLoading(true);
+    setRetificaMsg('Carregando planilha...');
+    try {
+      const { rows } = await carregarAbaRetifica(retificaAba);
+      const parsed = retificaAba === 'compras' ? parseComprasRetifica(rows) : parseServicosRetifica(rows);
+
+      // Só o que ainda não foi para o sistema — compara pela chave da linha
+      const base = retificaAba === 'compras' ? allCompras : allServicos;
+      const jaImportadas = new Set(base.map(x => x.sheetKey).filter(Boolean));
+      const novos = parsed.filter(p => !jaImportadas.has(p.sheetKey)).map(p => ({ ...p, _incluir: true }));
+
+      setRetificaItems(novos);
+      setRetificaPage(1);
+      const total = parsed.length;
+      setRetificaMsg(
+        novos.length === 0
+          ? `Nenhum lançamento novo. ${total} linhas na planilha já estão no sistema.`
+          : `${novos.length} lançamento(s) novo(s) de ${total} na planilha. Revise/edite abaixo e carregue.`
+      );
+    } catch (err) {
+      setRetificaMsg('Erro: ' + err.message);
+    } finally {
+      setRetificaLoading(false);
+    }
+  };
+
+  const editarRetificaItem = (idxGlobal, patch) => {
+    setRetificaItems(prev => prev.map((it, i) => i === idxGlobal ? { ...it, ...patch } : it));
+  };
+
+  const confirmarRetificaImport = async () => {
+    const incluir = retificaItems.filter(it => it._incluir);
+    if (incluir.length === 0 || isSubmittingRef.current) return;
+    if (!window.confirm(`Carregar ${incluir.length} lançamento(s) da Retífica para o sistema?`)) return;
+    isSubmittingRef.current = true;
+    setIsImporting(true);
+    setProgressModal({ open: true, title: 'Importando planilha da Retífica', current: 0, total: incluir.length, message: 'Iniciando...', subMessage: 'Não feche a página.' });
+    try {
+      let count = 0;
+      for (let i = 0; i < incluir.length; i++) {
+        const { _incluir, ...item } = incluir[i];
+        item.setor = 'Retifica';
+        setProgressModal({ open: true, title: 'Importando planilha da Retífica', current: i + 1, total: incluir.length, message: `Gravando (${i + 1}/${incluir.length}): ${item.cliente || item.fornecedor || item.descricao || ''}`, subMessage: 'Não feche a página.' });
+        if (retificaAba === 'compras') {
+          await addCompra(item);
+        } else {
+          const ehPrazo = String(item.pagamento).toLowerCase().includes('prazo');
+          await addServico({ ...item, vendaValidada: ehPrazo ? retificaMarcarValidada : false });
+        }
+        count++;
+      }
+      triggerToast(`${count} lançamento(s) da Retífica importado(s).`);
+      setRetificaModal(false);
+      setRetificaItems([]);
+    } catch (err) {
+      alert('Erro na importação: ' + err.message);
+    } finally {
+      setIsImporting(false);
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
+  };
+
   // ── CHARTS SETUP ──
   const barChartData = useMemo(() => {
     const revenueByDept = { Mecanica: 0, Peças: 0, Retifica: 0, Torneadora: 0, Caldeiraria: 0 };
@@ -1921,6 +2006,11 @@ const Pernambucana = ({ onBackToGateway }) => {
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button className="btn outline sm" onClick={openImportModal} title="Importar dados copiados do Excel">
             <IconExcel /> Importar Excel
+          </button>
+        )}
+        {['servicos', 'compras'].includes(activeTab) && currentUser?.isAdmin && (
+          <button className="btn outline sm" onClick={() => abrirRetificaImport(activeTab)} title="Puxar lançamentos da planilha do formulário da Retífica">
+            📥 Puxar Retífica
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
@@ -3478,6 +3568,125 @@ const Pernambucana = ({ onBackToGateway }) => {
           </div>
         </div>
       )}
+
+      {/* Importar da planilha da Retífica */}
+      {retificaModal && (() => {
+        const incluidos = retificaItems.filter(it => it._incluir).length;
+        const totalPages = Math.max(1, Math.ceil(retificaItems.length / RETIFICA_PAGE_SIZE));
+        const page = Math.min(retificaPage, totalPages);
+        const start = (page - 1) * RETIFICA_PAGE_SIZE;
+        const visiveis = retificaItems.slice(start, start + RETIFICA_PAGE_SIZE);
+        const ehCompras = retificaAba === 'compras';
+        const setItem = (globalIdx, patch) => editarRetificaItem(globalIdx, patch);
+        return (
+        <div className="modal show">
+          <div className="modal-backdrop" onClick={() => !isImporting && setRetificaModal(false)}></div>
+          <div className="modal-form-card glass" style={{ zIndex: 10, width: 'min(1200px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <h3>📥 Puxar da planilha da Retífica — {ehCompras ? 'Compras' : 'Serviços'}</h3>
+              <button className="close" type="button" disabled={isImporting} onClick={() => setRetificaModal(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ overflowY: 'auto' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
+                <button className="btn primary sm" disabled={retificaLoading || isImporting} onClick={puxarRetifica}>
+                  {retificaLoading ? 'Carregando...' : (retificaItems.length ? '↻ Puxar de novo' : 'Puxar dados da planilha')}
+                </button>
+                {!ehCompras && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                    <input type="checkbox" checked={retificaMarcarValidada} onChange={e => setRetificaMarcarValidada(e.target.checked)} />
+                    Marcar vendas a prazo como validadas (gera recebíveis; parcelas vencidas entram como recebidas)
+                  </label>
+                )}
+              </div>
+              {retificaMsg && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(31,182,255,0.08)', fontSize: '13px', marginBottom: '12px' }}>{retificaMsg}</div>
+              )}
+
+              {retificaItems.length > 0 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn outline sm" onClick={() => setRetificaItems(prev => prev.map(it => ({ ...it, _incluir: true })))}>Marcar todos</button>
+                      <button className="btn outline sm" onClick={() => setRetificaItems(prev => prev.map(it => ({ ...it, _incluir: false })))}>Desmarcar todos</button>
+                    </div>
+                    <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{incluidos} de {retificaItems.length} selecionados</span>
+                  </div>
+
+                  <div className="table-wrap" style={{ overflowX: 'auto', maxHeight: '48vh' }}>
+                    <table className="compact-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Data</th>
+                          {ehCompras ? <th>Fornecedor</th> : <th>Cliente</th>}
+                          <th>Descrição</th>
+                          {ehCompras ? <th>Nº OS</th> : <th>OS</th>}
+                          {!ehCompras && <th>Qtd</th>}
+                          {!ehCompras && <th>Vlr Unit.</th>}
+                          {ehCompras ? <th>Valor OS</th> : <th>Vlr Total</th>}
+                          {ehCompras ? <th>Vlr Produto</th> : <th>Desconto</th>}
+                          {ehCompras ? <th>Solicitante</th> : <th>Produtivo</th>}
+                          <th>Pagamento</th>
+                          {ehCompras ? <th>Categoria</th> : <th>Tipo</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visiveis.map((it, vi) => {
+                          const gi = start + vi;
+                          const numInput = (field, w = 90) => (
+                            <input type="number" step="0.01" value={it[field] ?? 0} onChange={e => setItem(gi, { [field]: parseFloat(e.target.value) || 0 })} className="ag-grid-input" style={{ width: w }} />
+                          );
+                          const txtInput = (field, w = 130) => (
+                            <input type="text" value={it[field] ?? ''} onChange={e => setItem(gi, { [field]: e.target.value })} className="ag-grid-input" style={{ width: w }} />
+                          );
+                          return (
+                            <tr key={gi} style={it._incluir ? {} : { opacity: 0.4 }}>
+                              <td style={{ textAlign: 'center' }}>
+                                <input type="checkbox" checked={!!it._incluir} onChange={() => setItem(gi, { _incluir: !it._incluir })} />
+                              </td>
+                              <td><input type="date" value={it.data || ''} onChange={e => setItem(gi, { data: e.target.value })} className="ag-grid-input" style={{ width: 130 }} /></td>
+                              <td>{ehCompras ? txtInput('fornecedor', 150) : txtInput('cliente', 150)}</td>
+                              <td>{txtInput('descricao', 200)}</td>
+                              <td>{ehCompras ? txtInput('numOS', 80) : txtInput('os', 80)}</td>
+                              {!ehCompras && <td>{numInput('qtd', 60)}</td>}
+                              {!ehCompras && <td>{numInput('valorUnitario')}</td>}
+                              <td>{ehCompras ? numInput('valorOS') : numInput('valorTotal')}</td>
+                              <td>{ehCompras ? numInput('valorProduto') : numInput('desconto')}</td>
+                              <td>{ehCompras ? txtInput('solicitante', 110) : txtInput('produtivo', 110)}</td>
+                              <td>
+                                <select value={ehCompras ? (it.formaCompra || 'À vista') : (it.pagamento || 'À vista')} onChange={e => setItem(gi, ehCompras ? { formaCompra: e.target.value } : { pagamento: e.target.value })} className="ag-grid-input">
+                                  <option value="À vista">À vista</option>
+                                  <option value="À prazo">À prazo</option>
+                                </select>
+                              </td>
+                              <td>{ehCompras ? txtInput('categoria', 110) : txtInput('tipoServico', 110)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', marginTop: '10px' }}>
+                      <button className="btn outline sm" disabled={page <= 1} onClick={() => setRetificaPage(page - 1)}>Anterior</button>
+                      <span style={{ fontSize: '13px' }}>Página {page} de {totalPages}</span>
+                      <button className="btn outline sm" disabled={page >= totalPages} onClick={() => setRetificaPage(page + 1)}>Próximo</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" disabled={isImporting} onClick={() => setRetificaModal(false)}>Cancelar</button>
+              <button className="btn primary" disabled={isImporting || incluidos === 0} onClick={confirmarRetificaImport}>
+                {isImporting ? <><span className="btn-spinner"></span> Carregando...</> : `Carregar ${incluidos} para o sistema`}
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* Duplicate Checker Modal */}
       {duplicateModal && (
