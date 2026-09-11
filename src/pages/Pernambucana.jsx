@@ -45,6 +45,31 @@ const DEPT_LABELS = {
   Prolabore: 'Pró-labore'
 };
 
+// Categorias de despesa (boletos). O hint explica o que entra em cada uma.
+const CATEGORIAS_BOLETO = [
+  { v: 'Alimentação', hint: '' },
+  { v: 'Energia', hint: '' },
+  { v: 'Comissão', hint: 'Pagamento de comissões externas' },
+  { v: 'Custos Judiciais', hint: 'Pagamento de ações judiciais' },
+  { v: 'Manutenção de Equipamento', hint: 'Maquinário da empresa' },
+  { v: 'EPI', hint: 'EPI – Funcionários' },
+  { v: 'Equipamentos Novos', hint: 'Aquisição de novos equipamentos/eletrônicos' },
+  { v: 'Especialistas', hint: 'Contabilidade, clínica, advogado, téc. em segurança/meio ambiente, sistema noturno' },
+  { v: 'Ferramentaria', hint: 'Novas aquisições para ferramentaria' },
+  { v: 'Frete', hint: 'Frete de peças e serviços' },
+  { v: 'Imposto Governo', hint: 'Impostos estaduais, municipais e federais' },
+  { v: 'Insumo Administrativo', hint: 'Material administrativo' },
+  { v: 'IPVA', hint: '' },
+  { v: 'Leo', hint: '' },
+  { v: 'Manutenção Veículos', hint: 'Manutenção dos carros e motos da loja' },
+  { v: 'Material de Limpeza', hint: '' },
+  { v: 'Peças – OS', hint: 'Compra de peças para atender OS' },
+  { v: 'Serviços Extras', hint: '' },
+  { v: 'Despesas Fixas', hint: 'Telefone, internet, noturno, uniforme, água' },
+  { v: 'Outros', hint: 'Sem categoria específica' },
+];
+const CATEGORIA_BOLETO_HINTS = Object.fromEntries(CATEGORIAS_BOLETO.map(c => [c.v, c.hint]));
+
 // Date format parser (YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, etc.)
 function parseYearMonth(dateStr) {
   if (!dateStr) return { year: '', month: 0, day: 0 };
@@ -268,9 +293,10 @@ const Pernambucana = ({ onBackToGateway }) => {
   const [boletoEditId, setBoletoEditId] = useState(null);
   const [boletoForm, setBoletoForm] = useState({
     dataVencimento: '', fornecedor: '', descricao: '', valorBoleto: 0,
-    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', valoresSetores: {}, setoresEditados: [],
+    setor: 'Todos', status: 'Pago', dataPagamento: '', setores: [], titularNota: '', categoria: '', valoresSetores: {}, setoresEditados: [],
     qtdBoletos: 1, datasVencimento: []
   });
+  const [categoriaFilter, setCategoriaFilter] = useState('all');
 
   // Excel paste import modal
   const [importModal, setImportModal] = useState(false);
@@ -605,10 +631,13 @@ const Pernambucana = ({ onBackToGateway }) => {
   }), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, validadoFilter]);
   const filteredCompras = useMemo(() => filterList(allCompras), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
   const filteredBoletos = useMemo(() => filterList(allBoletos, (item) => {
-    if (titularFilter === 'all') return true;
-    if (titularFilter === 'LF Carvalho') return item.titularNota === 'LF Carvalho' || item.titularNota === 'LF';
-    return item.titularNota === titularFilter;
-  }), [allBoletos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, titularFilter]);
+    if (titularFilter !== 'all') {
+      const titularOk = titularFilter === 'LF Carvalho' ? (item.titularNota === 'LF Carvalho' || item.titularNota === 'LF') : item.titularNota === titularFilter;
+      if (!titularOk) return false;
+    }
+    if (categoriaFilter !== 'all' && item.categoria !== categoriaFilter) return false;
+    return true;
+  }), [allBoletos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, titularFilter, categoriaFilter]);
   
   const filteredRecebiveis = useMemo(() => filterList(allRecebiveis, (item) => {
     if (statusFilter === 'all') return true;
@@ -829,6 +858,7 @@ const Pernambucana = ({ onBackToGateway }) => {
       setor: deptFilter !== 'all' ? deptFilter : 'Todos', status: 'Pago', dataPagamento: hoje,
       setores: deptFilter !== 'all' ? [deptFilter] : initialSetores,
       titularNota: '',
+      categoria: '',
       valoresSetores: eqSplit,
       setoresEditados: [],
       qtdBoletos: 1,
@@ -850,6 +880,7 @@ const Pernambucana = ({ onBackToGateway }) => {
       dataPagamento: item.dataPagamento || '',
       setores: itemSetores,
       titularNota: item.titularNota || '',
+      categoria: item.categoria || '',
       valoresSetores: item.valoresSetores || helperEqualSplit(itemSetores, item.valorBoleto || 0),
       setoresEditados: [],
       qtdBoletos: 1,
@@ -1431,6 +1462,7 @@ const Pernambucana = ({ onBackToGateway }) => {
         let valorBoletoVal = 0;
         let setorVal = 'Todos';
         let titularNotaVal = '';
+        let categoriaVal = '';
 
         if (firstRowHasHeaders) {
           mesVencVal = getVal(['mes', 'mes vencimento', 'mesvencimento']);
@@ -1439,14 +1471,16 @@ const Pernambucana = ({ onBackToGateway }) => {
           valorBoletoVal = parseExcelNumber(getVal(['valor', 'valor boleto', 'valorboleto']));
           setorVal = getVal(['setor', 'setores', 'lancamento']);
           titularNotaVal = getVal(['titular', 'titular nota', 'empresa']);
+          categoriaVal = getVal(['categoria', 'categoria da despesa']);
         } else {
-          while (cols.length < 6) cols.push('');
+          while (cols.length < 7) cols.push('');
           mesVencVal = cols[0];
           dataVencVal = cols[1];
           fornecedorVal = cols[2];
           valorBoletoVal = parseExcelNumber(cols[3]);
           setorVal = cols[4];
           titularNotaVal = cols[5];
+          categoriaVal = cols[6];
         }
 
         const secsNormalized = parseBoletoSectors(setorVal);
@@ -1460,7 +1494,8 @@ const Pernambucana = ({ onBackToGateway }) => {
           setores: secsNormalized,
           status: 'Pago',
           dataPagamento: parseExcelDate(dataVencVal),
-          titularNota: cleanCell(titularNotaVal) || 'LF Carvalho'
+          titularNota: cleanCell(titularNotaVal) || 'LF Carvalho',
+          categoria: cleanCell(categoriaVal) || 'Outros'
         });
       }
     }
@@ -1705,6 +1740,32 @@ const Pernambucana = ({ onBackToGateway }) => {
           'rgba(244, 63, 94, 0.8)',
           'rgba(14, 165, 233, 0.8)',
           'rgba(168, 85, 247, 0.8)',
+          'rgba(156, 163, 175, 0.8)'
+        ],
+        borderWidth: 0
+      }]
+    };
+  }, [dashboardStats]);
+
+  const despesasCategoriaChartData = useMemo(() => {
+    const categorized = {};
+    dashboardStats.splitBoletosList.forEach(b => {
+      const cat = b.categoria || 'Outros';
+      categorized[cat] = (categorized[cat] || 0) + (parseFloat(b.valorSplit) || 0);
+    });
+    const sorted = Object.entries(categorized).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return {
+      labels: sorted.map(s => s[0]),
+      datasets: [{
+        data: sorted.map(s => s[1]),
+        backgroundColor: [
+          'rgba(31, 182, 255, 0.85)',
+          'rgba(236, 177, 31, 0.8)',
+          'rgba(244, 63, 94, 0.8)',
+          'rgba(14, 165, 233, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+          'rgba(78, 226, 71, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
           'rgba(156, 163, 175, 0.8)'
         ],
         borderWidth: 0
@@ -1958,6 +2019,16 @@ const Pernambucana = ({ onBackToGateway }) => {
         </label>
       )}
 
+      {activeTab === 'boletos' && (
+        <label>
+          Categoria
+          <select value={categoriaFilter} onChange={(e) => setCategoriaFilter(e.target.value)}>
+            <option value="all">Todas</option>
+            {CATEGORIAS_BOLETO.map(c => <option key={c.v} value={c.v}>{c.v}</option>)}
+          </select>
+        </label>
+      )}
+
       <label className="search-field">
         Busca
         <input type="search" placeholder="Buscar por OS, cliente, fornecedor..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -2167,6 +2238,12 @@ const Pernambucana = ({ onBackToGateway }) => {
                 <h3>Despesas com Boletos (Fornecedores)</h3>
                 <div style={{ height: '260px', position: 'relative' }}>
                   <Pie data={despesasPieData} options={pieOptions} />
+                </div>
+              </div>
+              <div className="ag-chart-card glass">
+                <h3>Despesas por Categoria</h3>
+                <div style={{ height: '260px', position: 'relative' }}>
+                  <Pie data={despesasCategoriaChartData} options={pieOptions} />
                 </div>
               </div>
               <div className="ag-chart-card glass">
@@ -2713,6 +2790,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                       <th>Valor Total</th>
                       <th>Setor(es)</th>
                       <th>Titular Nota</th>
+                      <th>Categoria</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2724,6 +2802,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
                         <td>{item.setor || 'Todos'}</td>
                         <td>{item.titularNota || '-'}</td>
+                        <td>{item.categoria || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2749,7 +2828,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                           />
                         </th>
                         <th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>Valor Total</th>
-                        <th>Setor(es)</th><th>Titular Nota</th><th>Ações</th>
+                        <th>Setor(es)</th><th>Titular Nota</th><th>Categoria</th><th>Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2817,6 +2896,16 @@ const Pernambucana = ({ onBackToGateway }) => {
                               )}
                             </td>
                             <td>
+                              {gridEditMode ? (
+                                <select value={rowData.categoria || ''} onChange={e => handleGridCellChange(item.id, 'categoria', e.target.value)} className="ag-grid-input">
+                                  <option value="">Selecione</option>
+                                  {CATEGORIAS_BOLETO.map(c => <option key={c.v} value={c.v}>{c.v}</option>)}
+                                </select>
+                              ) : (
+                                item.categoria || '-'
+                              )}
+                            </td>
+                            <td>
                               <div className="ag-table-actions">
                                 {!gridEditMode && (
                                   <button className="btn icon-only edit" title="Editar Boleto" onClick={() => openEditBoleto(item)}>
@@ -2833,7 +2922,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
+                        <tr><td colSpan="8" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -3415,6 +3504,19 @@ const Pernambucana = ({ onBackToGateway }) => {
                     <option value="Pernambucana">Pernambucana</option>
                     <option value="Prolabore">Pró-labore</option>
                   </select>
+                </div>
+                <div className="form-group">
+                  <label>
+                    Categoria da Despesa
+                    <InfoHint text="Classifica a despesa para o gráfico de Despesas por Categoria no dashboard." />
+                  </label>
+                  <select required value={boletoForm.categoria} onChange={e => setBoletoForm(prev => ({ ...prev, categoria: e.target.value }))}>
+                    <option value="">Selecione...</option>
+                    {CATEGORIAS_BOLETO.map(c => <option key={c.v} value={c.v}>{c.v}</option>)}
+                  </select>
+                  {boletoForm.categoria && CATEGORIA_BOLETO_HINTS[boletoForm.categoria] && (
+                    <small style={{ color: 'var(--muted)', display: 'block', marginTop: '4px' }}>{CATEGORIA_BOLETO_HINTS[boletoForm.categoria]}</small>
+                  )}
                 </div>
               </div>
 
