@@ -1719,9 +1719,16 @@ const Pernambucana = ({ onBackToGateway }) => {
     };
   }, [dashboardStats]);
 
+  // Filtro de Categoria (despesa) aplicado só aos gráficos de boletos — não
+  // altera as demais métricas do dashboard (entradas/saídas/saldo).
+  const boletosParaGraficos = useMemo(() => {
+    if (categoriaFilter === 'all') return dashboardStats.splitBoletosList;
+    return dashboardStats.splitBoletosList.filter(b => (b.categoria || 'Outros') === categoriaFilter);
+  }, [dashboardStats, categoriaFilter]);
+
   const despesasPieData = useMemo(() => {
     const categorized = {};
-    dashboardStats.splitBoletosList.forEach(b => {
+    boletosParaGraficos.forEach(b => {
       const cat = b.fornecedor || 'Diversos';
       categorized[cat] = (categorized[cat] || 0) + (parseFloat(b.valorSplit) || 0);
     });
@@ -1745,11 +1752,11 @@ const Pernambucana = ({ onBackToGateway }) => {
         borderWidth: 0
       }]
     };
-  }, [dashboardStats]);
+  }, [boletosParaGraficos]);
 
   const despesasCategoriaChartData = useMemo(() => {
     const categorized = {};
-    dashboardStats.splitBoletosList.forEach(b => {
+    boletosParaGraficos.forEach(b => {
       const cat = b.categoria || 'Outros';
       categorized[cat] = (categorized[cat] || 0) + (parseFloat(b.valorSplit) || 0);
     });
@@ -1771,7 +1778,7 @@ const Pernambucana = ({ onBackToGateway }) => {
         borderWidth: 0
       }]
     };
-  }, [dashboardStats]);
+  }, [boletosParaGraficos]);
 
   const chartCaixaMensal = useMemo(() => {
     const sForYear = allServicos.filter(s => {
@@ -2019,9 +2026,9 @@ const Pernambucana = ({ onBackToGateway }) => {
         </label>
       )}
 
-      {activeTab === 'boletos' && (
+      {['boletos', 'dashboard'].includes(activeTab) && (
         <label>
-          Categoria
+          Categoria (despesa)
           <select value={categoriaFilter} onChange={(e) => setCategoriaFilter(e.target.value)}>
             <option value="all">Todas</option>
             {CATEGORIAS_BOLETO.map(c => <option key={c.v} value={c.v}>{c.v}</option>)}
