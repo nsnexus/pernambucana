@@ -2382,21 +2382,19 @@ const AutoGeral = ({ onBackToGateway }) => {
         </div>
       )}
 
-      {/* Excel Mode Floating Sticky Bar */}
-      {Object.keys(gridChanges).length > 0 && (
-        <div className="ag-sticky-bar glass" style={{
-          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 999, display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 24px',
-          borderRadius: '16px', border: '1px solid var(--yellow)', boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-          background: 'rgba(13,34,51,0.95)', backdropFilter: 'blur(12px)'
-        }}>
-          <span style={{ color: 'var(--yellow)', fontWeight: 'bold', fontSize: '13px' }}>
-            ⚠️ Existem {Object.keys(gridChanges).length} linhas com alterações não salvas.
+      {/* Barra da Edição Rápida (Modo Planilha) — padronizada com a Pernambucana:
+          aparece assim que entra no modo, não só depois de editar algo. */}
+      {gridEditMode && (
+        <div className="grid-save-bar">
+          <span>
+            {Object.keys(gridChanges).length > 0
+              ? `⚠️ ${Object.keys(gridChanges).length} linha(s) com alterações não salvas.`
+              : 'Modo planilha ativo. Modifique os valores abaixo.'}
           </span>
-          <button className="btn primary" style={{ height: '36px', padding: '0 16px' }} disabled={isSavingGrid} onClick={saveGridChanges}>
+          <button className="btn" disabled={isSavingGrid} onClick={saveGridChanges}>
             {isSavingGrid ? <><span className="btn-spinner"></span> Salvando...</> : 'Salvar Alterações'}
           </button>
-          <button className="btn ghost" style={{ height: '36px', padding: '0 16px', color: 'var(--red)', borderColor: 'rgba(244,63,94,0.3)' }} disabled={isSavingGrid} onClick={discardGridChanges}>Descartar</button>
+          <button className="btn ghost" disabled={isSavingGrid} onClick={discardGridChanges}>Descartar</button>
         </div>
       )}
 

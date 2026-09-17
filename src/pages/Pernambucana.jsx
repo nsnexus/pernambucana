@@ -2077,7 +2077,7 @@ const Pernambucana = ({ onBackToGateway }) => {
             className={`btn outline sm ${gridEditMode ? 'active' : ''}`}
             onClick={() => {
               if (gridEditMode && Object.keys(gridChanges).length > 0) {
-                if (!window.confirm('Você tem alterações não salvas. Sair sem salvar?')) return;
+                if (!window.confirm('Descartar alterações pendentes?')) return;
                 setGridChanges({});
               }
               setGridEditMode(!gridEditMode);
