@@ -63,6 +63,38 @@ body.theme-white .painel-layout {
   border-radius: var(--radius);
 }
 
+/* Barra "Salvar Alterações" da Edição Rápida — nunca tinha estilo próprio,
+   só ficava escondida atrás do .glass sem padding/layout, quase invisível. */
+.grid-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  margin: 16px 0;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+  background: rgba(245, 158, 11, 0.1) !important;
+}
+
+.grid-save-bar span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--yellow);
+}
+
+.grid-save-bar .btn {
+  background: var(--yellow);
+  color: #1a1200;
+  font-weight: 800;
+  border: none;
+}
+
+body.theme-white .grid-save-bar {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+}
+
 /* ═══════════════════════════════════════════
    TOP NAVIGATION BAR
    ═══════════════════════════════════════════ */

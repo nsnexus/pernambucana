@@ -2073,9 +2073,15 @@ const Pernambucana = ({ onBackToGateway }) => {
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
-          <button 
+          <button
             className={`btn outline sm ${gridEditMode ? 'active' : ''}`}
-            onClick={() => setGridEditMode(!gridEditMode)}
+            onClick={() => {
+              if (gridEditMode && Object.keys(gridChanges).length > 0) {
+                if (!window.confirm('Você tem alterações não salvas. Sair sem salvar?')) return;
+                setGridChanges({});
+              }
+              setGridEditMode(!gridEditMode);
+            }}
             title="Ativar modo de edição rápida similar ao Excel"
           >
             {gridEditMode ? <><IconCheck /> Sair Edição</> : <><IconEdit /> Edição Rápida</>}
