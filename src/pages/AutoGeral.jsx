@@ -527,9 +527,11 @@ const AutoGeral = ({ onBackToGateway }) => {
 
   // Pagination helper
   const paginate = (list) => {
-    if (gridEditMode) {
-      return { paginated: list, totalPages: 1, page: 1, total: list.length };
-    }
+    // Mantém a paginação mesmo no Modo Planilha — sem isso a tabela carregava
+    // tudo de uma vez e ficava pesada/impossível de usar em bases grandes. As
+    // alterações (gridChanges) ficam guardadas por id, então trocar de página
+    // no meio da edição não perde nada — a barra de Salvar continua contando
+    // todas as linhas alteradas, mesmo as de outras páginas.
     const totalPages = Math.ceil(list.length / itemsPerPage) || 1;
     const page = Math.min(currentPage, totalPages);
     const paginated = list.slice((page - 1) * itemsPerPage, page * itemsPerPage);
