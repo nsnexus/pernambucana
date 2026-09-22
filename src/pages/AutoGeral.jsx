@@ -76,6 +76,7 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [validadoFilter, setValidadoFilter] = useState('all'); // all | validados | pendentes
+  const [formaCompraFilter, setFormaCompraFilter] = useState('all'); // all | vista | prazo
   const [selectedRecebiveis, setSelectedRecebiveis] = useState([]);
 
   // Pagination
@@ -462,8 +463,13 @@ const AutoGeral = ({ onBackToGateway }) => {
     const totalBoletos = bFiltered.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0);
     const totalCompras = cFiltered.reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
 
+    // Compra à vista é despesa efetiva (só a "à Prazo" não conta aqui)
+    const totalComprasVista = cFiltered
+      .filter(c => !String(c.formaCompra || '').toLowerCase().includes('prazo'))
+      .reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
+
     const entradas = totalServicoVista + totalRecebido;
-    const saidas = totalBoletos;
+    const saidas = totalBoletos + totalComprasVista;
     const saldo = entradas - saidas;
 
     return {
@@ -474,6 +480,7 @@ const AutoGeral = ({ onBackToGateway }) => {
       totalVencido,
       totalBoletos,
       totalCompras,
+      totalComprasVista,
       entradas,
       saidas,
       saldo,
@@ -511,7 +518,11 @@ const AutoGeral = ({ onBackToGateway }) => {
     if (!ehPrazo) return false;
     return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
   }), [servicos, monthFilter, yearFilter, dayFilter, searchQuery, validadoFilter]);
-  const filteredCompras = useMemo(() => filterList(compras), [compras, monthFilter, yearFilter, dayFilter, searchQuery]);
+  const filteredCompras = useMemo(() => filterList(compras, (item) => {
+    if (formaCompraFilter === 'all') return true;
+    const ehPrazo = String(item.formaCompra || '').toLowerCase().includes('prazo');
+    return formaCompraFilter === 'prazo' ? ehPrazo : !ehPrazo;
+  }), [compras, monthFilter, yearFilter, dayFilter, searchQuery, formaCompraFilter]);
   const filteredBoletos = useMemo(() => filterList(boletos), [boletos, monthFilter, yearFilter, dayFilter, searchQuery]);
   const filteredRecebiveis = useMemo(() => filterList(recebiveis, (item) => {
     if (statusFilter === 'all') return true;
@@ -1142,7 +1153,7 @@ const AutoGeral = ({ onBackToGateway }) => {
     </div>
   );
 
-  const renderFilters = (showStatus = false, showValidado = false) => (
+  const renderFilters = (showStatus = false, showValidado = false, showTipoCompra = false) => (
     <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px' }}>
       <label>
         Ano
@@ -1185,6 +1196,16 @@ const AutoGeral = ({ onBackToGateway }) => {
             <option value="all">Todos</option>
             <option value="validados">Validados</option>
             <option value="pendentes">Não validados</option>
+          </select>
+        </label>
+      )}
+      {showTipoCompra && (
+        <label>
+          Tipo de Compra
+          <select value={formaCompraFilter} onChange={(e) => setFormaCompraFilter(e.target.value)}>
+            <option value="all">Todas</option>
+            <option value="vista">À vista (despesa)</option>
+            <option value="prazo">À prazo</option>
           </select>
         </label>
       )}
@@ -1305,9 +1326,9 @@ const AutoGeral = ({ onBackToGateway }) => {
                 <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
               </div>
               <div className="ag-caixa-card glass negative">
-                <div className="caixa-label">Saídas (Boletos)</div>
+                <div className="caixa-label">Saídas</div>
                 <span className="caixa-value">{fmtMoney.format(dashboardStats.saidas)}</span>
-                <div className="caixa-sub">{dashboardStats.bFiltered.length} boletos</div>
+                <div className="caixa-sub">Boletos + Compras à vista</div>
                 <svg className="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
               </div>
             </div>
@@ -1607,10 +1628,10 @@ const AutoGeral = ({ onBackToGateway }) => {
               <div className="ag-section-header">
                 <div>
                   <h1>Relatório de Compras</h1>
-                  <p>Detalhamento dos gastos do setor Alto Geral. Estes gastos alimentam o relatório de Boletos a Pagar.</p>
+                  <p>Detalhamento dos gastos do setor Alto Geral. Compra à vista entra como despesa no caixa; à prazo, não.</p>
                 </div>
               </div>
-              {renderFilters()}
+              {renderFilters(false, false, true)}
 
               {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
               <div className="print-only-container">

@@ -78,8 +78,14 @@ function calculateAutoGeralConsolidation(servList, compList, boletoList, recebiv
   const totalBoletos = bFiltered.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0);
   const totalCompras = cFiltered.reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
 
+  // Compra à vista (Pix/Cartão/Dinheiro) é despesa efetiva assim que é feita —
+  // só a "à Prazo" não conta aqui (vai como recebível/pagamento futuro).
+  const totalComprasVista = cFiltered
+    .filter(c => !String(c.formaCompra || '').toLowerCase().includes('prazo'))
+    .reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
+
   const entradas = totalServicoVista + totalRecebido;
-  const saidas = totalBoletos;
+  const saidas = totalBoletos + totalComprasVista;
   const saldo = entradas - saidas;
 
   const mecanicos = {};
@@ -115,6 +121,7 @@ function calculateAutoGeralConsolidation(servList, compList, boletoList, recebiv
     totalVencido,
     totalBoletos,
     totalCompras,
+    totalComprasVista,
     entradas,
     saidas,
     saldo,
@@ -645,6 +652,11 @@ export const AutoGeralProvider = ({ children }) => {
     // Total compras
     const totalCompras = compras.reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
 
+    // Compra à vista é despesa efetiva (só a "à Prazo" não conta aqui)
+    const totalComprasVista = compras
+      .filter(c => !String(c.formaCompra || '').toLowerCase().includes('prazo'))
+      .reduce((sum, c) => sum + (parseFloat(c.valorPeca) || 0), 0);
+
     // Total serviços geral
     const totalServicos = servicos.reduce((sum, s) => sum + (parseFloat(s.valorOS) || 0), 0);
 
@@ -652,7 +664,7 @@ export const AutoGeralProvider = ({ children }) => {
     const entradas = totalServicoVista + totalRecebido;
 
     // Saídas efetivas
-    const saidas = totalBoletos;
+    const saidas = totalBoletos + totalComprasVista;
 
     // Saldo
     const saldo = entradas - saidas;
@@ -665,6 +677,7 @@ export const AutoGeralProvider = ({ children }) => {
       totalVencido,
       totalBoletos,
       totalCompras,
+      totalComprasVista,
       entradas,
       saidas,
       saldo,

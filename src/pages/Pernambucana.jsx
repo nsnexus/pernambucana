@@ -297,6 +297,7 @@ const Pernambucana = ({ onBackToGateway }) => {
     qtdBoletos: 1, datasVencimento: []
   });
   const [categoriaFilter, setCategoriaFilter] = useState('all');
+  const [formaCompraFilter, setFormaCompraFilter] = useState('all'); // all | vista | prazo
 
   // Excel paste import modal
   const [importModal, setImportModal] = useState(false);
@@ -629,7 +630,11 @@ const Pernambucana = ({ onBackToGateway }) => {
     if (!ehPrazo) return false; // filtro de validação só faz sentido em venda a prazo
     return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
   }), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, validadoFilter]);
-  const filteredCompras = useMemo(() => filterList(allCompras), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser]);
+  const filteredCompras = useMemo(() => filterList(allCompras, (item) => {
+    if (formaCompraFilter === 'all') return true;
+    const ehPrazo = String(item.formaCompra || '').toLowerCase().includes('prazo');
+    return formaCompraFilter === 'prazo' ? ehPrazo : !ehPrazo;
+  }), [allCompras, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, formaCompraFilter]);
   const filteredBoletos = useMemo(() => filterList(allBoletos, (item) => {
     if (titularFilter !== 'all') {
       const titularOk = titularFilter === 'LF Carvalho' ? (item.titularNota === 'LF Carvalho' || item.titularNota === 'LF') : item.titularNota === titularFilter;
@@ -1949,7 +1954,7 @@ const Pernambucana = ({ onBackToGateway }) => {
   };
 
   // ── FILTER BAR RENDERING ──
-  const renderFilters = (showStatus = false, showValidado = false) => (
+  const renderFilters = (showStatus = false, showValidado = false, showTipoCompra = false) => (
     <div className="ag-filters glass" style={{ padding: '14px 20px', borderRadius: '14px' }}>
       <label>
         Ano
@@ -2035,6 +2040,17 @@ const Pernambucana = ({ onBackToGateway }) => {
           <select value={categoriaFilter} onChange={(e) => setCategoriaFilter(e.target.value)}>
             <option value="all">Todas</option>
             {CATEGORIAS_BOLETO.map(c => <option key={c.v} value={c.v}>{c.v}</option>)}
+          </select>
+        </label>
+      )}
+
+      {showTipoCompra && (
+        <label>
+          Tipo de Compra
+          <select value={formaCompraFilter} onChange={(e) => setFormaCompraFilter(e.target.value)}>
+            <option value="all">Todas</option>
+            <option value="vista">À vista (despesa)</option>
+            <option value="prazo">À prazo</option>
           </select>
         </label>
       )}
@@ -2559,10 +2575,10 @@ const Pernambucana = ({ onBackToGateway }) => {
               <div className="ag-section-header">
                 <div>
                   <h1>Compras de Peças (Detalhamento)</h1>
-                  <p>Peças e materiais comprados para a oficina ou cliente (Não deduz do Caixa).</p>
+                  <p>Peças e materiais comprados para a oficina ou cliente. Compra à vista entra como despesa no caixa; à prazo, não.</p>
                 </div>
               </div>
-              {renderFilters()}
+              {renderFilters(false, false, true)}
 
               {gridEditMode && (
                 <div className="grid-save-bar glass">
