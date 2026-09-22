@@ -43,8 +43,9 @@ const AutoGeral = ({ onBackToGateway }) => {
     addBoleto, updateBoleto, deleteBoleto,
     toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote,
     importServicosFromExcel, importComprasFromExcel, importBoletosFromExcel,
-    consolidado, rawQueriesActive, enableRawQueries
+    consolidado, rawQueriesActive, enableRawQueries, runAutoGeralMigration
   } = useAutoGeral();
+  const [isRecalculandoHistorico, setIsRecalculandoHistorico] = useState(false);
 
   // Theme
   const [whiteTheme, setWhiteTheme] = useState(() =>
@@ -1291,6 +1292,38 @@ const AutoGeral = ({ onBackToGateway }) => {
                 <h1>Painel Financeiro — Alto Geral</h1>
                 <p>Visão consolidada do caixa, recebíveis e despesas do setor.</p>
               </div>
+              <button
+                className="btn outline sm"
+                disabled={isRecalculandoHistorico}
+                title="Regera a consolidação mensal de todos os meses (necessário depois de mudar a regra de cálculo de saídas)"
+                onClick={async () => {
+                  // Os 4 conjuntos de dados (serviços/compras/boletos/recebíveis) só
+                  // carregam de verdade quando rawQueriesActive está ligado e loading
+                  // termina — nunca dispara a regravação com dados parciais/vazios,
+                  // senão zera meses inteiros por engano.
+                  if (!rawQueriesActive || loading) {
+                    enableRawQueries();
+                    triggerToast('Carregando dados completos... aguarde alguns segundos e clique de novo.');
+                    return;
+                  }
+                  if (servicos.length === 0 && compras.length === 0 && boletos.length === 0) {
+                    alert('Nenhum dado carregado ainda. Aguarde mais um pouco e tente de novo.');
+                    return;
+                  }
+                  if (!window.confirm('Recalcular a consolidação de todos os meses agora? Isso corrige o histórico pra incluir Compras à Vista nas Saídas.')) return;
+                  setIsRecalculandoHistorico(true);
+                  try {
+                    await runAutoGeralMigration();
+                    triggerToast('Histórico recalculado com sucesso.');
+                  } catch (err) {
+                    alert('Erro ao recalcular: ' + err.message);
+                  } finally {
+                    setIsRecalculandoHistorico(false);
+                  }
+                }}
+              >
+                {isRecalculandoHistorico ? <><span className="btn-spinner"></span> Recalculando...</> : '🔄 Recalcular Histórico'}
+              </button>
             </div>
 
             {/* Filtros do Dashboard */}
