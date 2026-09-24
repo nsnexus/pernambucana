@@ -2116,7 +2116,7 @@ const Pernambucana = ({ onBackToGateway }) => {
             📥 Puxar Retífica
           </button>
         )}
-        {['servicos', 'compras', 'boletos'].includes(activeTab) && (
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
           <button
             className="btn warning sm"
             onClick={() => setDuplicateModal(true)}
