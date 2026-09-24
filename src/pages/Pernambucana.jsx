@@ -2777,6 +2777,18 @@ const Pernambucana = ({ onBackToGateway }) => {
         {/* ═══ BOLETOS TAB ═══ */}
         {activeTab === 'boletos' && (() => {
           const p = paginate(filteredBoletos);
+          // Com um setor filtrado, mostra a fatia daquele setor (rateio), não o
+          // valor total do boleto — um boleto de R$100 dividido entre 2 setores
+          // mostra R$50 quando filtra por um deles. filteredBoletos já garante
+          // que o setor filtrado está entre os beneficiados do boleto.
+          const valorParaSetor = (b) => {
+            if (deptFilter === 'all') return parseFloat(b.valorBoleto) || 0;
+            if (b.valoresSetores && b.valoresSetores[deptFilter] !== undefined) {
+              return parseFloat(b.valoresSetores[deptFilter]) || 0;
+            }
+            const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
+            return (parseFloat(b.valorBoleto) || 0) / (secs.length || 1);
+          };
           return (
             <div>
               <div className="ag-section-header">
@@ -2810,7 +2822,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   </p>
                   <p>
                     <strong>Registros:</strong> {filteredBoletos.length} |{' '}
-                    <strong>Total a Pagar:</strong> {fmtMoney.format(filteredBoletos.reduce((sum, b) => sum + (parseFloat(b.valorBoleto) || 0), 0))}
+                    <strong>Total {deptFilter !== 'all' ? `(${DEPT_LABELS[deptFilter] || deptFilter})` : 'a Pagar'}:</strong> {fmtMoney.format(filteredBoletos.reduce((sum, b) => sum + valorParaSetor(b), 0))}
                   </p>
                 </div>
                 <table className="print-table">
@@ -2819,7 +2831,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                       <th>Vencimento</th>
                       <th>Fornecedor</th>
                       <th>Descrição</th>
-                      <th>Valor Total</th>
+                      <th>{deptFilter !== 'all' ? 'Valor (Setor)' : 'Valor Total'}</th>
                       <th>Setor(es)</th>
                       <th>Titular Nota</th>
                       <th>Categoria</th>
@@ -2831,7 +2843,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <td>{formatDateBR(item.dataVencimento)}</td>
                         <td>{item.fornecedor || '-'}</td>
                         <td>{item.descricao || '-'}</td>
-                        <td className="text-right">{fmtMoney.format(item.valorBoleto)}</td>
+                        <td className="text-right">{fmtMoney.format(valorParaSetor(item))}</td>
                         <td>{item.setor || 'Todos'}</td>
                         <td>{item.titularNota || '-'}</td>
                         <td>{item.categoria || '-'}</td>
@@ -2859,7 +2871,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                             }}
                           />
                         </th>
-                        <th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>Valor Total</th>
+                        <th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>{deptFilter !== 'all' ? 'Valor (Setor)' : 'Valor Total'}</th>
                         <th>Setor(es)</th><th>Titular Nota</th><th>Categoria</th><th>Ações</th>
                       </tr>
                     </thead>
@@ -2903,7 +2915,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.valorBoleto || 0} onChange={e => handleGridCellChange(item.id, 'valorBoleto', e.target.value)} className="ag-grid-input" style={{ fontWeight: 'bold' }} />
                               ) : (
-                                <strong>{fmtMoney.format(item.valorBoleto)}</strong>
+                                <strong title={deptFilter !== 'all' ? `Total do boleto: ${fmtMoney.format(item.valorBoleto)}` : undefined}>{fmtMoney.format(valorParaSetor(item))}</strong>
                               )}
                             </td>
                             <td>
