@@ -2116,10 +2116,10 @@ const Pernambucana = ({ onBackToGateway }) => {
             📥 Puxar Retífica
           </button>
         )}
-        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
-          <button 
-            className="btn warning sm" 
-            onClick={() => setDuplicateModal(true)} 
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && (
+          <button
+            className="btn warning sm"
+            onClick={() => setDuplicateModal(true)}
             title="Checar dados duplicados nas planilhas"
           >
             <IconSearch /> Checar Duplicados

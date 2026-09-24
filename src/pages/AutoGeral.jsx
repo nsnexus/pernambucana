@@ -79,6 +79,9 @@ const AutoGeral = ({ onBackToGateway }) => {
   const [validadoFilter, setValidadoFilter] = useState('all'); // all | validados | pendentes
   const [formaCompraFilter, setFormaCompraFilter] = useState('all'); // all | vista | prazo
   const [selectedRecebiveis, setSelectedRecebiveis] = useState([]);
+  const [selectedServicos, setSelectedServicos] = useState([]);
+  const [selectedCompras, setSelectedCompras] = useState([]);
+  const [selectedBoletos, setSelectedBoletos] = useState([]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -335,13 +338,19 @@ const AutoGeral = ({ onBackToGateway }) => {
     setDayFilter('all');
     setValidadoFilter('all');
     setSelectedRecebiveis([]);
+    setSelectedServicos([]);
+    setSelectedCompras([]);
+    setSelectedBoletos([]);
   }, [activeTab]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedRecebiveis([]);
-  }, [monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, validadoFilter]);
+    setSelectedServicos([]);
+    setSelectedCompras([]);
+    setSelectedBoletos([]);
+  }, [monthFilter, yearFilter, dayFilter, searchQuery, statusFilter, validadoFilter, formaCompraFilter]);
 
   // Extract years dynamically from data
   const yearsList = useMemo(() => {
@@ -636,6 +645,42 @@ const AutoGeral = ({ onBackToGateway }) => {
       await deleteRecebiveisEmLote(selectedRecebiveis);
       setSelectedRecebiveis([]);
       triggerToast('Recebíveis excluídos com sucesso.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedServicos = async () => {
+    if (selectedServicos.length === 0) return;
+    if (!window.confirm(`Excluir ${selectedServicos.length} serviço(s) selecionado(s) e seus recebíveis? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await Promise.all(selectedServicos.map(id => deleteServico(id)));
+      setSelectedServicos([]);
+      triggerToast('Serviços excluídos com sucesso.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedCompras = async () => {
+    if (selectedCompras.length === 0) return;
+    if (!window.confirm(`Excluir ${selectedCompras.length} compra(s) selecionada(s)? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await Promise.all(selectedCompras.map(id => deleteCompra(id)));
+      setSelectedCompras([]);
+      triggerToast('Compras excluídas com sucesso.');
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleDeleteSelectedBoletos = async () => {
+    if (selectedBoletos.length === 0) return;
+    if (!window.confirm(`Excluir ${selectedBoletos.length} boleto(s) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await Promise.all(selectedBoletos.map(id => deleteBoleto(id)));
+      setSelectedBoletos([]);
+      triggerToast('Boletos excluídos com sucesso.');
     } catch (err) {
       alert('Erro ao excluir: ' + err.message);
     }
@@ -1229,8 +1274,23 @@ const AutoGeral = ({ onBackToGateway }) => {
             <IconPrinter /> Imprimir
           </button>
         )}
+        {activeTab === 'servicos' && selectedServicos.length > 0 && (
+          <button className="btn danger sm" onClick={handleDeleteSelectedServicos}>
+            <IconTrash /> Excluir ({selectedServicos.length})
+          </button>
+        )}
+        {activeTab === 'compras' && selectedCompras.length > 0 && (
+          <button className="btn danger sm" onClick={handleDeleteSelectedCompras}>
+            <IconTrash /> Excluir ({selectedCompras.length})
+          </button>
+        )}
+        {activeTab === 'boletos' && selectedBoletos.length > 0 && (
+          <button className="btn danger sm" onClick={handleDeleteSelectedBoletos}>
+            <IconTrash /> Excluir ({selectedBoletos.length})
+          </button>
+        )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
-          <button 
+          <button
             className={`btn outline sm ${gridEditMode ? 'active' : ''}`}
             type="button"
             onClick={() => {
@@ -1245,10 +1305,10 @@ const AutoGeral = ({ onBackToGateway }) => {
           </button>
         )}
         <button className="btn outline sm" onClick={openImportModal}><IconExcel /> Importar Excel</button>
-        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
-          <button 
-            className="btn warning sm" 
-            onClick={() => setDuplicateModal(true)} 
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && (
+          <button
+            className="btn warning sm"
+            onClick={() => setDuplicateModal(true)}
             title="Checar dados duplicados nas planilhas"
           >
             <IconSearch /> Checar Duplicados
@@ -1508,6 +1568,17 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <table className="compact-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={p.paginated.length > 0 && p.paginated.every(item => selectedServicos.includes(item.id))}
+                            onChange={() => {
+                              const pageIds = p.paginated.map(item => item.id);
+                              const allSel = pageIds.every(id => selectedServicos.includes(id));
+                              setSelectedServicos(prev => allSel ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
+                            }}
+                          />
+                        </th>
                         <th>Data</th><th>Forma</th><th>Cliente</th><th>Material/Serviço</th>
                         <th>OS</th><th>Valor OS</th><th>Serviços</th><th>Peças</th>
                         <th>Material</th><th>Mecânico</th><th>Parcelas</th><th>NF</th><th>Data NF</th><th>Validada</th><th>Ações</th>
@@ -1519,6 +1590,13 @@ const AutoGeral = ({ onBackToGateway }) => {
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
                         return (
                           <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedServicos.includes(item.id)}
+                                onChange={() => setSelectedServicos(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
@@ -1637,7 +1715,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                                   </button>
                                 )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="btn icon-only danger" title="Excluir Serviço" onClick={() => { if (window.confirm('Excluir serviço e seus recebíveis?')) deleteServico(item.id).then(() => triggerToast('Excluído.')); }}>
+                                <button className="btn icon-only danger" title="Excluir Serviço" onClick={() => { if (window.confirm('Excluir serviço e seus recebíveis?')) deleteServico(item.id).then(() => { setSelectedServicos(prev => prev.filter(x => x !== item.id)); triggerToast('Excluído.'); }); }}>
                                   <IconTrash />
                                 </button>
                               </div>
@@ -1646,7 +1724,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="15" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
+                        <tr><td colSpan="16" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum serviço encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1725,6 +1803,17 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <table className="compact-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={p.paginated.length > 0 && p.paginated.every(item => selectedCompras.includes(item.id))}
+                            onChange={() => {
+                              const pageIds = p.paginated.map(item => item.id);
+                              const allSel = pageIds.every(id => selectedCompras.includes(id));
+                              setSelectedCompras(prev => allSel ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
+                            }}
+                          />
+                        </th>
                         <th>Data</th><th>Forma</th><th>Cliente</th><th>Descrição Material</th>
                         <th>OS</th><th>Valor OS</th><th>Valor Peça</th><th>Fornecedor</th>
                         <th>Nº Pedido</th><th>Categoria</th><th>Ações</th>
@@ -1736,6 +1825,13 @@ const AutoGeral = ({ onBackToGateway }) => {
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
                         return (
                           <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedCompras.includes(item.id)}
+                                onChange={() => setSelectedCompras(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="date" value={rowData.data || ''} onChange={e => handleGridCellChange(item.id, 'data', e.target.value)} className="ag-grid-input" />
@@ -1823,7 +1919,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                                   </button>
                                 )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="btn icon-only danger" title="Excluir Compra" onClick={() => { if (window.confirm('Excluir compra?')) deleteCompra(item.id).then(() => triggerToast('Excluído.')); }}>
+                                <button className="btn icon-only danger" title="Excluir Compra" onClick={() => { if (window.confirm('Excluir compra?')) deleteCompra(item.id).then(() => { setSelectedCompras(prev => prev.filter(x => x !== item.id)); triggerToast('Excluído.'); }); }}>
                                   <IconTrash />
                                 </button>
                               </div>
@@ -1832,7 +1928,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhuma compra encontrada.</td></tr>
+                        <tr><td colSpan="12" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhuma compra encontrada.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1907,6 +2003,17 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <table className="compact-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={p.paginated.length > 0 && p.paginated.every(item => selectedBoletos.includes(item.id))}
+                            onChange={() => {
+                              const pageIds = p.paginated.map(item => item.id);
+                              const allSel = pageIds.every(id => selectedBoletos.includes(id));
+                              setSelectedBoletos(prev => allSel ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
+                            }}
+                          />
+                        </th>
                         <th>Fornecedor</th><th>Descrição Material</th><th>Nº OS</th><th>Valor Boleto</th>
                         <th>Valor OS</th><th>Cliente</th><th>Vencimento</th><th>Mês</th><th>Ações</th>
                       </tr>
@@ -1917,6 +2024,13 @@ const AutoGeral = ({ onBackToGateway }) => {
                         const rowData = { ...item, ...(gridChanges[item.id] || {}) };
                         return (
                           <tr key={item.id} className={hasChanges ? 'grid-changed-row' : ''}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedBoletos.includes(item.id)}
+                                onChange={() => setSelectedBoletos(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                              />
+                            </td>
                             <td>
                               {gridEditMode ? (
                                 <input type="text" value={rowData.nomeFornecedor || ''} onChange={e => handleGridCellChange(item.id, 'nomeFornecedor', e.target.value)} className="ag-grid-input" />
@@ -1984,7 +2098,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                                   </button>
                                 )}
                                 {hasChanges && <span style={{ color: 'var(--yellow)', fontSize: '11px', fontWeight: 'bold', padding: '4px 6px' }}>Editado</span>}
-                                <button className="btn icon-only danger" title="Excluir Boleto" onClick={() => { if (window.confirm('Excluir boleto?')) deleteBoleto(item.id).then(() => triggerToast('Excluído.')); }}>
+                                <button className="btn icon-only danger" title="Excluir Boleto" onClick={() => { if (window.confirm('Excluir boleto?')) deleteBoleto(item.id).then(() => { setSelectedBoletos(prev => prev.filter(x => x !== item.id)); triggerToast('Excluído.'); }); }}>
                                   <IconTrash />
                                 </button>
                               </div>
@@ -1993,7 +2107,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                         );
                       })}
                       {p.paginated.length === 0 && (
-                        <tr><td colSpan="9" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
+                        <tr><td colSpan="10" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>Nenhum boleto encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
