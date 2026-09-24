@@ -514,11 +514,15 @@ const AutoGeral = ({ onBackToGateway }) => {
   };
 
   const filteredServicos = useMemo(() => filterList(servicos, (s) => {
-    if (validadoFilter === 'all') return true;
     const ehPrazo = String(s.formaCompra || '').toLowerCase().includes('prazo');
+    if (formaCompraFilter !== 'all') {
+      if (formaCompraFilter === 'prazo' && !ehPrazo) return false;
+      if (formaCompraFilter === 'vista' && ehPrazo) return false;
+    }
+    if (validadoFilter === 'all') return true;
     if (!ehPrazo) return false;
     return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
-  }), [servicos, monthFilter, yearFilter, dayFilter, searchQuery, validadoFilter]);
+  }), [servicos, monthFilter, yearFilter, dayFilter, searchQuery, validadoFilter, formaCompraFilter]);
   const filteredCompras = useMemo(() => filterList(compras, (item) => {
     if (formaCompraFilter === 'all') return true;
     const ehPrazo = String(item.formaCompra || '').toLowerCase().includes('prazo');
@@ -1202,10 +1206,10 @@ const AutoGeral = ({ onBackToGateway }) => {
       )}
       {showTipoCompra && (
         <label>
-          Tipo de Compra
+          Tipo de Pagamento
           <select value={formaCompraFilter} onChange={(e) => setFormaCompraFilter(e.target.value)}>
-            <option value="all">Todas</option>
-            <option value="vista">À vista (despesa)</option>
+            <option value="all">Todos</option>
+            <option value="vista">À vista</option>
             <option value="prazo">À prazo</option>
           </select>
         </label>
@@ -1447,7 +1451,7 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <p>Relatório de serviços do setor Alto Geral. Serviços à prazo geram recebíveis automaticamente.</p>
                 </div>
               </div>
-              {renderFilters(false, true)}
+              {renderFilters(false, true, true)}
 
               {/* Tabela exclusiva para impressão — exibe todos os itens filtrados e o valor total */}
               <div className="print-only-container">
