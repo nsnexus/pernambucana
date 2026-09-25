@@ -519,6 +519,11 @@ const AutoGeral = ({ onBackToGateway }) => {
       const matchSearch = !q || Object.values(item).join(' ').toLowerCase().includes(q);
       const extra = extraFilter ? extraFilter(item) : true;
       return matchMonth && matchYear && matchDay && matchSearch && extra;
+    }).sort((a, b) => {
+      // Relatórios em ordem de data crescente
+      const da = a.data || a.dataVencimento || '';
+      const db = b.data || b.dataVencimento || '';
+      return da.localeCompare(db);
     });
   };
 
@@ -1305,7 +1310,7 @@ const AutoGeral = ({ onBackToGateway }) => {
           </button>
         )}
         <button className="btn outline sm" onClick={openImportModal}><IconExcel /> Importar Excel</button>
-        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button
             className="btn warning sm"
             onClick={() => setDuplicateModal(true)}

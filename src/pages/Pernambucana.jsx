@@ -621,15 +621,24 @@ const Pernambucana = ({ onBackToGateway }) => {
       const matchSearch = !q || Object.values(item).join(' ').toLowerCase().includes(q);
       const extra = extraFilter ? extraFilter(item) : true;
       return matchMonth && matchYear && matchDay && matchSearch && extra;
+    }).sort((a, b) => {
+      // Relatórios em ordem de data crescente
+      const da = a.data || a.dataVencimento || '';
+      const db = b.data || b.dataVencimento || '';
+      return da.localeCompare(db);
     });
   };
 
   const filteredServicos = useMemo(() => filterList(allServicos, (s) => {
-    if (validadoFilter === 'all') return true;
     const ehPrazo = String(s.pagamento || '').toLowerCase().includes('prazo');
+    if (formaCompraFilter !== 'all') {
+      if (formaCompraFilter === 'prazo' && !ehPrazo) return false;
+      if (formaCompraFilter === 'vista' && ehPrazo) return false;
+    }
+    if (validadoFilter === 'all') return true;
     if (!ehPrazo) return false; // filtro de validação só faz sentido em venda a prazo
     return validadoFilter === 'validados' ? !!s.vendaValidada : !s.vendaValidada;
-  }), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, validadoFilter]);
+  }), [allServicos, monthFilter, yearFilter, dayFilter, searchQuery, deptFilter, currentUser, validadoFilter, formaCompraFilter]);
   const filteredCompras = useMemo(() => filterList(allCompras, (item) => {
     if (formaCompraFilter === 'all') return true;
     const ehPrazo = String(item.formaCompra || '').toLowerCase().includes('prazo');
@@ -2046,10 +2055,10 @@ const Pernambucana = ({ onBackToGateway }) => {
 
       {showTipoCompra && (
         <label>
-          Tipo de Compra
+          Tipo de Pagamento
           <select value={formaCompraFilter} onChange={(e) => setFormaCompraFilter(e.target.value)}>
-            <option value="all">Todas</option>
-            <option value="vista">À vista (despesa)</option>
+            <option value="all">Todos</option>
+            <option value="vista">À vista</option>
             <option value="prazo">À prazo</option>
           </select>
         </label>
@@ -2116,7 +2125,7 @@ const Pernambucana = ({ onBackToGateway }) => {
             📥 Puxar Retífica
           </button>
         )}
-        {['servicos', 'compras', 'boletos'].includes(activeTab) && currentUser?.isAdmin && (
+        {['servicos', 'compras', 'boletos'].includes(activeTab) && (
           <button
             className="btn warning sm"
             onClick={() => setDuplicateModal(true)}
@@ -2305,7 +2314,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   <p>Retífica, Peças, Mecânica, Torneadora e Caldeiraria.</p>
                 </div>
               </div>
-              {renderFilters(false, true)}
+              {renderFilters(false, true, true)}
 
               {gridEditMode && (
                 <div className="grid-save-bar glass">
