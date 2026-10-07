@@ -505,9 +505,11 @@ export const DataProvider = ({ children }) => {
               await setDoc(doc(db, 'servicos', s.id), { numParcelas: parcelas }, { merge: true });
             }
 
+            const hojeStr = new Date().toISOString().split('T')[0];
             for (let i = 1; i <= parcelas; i++) {
               const recId = generateUUID();
               const dataVenc = addDays(baseDate, 30 * i);
+              const jaVenceu = dataVenc < hojeStr;
               const recData = {
                 id: recId,
                 servicoId: s.id,
@@ -522,8 +524,8 @@ export const DataProvider = ({ children }) => {
                 valorTotalOS: parseFloat(s.valorTotal) || parseFloat(s.valorOS) || 0,
                 dataVencimento: dataVenc,
                 mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
-                status: 'Pendente',
-                dataRecebimento: '',
+                status: jaVenceu ? 'Recebido' : 'Pendente',
+                dataRecebimento: jaVenceu ? dataVenc : '',
                 criadoEm: new Date().toISOString()
               };
               await setDoc(doc(db, 'p_recebiveis', recId), recData);
@@ -567,6 +569,56 @@ export const DataProvider = ({ children }) => {
     };
     autoCorrectSectors();
   }, [servicos, recebiveis, loading]);
+
+  // Auto-migration: Baixar recebíveis com datas de vencimento até o mês 7 (Julho/2026) que estão pendentes/vencidos
+  const retroRecebidosMes7Ran = React.useRef(false);
+  useEffect(() => {
+    if (loading || !currentUser || recebiveis.length === 0 || retroRecebidosMes7Ran.current) return;
+    retroRecebidosMes7Ran.current = true;
+
+    const autoBaixarMes7 = async () => {
+      const hojeStr = new Date().toISOString().split('T')[0];
+      const pendentesMes7 = recebiveis.filter(r => {
+        if (r.status === 'Recebido') return false;
+        const v = r.dataVencimento || '';
+        if (!v) return false;
+        let y = null, m = null;
+        if (v.includes('-')) {
+          const parts = v.split('-');
+          y = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10);
+        } else if (v.includes('/')) {
+          const parts = v.split('/');
+          if (parts[0].length === 4) {
+            y = parseInt(parts[0], 10);
+            m = parseInt(parts[1], 10);
+          } else {
+            y = parseInt(parts[2], 10);
+            m = parseInt(parts[1], 10);
+          }
+        }
+        if (!y || !m || isNaN(y) || isNaN(m)) return false;
+        return (y < 2026) || (y === 2026 && m <= 7);
+      });
+
+      if (pendentesMes7.length > 0) {
+        console.log(`[Pernambucana] Atualizando ${pendentesMes7.length} recebíveis até mês 7 para 'Recebido'...`);
+        for (const r of pendentesMes7) {
+          try {
+            await setDoc(doc(db, 'p_recebiveis', r.id), {
+              status: 'Recebido',
+              dataRecebimento: r.dataRecebimento || r.dataVencimento || hojeStr
+            }, { merge: true });
+          } catch (err) {
+            console.warn(`Erro ao baixar recebível ${r.id}:`, err);
+          }
+        }
+        console.log(`[Pernambucana] Recebíveis até mês 7 atualizados com sucesso.`);
+      }
+    };
+
+    autoBaixarMes7();
+  }, [loading, currentUser, recebiveis]);
 
   const consolidationMigrationRan = React.useRef(false);
   useEffect(() => {
@@ -778,6 +830,50 @@ export const DataProvider = ({ children }) => {
 
   const deleteRecebiveisEmLote = async (ids) => {
     await Promise.all((ids || []).map(id => deleteDoc(doc(db, 'p_recebiveis', id))));
+  };
+
+  const marcarRecebiveisEmLote = async (ids, status = 'Recebido') => {
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const promises = (ids || []).map(id => {
+      const rec = recebiveis.find(r => r.id === id);
+      const dataRecebimento = status === 'Recebido' ? (rec?.dataVencimento || hojeStr) : '';
+      return setDoc(doc(db, 'p_recebiveis', id), { status, dataRecebimento }, { merge: true });
+    });
+    await Promise.all(promises);
+  };
+
+  const baixarRecebiveisVencidosAteMes7 = async () => {
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const pendentes = recebiveis.filter(r => {
+      if (r.status === 'Recebido') return false;
+      const v = r.dataVencimento || '';
+      if (!v) return false;
+      let y = null, m = null;
+      if (v.includes('-')) {
+        const parts = v.split('-');
+        y = parseInt(parts[0], 10);
+        m = parseInt(parts[1], 10);
+      } else if (v.includes('/')) {
+        const parts = v.split('/');
+        if (parts[0].length === 4) {
+          y = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10);
+        } else {
+          y = parseInt(parts[2], 10);
+          m = parseInt(parts[1], 10);
+        }
+      }
+      if (!y || !m || isNaN(y) || isNaN(m)) return false;
+      return (y < 2026) || (y === 2026 && m <= 7);
+    });
+
+    for (const r of pendentes) {
+      await setDoc(doc(db, 'p_recebiveis', r.id), {
+        status: 'Recebido',
+        dataRecebimento: r.dataRecebimento || r.dataVencimento || hojeStr
+      }, { merge: true });
+    }
+    return pendentes.length;
   };
 
   // Boletos CRUD
@@ -1053,6 +1149,8 @@ export const DataProvider = ({ children }) => {
     toggleRecebivel,
     deleteRecebivel,
     deleteRecebiveisEmLote,
+    marcarRecebiveisEmLote,
+    baixarRecebiveisVencidosAteMes7,
     clearAll,
     importRawData,
     buildFinancePayload,

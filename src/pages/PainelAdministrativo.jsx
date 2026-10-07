@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../context/AuthContext';
-import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar } from '../components/Icons';
+import { IconEdit, IconTrash, IconEye, IconPlus, IconRefresh, IconShield, IconLeaf, IconBuilding, IconCalendar, IconPrinter } from '../components/Icons';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, deleteDoc, doc, where, updateDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { extractHoleritesFromPDF, calcHorasExtras } from '../utils/pdfParser';
@@ -734,6 +734,12 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   const isPagamentosTab = activeCat === 'Pagamentos' && activeSub === 'Holerites';
   const isAcessosTab = activeCat === 'Acessos' && currentUser?.isAdmin;
   
+  const filteredEfetivos = efetivos.filter(ef => {
+    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
+    return true;
+  });
+
   const filteredFerias = efetivos.filter(ef => {
     if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
     if (filterDate) {
@@ -954,30 +960,21 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           </section>
         ) : isEfetivoTab ? (
           // --- TABELA EFETIVO ---
-          <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
-            <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div>
-                <h3>Gestão de Efetivo (Funcionários)</h3>
-                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
+          <React.Fragment>
+            {/* Tabela exclusiva para impressão */}
+            <div className="print-only-container">
+              <div className="print-header">
+                <h2>{brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'} — Gestão de Efetivo (Funcionários)</h2>
+                <p>
+                  <strong>Filtros Ativos:</strong>{' '}
+                  Status: {statusFilterEfetivo}
+                  {filterName ? ` | Busca: "${filterName}"` : ''}
+                </p>
+                <p>
+                  <strong>Total de Funcionários:</strong> {filteredEfetivos.length}
+                </p>
               </div>
-              <button className="btn primary sm" onClick={() => {
-                setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
-                setEditingEfetivoId(null);
-                setEfetivoModalOpen(true);
-              }}><IconPlus /> Novo Funcionário</button>
-            </div>
-
-            <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
-              <input type="text" placeholder="Buscar funcionário por nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
-              <select value={statusFilterEfetivo} onChange={e => setStatusFilterEfetivo(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}>
-                <option value="Todos">Todos os Status</option>
-                <option value="Ativo">Ativos</option>
-                <option value="Desligado">Desligados</option>
-              </select>
-            </div>
-            
-            <div className="table-wrap" style={{ overflowX: 'auto' }}>
-              <table>
+              <table className="print-table">
                 <thead>
                   <tr>
                     <th>Nome</th>
@@ -989,37 +986,18 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <th>Telefone</th>
                     <th>Chave PIX</th>
                     <th>Endereço</th>
-                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {efetivos.filter(ef => {
-                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
-                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
-                    return true;
-                  }).length === 0 ? (
-                    <tr><td colSpan="10" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
-                  ) : efetivos.filter(ef => {
-                    if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
-                    if (statusFilterEfetivo !== 'Todos' && (ef.status || 'Ativo') !== statusFilterEfetivo) return false;
-                    return true;
-                  }).map(ef => {
-                    const isDesligado = ef.status === 'Desligado';
-                    return (
-                      <tr key={ef.id} style={isDesligado ? { opacity: 0.7 } : {}}>
+                  {filteredEfetivos.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" style={{ textAlign: 'center', padding: '12px' }}>Nenhum funcionário encontrado.</td>
+                    </tr>
+                  ) : (
+                    filteredEfetivos.map(ef => (
+                      <tr key={ef.id}>
                         <td><strong>{ef.nome}</strong></td>
-                        <td>
-                          <span style={{ 
-                            padding: '3px 8px', 
-                            borderRadius: '4px', 
-                            fontSize: '11px', 
-                            fontWeight: 'bold',
-                            background: isDesligado ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
-                            color: isDesligado ? '#ef4444' : '#22c55e'
-                          }}>
-                            {ef.status || 'Ativo'}
-                          </span>
-                        </td>
+                        <td>{ef.status || 'Ativo'}</td>
                         <td>{ef.cpf || '-'}</td>
                         <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
                         <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
@@ -1027,23 +1005,106 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                         <td>{ef.telefone || '-'}</td>
                         <td>{ef.pix || '-'}</td>
                         <td>{ef.endereco || '-'}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
-                              <IconEdit />
-                            </button>
-                            <button className="btn icon-only danger" title="Excluir Funcionário" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>
-                              <IconTrash />
-                            </button>
-                          </div>
-                        </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          </section>
+
+            <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+              <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3>Gestão de Efetivo (Funcionários)</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Gerencie a lista de funcionários da {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    className="btn outline sm"
+                    type="button"
+                    onClick={() => window.print()}
+                    title="Imprimir lista de funcionários"
+                  >
+                    <IconPrinter /> Imprimir
+                  </button>
+                  <button className="btn primary sm" onClick={() => {
+                    setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
+                    setEditingEfetivoId(null);
+                    setEfetivoModalOpen(true);
+                  }}><IconPlus /> Novo Funcionário</button>
+                </div>
+              </div>
+
+              <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+                <input type="text" placeholder="Buscar funcionário por nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+                <select value={statusFilterEfetivo} onChange={e => setStatusFilterEfetivo(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}>
+                  <option value="Todos">Todos os Status</option>
+                  <option value="Ativo">Ativos</option>
+                  <option value="Desligado">Desligados</option>
+                </select>
+              </div>
+              
+              <div className="table-wrap" style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Status</th>
+                      <th>CPF</th>
+                      <th>Nascimento</th>
+                      <th>Admissão</th>
+                      <th>Demissão</th>
+                      <th>Telefone</th>
+                      <th>Chave PIX</th>
+                      <th>Endereço</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEfetivos.length === 0 ? (
+                      <tr><td colSpan="10" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                    ) : filteredEfetivos.map(ef => {
+                      const isDesligado = ef.status === 'Desligado';
+                      return (
+                        <tr key={ef.id} style={isDesligado ? { opacity: 0.7 } : {}}>
+                          <td><strong>{ef.nome}</strong></td>
+                          <td>
+                            <span style={{ 
+                              padding: '3px 8px', 
+                              borderRadius: '4px', 
+                              fontSize: '11px', 
+                              fontWeight: 'bold',
+                              background: isDesligado ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                              color: isDesligado ? '#ef4444' : '#22c55e'
+                            }}>
+                              {ef.status || 'Ativo'}
+                            </span>
+                          </td>
+                          <td>{ef.cpf || '-'}</td>
+                          <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
+                          <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
+                          <td>{ef.dataDemissional ? ef.dataDemissional.split('-').reverse().join('/') : '-'}</td>
+                          <td>{ef.telefone || '-'}</td>
+                          <td>{ef.pix || '-'}</td>
+                          <td>{ef.endereco || '-'}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
+                                <IconEdit />
+                              </button>
+                              <button className="btn icon-only danger" title="Excluir Funcionário" onClick={() => handleDeleteEfetivo(ef.id, ef.nome)}>
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </React.Fragment>
         ) : activeCat === 'Segurança' && activeSub === 'Aso' ? (
           // --- TABELA CONSOLIDADA DE ASO POR FUNCIONÁRIO ---
           <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
@@ -1198,13 +1259,82 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
           </section>
         ) : isFeriasTab ? (
           // --- TABELA DE FÉRIAS ---
-          <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
-            <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div>
-                <h3>Controle de Férias</h3>
-                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Acompanhe o vencimento de férias e registre os descansos gozados.</p>
+          <React.Fragment>
+            <div className="print-only-container">
+              <div className="print-header">
+                <h2>{brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'} — Controle de Férias</h2>
+                <p>
+                  <strong>Filtros Ativos:</strong>{' '}
+                  {filterName ? `Busca: "${filterName}"` : 'Todos os Funcionários'}
+                  {filterDate ? ` | Vencimento Limite: ${filterDate}` : ''}
+                </p>
+                <p>
+                  <strong>Total de Registros:</strong> {filteredFerias.length}
+                </p>
               </div>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Data Base (Admissão / Férias)</th>
+                    <th>Período de Férias</th>
+                    <th>Vencimento Limite (2 anos)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFerias.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '12px' }}>Nenhum registro encontrado.</td>
+                    </tr>
+                  ) : (
+                    filteredFerias.map(ef => {
+                      const rawBase = ef.dataBaseFerias || ef.dataAdmissao;
+                      const baseDate = rawBase ? new Date(rawBase + 'T00:00:00') : null;
+                      let limitDateStr = '-';
+                      let statusStr = 'Ok';
+                      if (baseDate) {
+                        const limitDate = new Date(baseDate);
+                        limitDate.setFullYear(limitDate.getFullYear() + 2);
+                        limitDateStr = limitDate.toLocaleDateString('pt-BR');
+                        const now = new Date();
+                        const diffDays = Math.ceil((limitDate - now) / (1000 * 60 * 60 * 24));
+                        if (diffDays < 0) statusStr = 'Vencidas';
+                        else if (diffDays <= 60) statusStr = `Faltam ${diffDays}d`;
+                      }
+                      const feriasPeriodo = ef.feriasInicio && ef.feriasFim 
+                        ? `${ef.feriasInicio.split('-').reverse().join('/')} até ${ef.feriasFim.split('-').reverse().join('/')}`
+                        : '-';
+                      return (
+                        <tr key={ef.id}>
+                          <td><strong>{ef.nome}</strong></td>
+                          <td>{rawBase ? rawBase.split('-').reverse().join('/') : '-'}</td>
+                          <td>{feriasPeriodo}</td>
+                          <td>{limitDateStr}</td>
+                          <td>{ef.feriasStatus || statusStr}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
+
+            <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+              <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3>Controle de Férias</h3>
+                  <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Acompanhe o vencimento de férias e registre os descansos gozados.</p>
+                </div>
+                <button 
+                  className="btn outline sm"
+                  type="button"
+                  onClick={() => window.print()}
+                  title="Imprimir controle de férias"
+                >
+                  <IconPrinter /> Imprimir
+                </button>
+              </div>
 
             <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Buscar funcionário..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
@@ -1289,7 +1419,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </table>
             </div>
           </section>
-        ) : isPagamentosTab ? (
+        </React.Fragment>
+      ) : isPagamentosTab ? (
            <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
               {(() => {
                 const isEditMode = holeritesParsed.length > 0 && holeritesParsed.some(h => h.id);

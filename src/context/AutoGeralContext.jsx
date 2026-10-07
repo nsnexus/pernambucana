@@ -316,9 +316,11 @@ export const AutoGeralProvider = ({ children }) => {
               await setDoc(doc(db, 'ag_servicos', s.id), { numParcelas: parcelas }, { merge: true });
             }
 
+            const hojeStr = new Date().toISOString().split('T')[0];
             for (let i = 1; i <= parcelas; i++) {
               const recId = generateUUID();
               const dataVenc = addDays(baseDate, 30 * i);
+              const jaVenceu = dataVenc < hojeStr;
               const recData = {
                 id: recId,
                 servicoId: s.id,
@@ -332,8 +334,8 @@ export const AutoGeralProvider = ({ children }) => {
                 valorTotalOS: s.valorOS,
                 dataVencimento: dataVenc,
                 mesVencimento: MONTHS[parseInt(dataVenc.split('-')[1], 10) - 1] || '',
-                status: 'Pendente',
-                dataRecebimento: '',
+                status: jaVenceu ? 'Recebido' : 'Pendente',
+                dataRecebimento: jaVenceu ? dataVenc : '',
                 criadoEm: new Date().toISOString()
               };
               await setDoc(doc(db, 'ag_recebiveis', recId), recData);
@@ -358,6 +360,62 @@ export const AutoGeralProvider = ({ children }) => {
       runAutoGeralMigration();
     }
   }, [loading, consolidado, rawQueriesActive, servicos, compras, boletos, recebiveis]);
+
+  // Auto-migration: Baixar recebíveis com datas de vencimento até o mês 7 (Julho/2026) que estão pendentes/vencidos
+  const retroRecebidosMes7Ran = useRef(false);
+  useEffect(() => {
+    if (loading || !currentUser || recebiveis.length === 0 || retroRecebidosMes7Ran.current) return;
+    retroRecebidosMes7Ran.current = true;
+
+    const autoBaixarMes7 = async () => {
+      const hojeStr = new Date().toISOString().split('T')[0];
+      const pendentesMes7 = recebiveis.filter(r => {
+        if (r.status === 'Recebido') return false;
+        const v = r.dataVencimento || '';
+        if (!v) return false;
+        let y = null, m = null;
+        if (v.includes('-')) {
+          const parts = v.split('-');
+          y = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10);
+        } else if (v.includes('/')) {
+          const parts = v.split('/');
+          if (parts[0].length === 4) {
+            y = parseInt(parts[0], 10);
+            m = parseInt(parts[1], 10);
+          } else {
+            y = parseInt(parts[2], 10);
+            m = parseInt(parts[1], 10);
+          }
+        }
+        if (!y || !m || isNaN(y) || isNaN(m)) return false;
+        return (y < 2026) || (y === 2026 && m <= 7);
+      });
+
+      if (pendentesMes7.length > 0) {
+        console.log(`[AutoGeral] Atualizando ${pendentesMes7.length} recebíveis até mês 7 para 'Recebido'...`);
+        const datasAfetadas = new Set();
+        for (const r of pendentesMes7) {
+          try {
+            const dataRec = r.dataRecebimento || r.dataVencimento || hojeStr;
+            await setDoc(doc(db, 'ag_recebiveis', r.id), {
+              status: 'Recebido',
+              dataRecebimento: dataRec
+            }, { merge: true });
+            datasAfetadas.add(dataRec);
+          } catch (err) {
+            console.warn(`Erro ao baixar recebível AutoGeral ${r.id}:`, err);
+          }
+        }
+        for (const d of datasAfetadas) {
+          if (d) await triggerAutoGeralConsolidation(d);
+        }
+        console.log(`[AutoGeral] Recebíveis até mês 7 atualizados com sucesso.`);
+      }
+    };
+
+    autoBaixarMes7();
+  }, [loading, currentUser, recebiveis]);
 
   // ── SERVIÇOS CRUD ──
 
@@ -624,6 +682,58 @@ export const AutoGeralProvider = ({ children }) => {
     for (const d of datas) if (d) await triggerAutoGeralConsolidation(d);
   };
 
+  const marcarRecebiveisEmLote = async (ids, status = 'Recebido') => {
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const datas = new Set();
+    const promises = (ids || []).map(async (id) => {
+      const rec = recebiveis.find(r => r.id === id);
+      const dataRecebimento = status === 'Recebido' ? (rec?.dataVencimento || hojeStr) : '';
+      if (dataRecebimento) datas.add(dataRecebimento);
+      if (rec?.dataRecebimento) datas.add(rec.dataRecebimento);
+      return setDoc(doc(db, 'ag_recebiveis', id), { status, dataRecebimento }, { merge: true });
+    });
+    await Promise.all(promises);
+    for (const d of datas) if (d) await triggerAutoGeralConsolidation(d);
+  };
+
+  const baixarRecebiveisVencidosAteMes7 = async () => {
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const pendentes = recebiveis.filter(r => {
+      if (r.status === 'Recebido') return false;
+      const v = r.dataVencimento || '';
+      if (!v) return false;
+      let y = null, m = null;
+      if (v.includes('-')) {
+        const parts = v.split('-');
+        y = parseInt(parts[0], 10);
+        m = parseInt(parts[1], 10);
+      } else if (v.includes('/')) {
+        const parts = v.split('/');
+        if (parts[0].length === 4) {
+          y = parseInt(parts[0], 10);
+          m = parseInt(parts[1], 10);
+        } else {
+          y = parseInt(parts[2], 10);
+          m = parseInt(parts[1], 10);
+        }
+      }
+      if (!y || !m || isNaN(y) || isNaN(m)) return false;
+      return (y < 2026) || (y === 2026 && m <= 7);
+    });
+
+    const datas = new Set();
+    for (const r of pendentes) {
+      const dataRec = r.dataRecebimento || r.dataVencimento || hojeStr;
+      datas.add(dataRec);
+      await setDoc(doc(db, 'ag_recebiveis', r.id), {
+        status: 'Recebido',
+        dataRecebimento: dataRec
+      }, { merge: true });
+    }
+    for (const d of datas) if (d) await triggerAutoGeralConsolidation(d);
+    return pendentes.length;
+  };
+
   // ── CAIXA CALCULATION ──
   const caixa = useMemo(() => {
     // Entradas à vista (Pix, Cartão, tudo que NÃO é prazo)
@@ -772,6 +882,8 @@ export const AutoGeralProvider = ({ children }) => {
     toggleRecebivel,
     deleteRecebivel,
     deleteRecebiveisEmLote,
+    marcarRecebiveisEmLote,
+    baixarRecebiveisVencidosAteMes7,
     // Import
     importServicosFromExcel,
     importComprasFromExcel,

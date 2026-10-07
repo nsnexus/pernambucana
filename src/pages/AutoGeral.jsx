@@ -41,7 +41,7 @@ const AutoGeral = ({ onBackToGateway }) => {
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
-    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote,
+    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote, marcarRecebiveisEmLote, baixarRecebiveisVencidosAteMes7,
     importServicosFromExcel, importComprasFromExcel, importBoletosFromExcel,
     consolidado, rawQueriesActive, enableRawQueries, runAutoGeralMigration
   } = useAutoGeral();
@@ -652,6 +652,27 @@ const AutoGeral = ({ onBackToGateway }) => {
       triggerToast('Recebíveis excluídos com sucesso.');
     } catch (err) {
       alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleMarcarRecebidosSelected = async () => {
+    if (selectedRecebiveis.length === 0) return;
+    try {
+      await marcarRecebiveisEmLote(selectedRecebiveis, 'Recebido');
+      triggerToast(`${selectedRecebiveis.length} recebível(is) marcado(s) como Recebido.`);
+      setSelectedRecebiveis([]);
+    } catch (err) {
+      alert('Erro ao atualizar recebíveis: ' + err.message);
+    }
+  };
+
+  const handleBaixarVencidosMes7 = async () => {
+    if (!window.confirm('Deseja marcar como "Recebido" todas as parcelas pendentes com vencimento até o mês 07 (Julho)?')) return;
+    try {
+      const count = await baixarRecebiveisVencidosAteMes7();
+      triggerToast(count > 0 ? `${count} parcela(s) vencida(s) até mês 07 marcada(s) como Recebido.` : 'Nenhuma parcela pendente até o mês 07 encontrada.');
+    } catch (err) {
+      alert('Erro ao baixar parcelas: ' + err.message);
     }
   };
 
@@ -2133,11 +2154,21 @@ const AutoGeral = ({ onBackToGateway }) => {
                   <h1>Recebíveis</h1>
                   <p>Parcelas geradas automaticamente de serviços à prazo. Marque como "Recebido" para contabilizar no caixa.</p>
                 </div>
-                {selectedRecebiveis.length > 0 && (
-                  <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
-                    <IconTrash /> Excluir ({selectedRecebiveis.length})
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedRecebiveis.length > 0 && (
+                    <>
+                      <button className="btn primary sm" onClick={handleMarcarRecebidosSelected}>
+                        <IconCheck /> Marcar Recebido ({selectedRecebiveis.length})
+                      </button>
+                      <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
+                        <IconTrash /> Excluir ({selectedRecebiveis.length})
+                      </button>
+                    </>
+                  )}
+                  <button className="btn outline sm" onClick={handleBaixarVencidosMes7} title="Marcar todas as parcelas pendentes com vencimento até o mês 07 como Recebidas">
+                    <IconCheck /> Baixar Vencidos (≤ Mês 07)
                   </button>
-                )}
+                </div>
               </div>
               {renderFilters(true)}
 

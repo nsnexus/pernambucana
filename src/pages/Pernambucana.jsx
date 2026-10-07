@@ -166,7 +166,7 @@ const Pernambucana = ({ onBackToGateway }) => {
     addServico, updateServico, deleteServico,
     addCompra, updateCompra, deleteCompra,
     addBoleto, updateBoleto, deleteBoleto,
-    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote, normalizeSector, enableRawQueries
+    toggleRecebivel, deleteRecebivel, deleteRecebiveisEmLote, marcarRecebiveisEmLote, baixarRecebiveisVencidosAteMes7, normalizeSector, enableRawQueries
   } = useData();
 
   useEffect(() => {
@@ -1110,6 +1110,44 @@ const Pernambucana = ({ onBackToGateway }) => {
       triggerToast('Recebíveis excluídos com sucesso.');
     } catch (err) {
       alert('Erro ao excluir: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+      setProgressModal(prev => ({ ...prev, open: false }));
+    }
+  };
+
+  const handleMarcarRecebidosSelected = async () => {
+    if (selectedRecebiveis.length === 0) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    try {
+      await marcarRecebiveisEmLote(selectedRecebiveis, 'Recebido');
+      triggerToast(`${selectedRecebiveis.length} recebível(is) marcado(s) como Recebido.`);
+      setSelectedRecebiveis([]);
+    } catch (err) {
+      alert('Erro ao atualizar recebíveis: ' + err.message);
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleBaixarVencidosMes7 = async () => {
+    if (!window.confirm('Deseja marcar como "Recebido" todas as parcelas pendentes com vencimento até o mês 07 (Julho)?')) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setProgressModal({
+      open: true,
+      title: 'Baixando Vencidos',
+      current: 0,
+      total: 1,
+      message: 'Atualizando recebíveis até o mês 07...',
+      subMessage: 'Marcando parcelas pendentes como Recebidas no banco de dados.'
+    });
+    try {
+      const count = await baixarRecebiveisVencidosAteMes7();
+      triggerToast(count > 0 ? `${count} parcela(s) vencida(s) até mês 07 marcada(s) como Recebido.` : 'Nenhuma parcela pendente até o mês 07 encontrada.');
+    } catch (err) {
+      alert('Erro ao baixar parcelas: ' + err.message);
     } finally {
       isSubmittingRef.current = false;
       setProgressModal(prev => ({ ...prev, open: false }));
@@ -2096,8 +2134,18 @@ const Pernambucana = ({ onBackToGateway }) => {
           </button>
         )}
         {activeTab === 'recebiveis' && selectedRecebiveis.length > 0 && (
-          <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
-            <IconTrash /> Excluir ({selectedRecebiveis.length})
+          <>
+            <button className="btn primary sm" onClick={handleMarcarRecebidosSelected}>
+              <IconCheck /> Marcar Recebido ({selectedRecebiveis.length})
+            </button>
+            <button className="btn danger sm" onClick={handleDeleteSelectedRecebiveis}>
+              <IconTrash /> Excluir ({selectedRecebiveis.length})
+            </button>
+          </>
+        )}
+        {activeTab === 'recebiveis' && (
+          <button className="btn outline sm" onClick={handleBaixarVencidosMes7} title="Marcar todas as parcelas pendentes com vencimento até o mês 07 como Recebidas">
+            <IconCheck /> Baixar Vencidos (≤ Mês 07)
           </button>
         )}
         {['servicos', 'compras', 'boletos'].includes(activeTab) && (
