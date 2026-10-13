@@ -180,11 +180,17 @@ const Pernambucana = ({ onBackToGateway }) => {
   const allCompras = useMemo(() => rawCompras.filter(c => {
     const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
     return secs.some(s => normalizeSector(s).toLowerCase() !== 'altogeral');
-  }), [rawCompras, normalizeSector]);
+  }).map(c => ({
+    ...c,
+    setores: c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor)
+  })), [rawCompras, normalizeSector]);
   const allBoletos = useMemo(() => rawBoletos.filter(b => {
     const secs = b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor);
     return secs.some(s => normalizeSector(s).toLowerCase() !== 'altogeral');
-  }), [rawBoletos, normalizeSector]);
+  }).map(b => ({
+    ...b,
+    setores: b.setores && b.setores.length > 0 ? b.setores : parseBoletoSectors(b.setor)
+  })), [rawBoletos, normalizeSector]);
   const allRecebiveis = useMemo(() => rawRecebiveis.filter(r => normalizeSector(r.setor).toLowerCase() !== 'altogeral'), [rawRecebiveis, normalizeSector]);
 
   // Theme
@@ -1867,11 +1873,21 @@ const Pernambucana = ({ onBackToGateway }) => {
       return (yearFilter === 'all' || y === yearFilter) && sectorMatch;
     });
 
-    const cForYear = allCompras.filter(c => {
+    const cForYear = [];
+    allCompras.forEach(c => {
       const y = c.data ? c.data.split('-')[0] : '';
-      const sectorMatch = deptFilter === 'all' || normalizeSector(c.setor) === deptFilter;
+      if (yearFilter !== 'all' && y !== yearFilter) return;
       const isVista = !String(c.formaCompra || '').toLowerCase().includes('prazo');
-      return (yearFilter === 'all' || y === yearFilter) && sectorMatch && isVista;
+      if (!isVista) return;
+
+      const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+      const valSplit = (parseFloat(c.valorProduto) || 0) / (secs.length || 1);
+
+      if (deptFilter === 'all') {
+        cForYear.push({ ...c, valorSplit: parseFloat(c.valorProduto) || 0 });
+      } else if (secs.includes(deptFilter)) {
+        cForYear.push({ ...c, valorSplit: valSplit });
+      }
     });
 
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -1897,7 +1913,7 @@ const Pernambucana = ({ onBackToGateway }) => {
         const m = c.data ? parseInt(c.data.split('-')[1], 10) : null;
         return m === n;
       });
-      return bm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0) + cm.reduce((sum, x) => sum + (parseFloat(x.valorProduto) || 0), 0);
+      return bm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0) + cm.reduce((sum, x) => sum + (parseFloat(x.valorSplit) || 0), 0);
     });
 
     return {
@@ -2627,6 +2643,18 @@ const Pernambucana = ({ onBackToGateway }) => {
         {/* ═══ COMPRAS TAB ═══ */}
         {activeTab === 'compras' && (() => {
           const p = paginate(filteredCompras);
+          // Com um setor filtrado, mostra a fatia daquele setor (rateio), não o
+          // valor total da compra — ex: uma compra de R$150 dividida entre 3 setores (M, T, R)
+          // mostra R$50 quando filtra por um deles. filteredCompras já garante
+          // que o setor filtrado está entre os beneficiados da compra.
+          const valorParaSetor = (c) => {
+            if (deptFilter === 'all') return parseFloat(c.valorProduto) || 0;
+            if (c.valoresSetores && c.valoresSetores[deptFilter] !== undefined) {
+              return parseFloat(c.valoresSetores[deptFilter]) || 0;
+            }
+            const secs = c.setores && c.setores.length > 0 ? c.setores : parseCompraSectors(c.setor);
+            return (parseFloat(c.valorProduto) || 0) / (secs.length || 1);
+          };
           return (
             <div>
               <div className="ag-section-header">
@@ -2660,7 +2688,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                   </p>
                   <p>
                     <strong>Registros:</strong> {filteredCompras.length} |{' '}
-                    <strong>Valor Total:</strong> {fmtMoney.format(filteredCompras.reduce((sum, c) => sum + (parseFloat(c.valorProduto) || 0), 0))}
+                    <strong>Total {deptFilter !== 'all' ? `(${DEPT_LABELS[deptFilter] || deptFilter})` : 'Geral'}:</strong> {fmtMoney.format(filteredCompras.reduce((sum, c) => sum + valorParaSetor(c), 0))}
                   </p>
                 </div>
                 <table className="print-table">
@@ -2671,7 +2699,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                       <th>Fornecedor</th>
                       <th>Descrição Material</th>
                       <th>Nº OS</th>
-                      <th>Valor Produto</th>
+                      <th>{deptFilter !== 'all' ? 'Valor (Setor)' : 'Valor Produto'}</th>
                       <th>Solicitante</th>
                       <th>Forma Compra</th>
                       <th>Categoria</th>
@@ -2685,7 +2713,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                         <td>{item.fornecedor || '-'}</td>
                         <td>{item.descricao || '-'}</td>
                         <td>{item.numOS || '-'}</td>
-                        <td className="text-right">{fmtMoney.format(item.valorProduto)}</td>
+                        <td className="text-right">{fmtMoney.format(valorParaSetor(item))}</td>
                         <td>{item.solicitante || '-'}</td>
                         <td>{item.formaCompra || '-'}</td>
                         <td>{item.categoria || '-'}</td>
@@ -2714,7 +2742,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                           />
                         </th>
                         <th>Data</th><th>Setor</th><th>Fornecedor</th><th>Descrição Material</th>
-                        <th>Nº OS</th><th>Valor Produto</th><th>Solicitante</th><th>Forma Compra</th>
+                        <th>Nº OS</th><th>{deptFilter !== 'all' ? 'Valor (Setor)' : 'Valor Produto'}</th><th>Solicitante</th><th>Forma Compra</th>
                         <th>Categoria</th><th>Ações</th>
                       </tr>
                     </thead>
@@ -2772,7 +2800,7 @@ const Pernambucana = ({ onBackToGateway }) => {
                               {gridEditMode ? (
                                 <input type="number" step="0.01" value={rowData.valorProduto || 0} onChange={e => handleGridCellChange(item.id, 'valorProduto', e.target.value)} className="ag-grid-input" style={{ fontWeight: 'bold' }} />
                               ) : (
-                                <strong>{fmtMoney.format(item.valorProduto)}</strong>
+                                <strong title={deptFilter !== 'all' ? `Total da compra: ${fmtMoney.format(item.valorProduto)}` : undefined}>{fmtMoney.format(valorParaSetor(item))}</strong>
                               )}
                             </td>
                             <td>
