@@ -11,6 +11,7 @@ import { generatePdfFromContainer } from '../utils/pdfGenerator';
 import { exportFolhaPGXlsx } from '../utils/holeriteExport';
 import ReciboPrint from '../components/ReciboPrint';
 import FolhaCompletaTable from '../components/FolhaCompletaTable';
+import CrachaModal from '../components/CrachaModal';
 
 function addYearToDate(dateStr) {
   if (!dateStr) return '';
@@ -23,7 +24,7 @@ function addYearToDate(dateStr) {
 const CATEGORIES = {
   'Segurança': ['Aso', 'Aso Demissional', 'Inspeções', 'Treinamento', 'Documento normativo', 'Nr-01', 'DSS', 'Campanhas', 'Acidente do Trabalho'],
   'Meio ambiente': ['Recolhimento de contaminado', 'Venda de sucatas', 'Documento normativo', 'Evidência do SAO', 'Evidência AVCB'],
-  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento'],
+  'Administração': ['Efetivo', 'Férias', 'Licença de Funcionamento', 'Advertências', 'Folha de pagamento', 'Kaizen'],
   'Pagamentos': ['Holerites'],
   'Acessos': ['Usuários']
 };
@@ -86,9 +87,26 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
   
   // Efetivo Form State
   const [efetivoForm, setEfetivoForm] = useState({ 
-    nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' 
+    nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo', cargo: '', matricula: '', fotoUrl: '', treinamentos: [] 
   });
   const [editingEfetivoId, setEditingEfetivoId] = useState(null);
+  const [crachaModalOpen, setCrachaModalOpen] = useState(false);
+  const [selectedEmployeeForCracha, setSelectedEmployeeForCracha] = useState(null);
+
+  // Kaizen Form State
+  const [kaizenModalOpen, setKaizenModalOpen] = useState(false);
+  const [editingKaizenId, setEditingKaizenId] = useState(null);
+  const [kaizenForm, setKaizenForm] = useState({
+    titulo: '',
+    data: new Date().toISOString().split('T')[0],
+    participantes: '',
+    status: 'Em andamento',
+    descricao: '',
+    files: [],
+    anexosExistentes: []
+  });
+  const [viewKaizenModal, setViewKaizenModal] = useState(null);
+  const [kaizenStatusFilter, setKaizenStatusFilter] = useState('Todos');
 
   // Ferias Form State
   const [feriasForm, setFeriasForm] = useState({ efetivoId: '', status: 'Programada', dataInicio: '', dataFim: '' });
@@ -492,7 +510,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
         });
         alert('Funcionário cadastrado com sucesso!');
       }
-      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
+      setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo', cargo: '', matricula: '', fotoUrl: '', treinamentos: [] });
       setEditingEfetivoId(null);
       setEfetivoModalOpen(false);
       fetchData();
@@ -522,10 +540,124 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
       pix: ef.pix || '',
       dataAdmissao: ef.dataAdmissao || '',
       dataDemissional: ef.dataDemissional || '',
-      status: ef.status || 'Ativo'
+      status: ef.status || 'Ativo',
+      cargo: ef.cargo || '',
+      matricula: ef.matricula || '',
+      fotoUrl: ef.fotoUrl || '',
+      treinamentos: ef.treinamentos || []
     });
     setEditingEfetivoId(ef.id);
     setEfetivoModalOpen(true);
+  };
+
+  const handleOpenCracha = (ef) => {
+    setSelectedEmployeeForCracha(ef);
+    setCrachaModalOpen(true);
+  };
+
+  // ═══ KAIZEN ACTIONS ═══
+  const handleOpenNewKaizen = () => {
+    setEditingKaizenId(null);
+    setKaizenForm({
+      titulo: '',
+      data: new Date().toISOString().split('T')[0],
+      participantes: '',
+      status: 'Em andamento',
+      descricao: '',
+      files: [],
+      anexosExistentes: []
+    });
+    setKaizenModalOpen(true);
+  };
+
+  const handleEditKaizen = (kaizen) => {
+    setEditingKaizenId(kaizen.id);
+    setKaizenForm({
+      titulo: kaizen.titulo || '',
+      data: kaizen.dataKaizen || (kaizen.createdAt?.toDate ? kaizen.createdAt.toDate().toISOString().split('T')[0] : ''),
+      participantes: kaizen.participantes || '',
+      status: kaizen.statusKaizen || 'Em andamento',
+      descricao: kaizen.descricao || '',
+      files: [],
+      anexosExistentes: normalizeAnexos(kaizen)
+    });
+    setKaizenModalOpen(true);
+  };
+
+  const handleSaveKaizen = async (e) => {
+    e.preventDefault();
+    if (!kaizenForm.titulo.trim()) {
+      alert('Por favor, informe o título/tema do Kaizen.');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+
+      // Sobe arquivos novos (apresentações, fotos, formulários)
+      const novosAnexos = [];
+      for (const file of (kaizenForm.files || [])) {
+        const filePath = `arquivos_v2/${brand}/Kaizen/${Date.now()}_${file.name}`;
+        const fileRef = ref(storage, filePath);
+        const snapshot = await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        novosAnexos.push({ url, path: filePath, name: file.name });
+      }
+
+      const anexos = [...(kaizenForm.anexosExistentes || []), ...novosAnexos];
+      const primeiro = anexos[0] || null;
+
+      const kaizenData = {
+        titulo: kaizenForm.titulo.trim(),
+        dataKaizen: kaizenForm.data,
+        participantes: kaizenForm.participantes.trim(),
+        statusKaizen: kaizenForm.status,
+        descricao: kaizenForm.descricao.trim(),
+        anexos,
+        fileUrl: primeiro?.url || null,
+        filePath: primeiro?.path || null,
+        fileName: primeiro?.name || null,
+      };
+
+      if (editingKaizenId) {
+        await updateDoc(doc(db, 'arquivos', editingKaizenId), kaizenData);
+        alert('Kaizen atualizado com sucesso!');
+      } else {
+        await addDoc(collection(db, 'arquivos'), {
+          ...kaizenData,
+          categoria: 'Administração',
+          subcategoria: 'Kaizen',
+          brand,
+          uploadedBy: currentUser?.email || 'Desconhecido',
+          createdAt: serverTimestamp()
+        });
+        alert('Kaizen cadastrado com sucesso!');
+      }
+
+      setKaizenModalOpen(false);
+      setEditingKaizenId(null);
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao salvar Kaizen:', err);
+      alert('Erro ao salvar Kaizen: ' + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteKaizen = async (kaizen) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o Kaizen "${kaizen.titulo}"?`)) return;
+    try {
+      const paths = normalizeAnexos(kaizen).map(a => a.path).filter(Boolean);
+      for (const p of paths) {
+        await deleteObject(ref(storage, p)).catch(() => console.warn("Anexo não encontrado no storage:", p));
+      }
+      await deleteDoc(doc(db, 'arquivos', kaizen.id));
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao excluir Kaizen:', err);
+      alert('Erro ao excluir Kaizen: ' + err.message);
+    }
   };
 
   const handleSaveFerias = async (e) => {
@@ -728,11 +860,27 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
     }
   };
 
-  // ═══ RENDERERS ═══
   const isEfetivoTab = activeCat === 'Administração' && activeSub === 'Efetivo';
   const isFeriasTab = activeCat === 'Administração' && activeSub === 'Férias';
+  const isKaizenTab = activeCat === 'Administração' && activeSub === 'Kaizen';
   const isPagamentosTab = activeCat === 'Pagamentos' && activeSub === 'Holerites';
   const isAcessosTab = activeCat === 'Acessos' && currentUser?.isAdmin;
+  
+  const filteredKaizens = arquivos.filter(a => {
+    if (a.categoria !== 'Administração' || a.subcategoria !== 'Kaizen') return false;
+    if (kaizenStatusFilter !== 'Todos' && (a.statusKaizen || 'Em andamento') !== kaizenStatusFilter) return false;
+    if (filterName) {
+      const q = filterName.toLowerCase();
+      const matchTitulo = a.titulo?.toLowerCase().includes(q);
+      const matchPart = a.participantes?.toLowerCase().includes(q);
+      if (!matchTitulo && !matchPart) return false;
+    }
+    if (filterDate) {
+      const dateStr = a.dataKaizen || (a.createdAt?.toDate ? a.createdAt.toDate().toISOString().split('T')[0] : '');
+      if (dateStr && !dateStr.startsWith(filterDate)) return false;
+    }
+    return true;
+  });
   
   const filteredEfetivos = efetivos.filter(ef => {
     if (filterName && !ef.nome?.toLowerCase().includes(filterName.toLowerCase())) return false;
@@ -978,6 +1126,8 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <thead>
                   <tr>
                     <th>Nome</th>
+                    <th>Função</th>
+                    <th>Matrícula</th>
                     <th>Status</th>
                     <th>CPF</th>
                     <th>Nascimento</th>
@@ -991,12 +1141,14 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <tbody>
                   {filteredEfetivos.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: '12px' }}>Nenhum funcionário encontrado.</td>
+                      <td colSpan="11" style={{ textAlign: 'center', padding: '12px' }}>Nenhum funcionário encontrado.</td>
                     </tr>
                   ) : (
                     filteredEfetivos.map(ef => (
                       <tr key={ef.id}>
                         <td><strong>{ef.nome}</strong></td>
+                        <td>{ef.cargo || '-'}</td>
+                        <td>{ef.matricula || '-'}</td>
                         <td>{ef.status || 'Ativo'}</td>
                         <td>{ef.cpf || '-'}</td>
                         <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
@@ -1028,7 +1180,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                     <IconPrinter /> Imprimir
                   </button>
                   <button className="btn primary sm" onClick={() => {
-                    setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo' });
+                    setEfetivoForm({ nome: '', dataNascimento: '', cpf: '', endereco: '', telefone: '', pix: '', dataAdmissao: '', dataDemissional: '', status: 'Ativo', cargo: '', matricula: '', fotoUrl: '', treinamentos: [] });
                     setEditingEfetivoId(null);
                     setEfetivoModalOpen(true);
                   }}><IconPlus /> Novo Funcionário</button>
@@ -1036,7 +1188,7 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
               </div>
 
               <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
-                <input type="text" placeholder="Buscar funcionário por nome..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
+                <input type="text" placeholder="Buscar funcionário por nome ou cargo..." value={filterName} onChange={e => setFilterName(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '200px' }} />
                 <select value={statusFilterEfetivo} onChange={e => setStatusFilterEfetivo(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', minWidth: '160px' }}>
                   <option value="Todos">Todos os Status</option>
                   <option value="Ativo">Ativos</option>
@@ -1049,25 +1201,41 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                   <thead>
                     <tr>
                       <th>Nome</th>
+                      <th>Função / Cargo</th>
                       <th>Status</th>
+                      <th>Crachá & PGR</th>
                       <th>CPF</th>
                       <th>Nascimento</th>
                       <th>Admissão</th>
-                      <th>Demissão</th>
                       <th>Telefone</th>
-                      <th>Chave PIX</th>
-                      <th>Endereço</th>
                       <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredEfetivos.length === 0 ? (
-                      <tr><td colSpan="10" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
+                      <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Nenhum funcionário encontrado.</td></tr>
                     ) : filteredEfetivos.map(ef => {
                       const isDesligado = ef.status === 'Desligado';
                       return (
                         <tr key={ef.id} style={isDesligado ? { opacity: 0.7 } : {}}>
-                          <td><strong>{ef.nome}</strong></td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {ef.fotoUrl ? (
+                                <img src={ef.fotoUrl} alt={ef.nome} style={{ width: '28px', height: '35px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--line)' }} />
+                              ) : (
+                                <span style={{ width: '28px', height: '35px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', border: '1px solid var(--line)' }}>👤</span>
+                              )}
+                              <div>
+                                <strong>{ef.nome}</strong>
+                                {ef.matricula && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Matrícula: {ef.matricula}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: '600', color: ef.cargo ? '#3b82f6' : 'var(--muted)' }}>
+                              {ef.cargo || 'Não definido'}
+                            </span>
+                          </td>
                           <td>
                             <span style={{ 
                               padding: '3px 8px', 
@@ -1080,13 +1248,21 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                               {ef.status || 'Ativo'}
                             </span>
                           </td>
+                          <td>
+                            <button 
+                              type="button" 
+                              className="btn outline sm"
+                              onClick={() => handleOpenCracha(ef)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', padding: '4px 10px', background: 'rgba(37, 99, 235, 0.08)', borderColor: 'rgba(37, 99, 235, 0.3)', color: '#60a5fa' }}
+                              title="Gerar e imprimir Crachá PVC com QR Code e Situação PGR"
+                            >
+                              🪪 Ver Crachá
+                            </button>
+                          </td>
                           <td>{ef.cpf || '-'}</td>
                           <td>{ef.dataNascimento ? ef.dataNascimento.split('-').reverse().join('/') : '-'}</td>
                           <td>{ef.dataAdmissao ? ef.dataAdmissao.split('-').reverse().join('/') : '-'}</td>
-                          <td>{ef.dataDemissional ? ef.dataDemissional.split('-').reverse().join('/') : '-'}</td>
                           <td>{ef.telefone || '-'}</td>
-                          <td>{ef.pix || '-'}</td>
-                          <td>{ef.endereco || '-'}</td>
                           <td>
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button className="btn icon-only edit" title="Editar Funcionário" onClick={() => handleEditEfetivo(ef)}>
@@ -1420,6 +1596,231 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
             </div>
           </section>
         </React.Fragment>
+      ) : isKaizenTab ? (
+        // ═══ ABA KAIZEN (MELHORIA CONTÍNUA) ═══
+        <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
+          <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <span>🌱</span> Kaizen — Melhoria Contínua
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '4px 0 0' }}>
+                Pastinha para arquivamento de formulários, apresentações e evidências de Kaizens realizados na {brand === 'autogeral' ? 'Auto Geral' : 'Pernambucana'}.
+              </p>
+            </div>
+            <button className="btn primary sm" onClick={handleOpenNewKaizen}>
+              <IconPlus /> Novo Kaizen
+            </button>
+          </div>
+
+          {/* Resumo / Métricas Rápidas */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <div className="glass" style={{ padding: '10px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)' }}>
+              <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Total Registrados</span>
+              <strong style={{ fontSize: '18px' }}>{filteredKaizens.length}</strong>
+            </div>
+            <div className="glass" style={{ padding: '10px 16px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+              <span style={{ fontSize: '11px', color: '#22c55e', display: 'block' }}>Concluídos</span>
+              <strong style={{ fontSize: '18px', color: '#22c55e' }}>
+                {filteredKaizens.filter(k => k.statusKaizen === 'Concluído').length}
+              </strong>
+            </div>
+            <div className="glass" style={{ padding: '10px 16px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+              <span style={{ fontSize: '11px', color: '#f59e0b', display: 'block' }}>Em Andamento</span>
+              <strong style={{ fontSize: '18px', color: '#f59e0b' }}>
+                {filteredKaizens.filter(k => k.statusKaizen === 'Em andamento').length}
+              </strong>
+            </div>
+          </div>
+
+          {/* Barra de Filtros */}
+          <div className="filters-bar" style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', flexWrap: 'wrap' }}>
+            <input 
+              type="text" 
+              placeholder="Buscar por título ou participantes..." 
+              value={filterName} 
+              onChange={e => setFilterName(e.target.value)} 
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 2, minWidth: '220px' }} 
+            />
+            <select 
+              value={kaizenStatusFilter} 
+              onChange={e => setKaizenStatusFilter(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '160px' }}
+            >
+              <option value="Todos">Todos os Status</option>
+              <option value="Concluído">Concluídos</option>
+              <option value="Em andamento">Em andamento</option>
+            </select>
+            <input 
+              type="month" 
+              value={filterDate} 
+              onChange={e => setFilterDate(e.target.value)} 
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', flex: 1, minWidth: '160px' }}
+              title="Filtrar por Mês" 
+            />
+          </div>
+
+          {/* Grid de Cards dos Kaizens */}
+          {filteredKaizens.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+              <span style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>📂</span>
+              <p style={{ margin: 0 }}>Nenhum Kaizen arquivado com os filtros atuais.</p>
+              <button className="btn outline sm" style={{ marginTop: '12px' }} onClick={handleOpenNewKaizen}>
+                Cadastrar Novo Kaizen
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+              {filteredKaizens.map(kz => {
+                const anexos = normalizeAnexos(kz);
+                const firstImg = anexos.find(a => a.url && (/\.(jpe?g|png|webp|gif)$/i.test(a.name || a.url) || a.url.includes('firebasestorage')));
+                const isConcluido = kz.statusKaizen === 'Concluído';
+                const dataDisplay = kz.dataKaizen 
+                  ? kz.dataKaizen.split('-').reverse().join('/') 
+                  : (kz.createdAt?.toDate ? new Date(kz.createdAt.toDate()).toLocaleDateString('pt-BR') : '-');
+
+                return (
+                  <div 
+                    key={kz.id} 
+                    className="glass" 
+                    style={{
+                      borderRadius: '12px',
+                      border: '1px solid var(--line)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      background: 'rgba(255,255,255,0.02)',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                  >
+                    {/* Thumbnail / Header Imagem */}
+                    <div 
+                      style={{
+                        height: '140px',
+                        background: '#1e293b',
+                        position: 'relative',
+                        cursor: anexos.length > 0 ? 'pointer' : 'default',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden'
+                      }}
+                      onClick={() => anexos.length > 0 && setViewKaizenModal(kz)}
+                    >
+                      {firstImg ? (
+                        <img 
+                          src={firstImg.url} 
+                          alt={kz.titulo} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      ) : (
+                        <div style={{ textAlign: 'center', color: '#64748b' }}>
+                          <span style={{ fontSize: '36px' }}>📊</span>
+                          <span style={{ display: 'block', fontSize: '11px', marginTop: '4px' }}>Formulário / Apresentação</span>
+                        </div>
+                      )}
+
+                      {/* Badge de Status no Card */}
+                      <span style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        backdropFilter: 'blur(8px)',
+                        background: isConcluido ? 'rgba(34, 197, 94, 0.85)' : 'rgba(245, 158, 11, 0.85)',
+                        color: '#ffffff'
+                      }}>
+                        {isConcluido ? '✔ Concluído' : '⏳ Em andamento'}
+                      </span>
+
+                      {/* Contador de Anexos */}
+                      {anexos.length > 0 && (
+                        <span style={{
+                          position: 'absolute',
+                          bottom: '8px',
+                          left: '8px',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          background: 'rgba(0, 0, 0, 0.65)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          📷 {anexos.length} anexo(s)
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Conteúdo do Card */}
+                    <div style={{ padding: '14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500' }}>
+                            📅 {dataDisplay}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                            Por: {kz.uploadedBy?.split('@')[0] || 'Sistema'}
+                          </span>
+                        </div>
+
+                        <h4 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: '700', color: 'inherit', lineHeight: '1.3' }}>
+                          {kz.titulo}
+                        </h4>
+
+                        {kz.participantes && (
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                            <span>👥</span>
+                            <strong>Participantes:</strong>
+                            <span>{kz.participantes}</span>
+                          </div>
+                        )}
+
+                        {kz.descricao && (
+                          <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4', maxHeight: '42px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {kz.descricao}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Ações do Card */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
+                        <div>
+                          {anexos.length > 0 ? (
+                            <button 
+                              type="button"
+                              className="btn outline sm"
+                              onClick={() => setViewKaizenModal(kz)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                            >
+                              👁️ Ver Slides ({anexos.length})
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Sem imagens</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button type="button" className="btn icon-only edit" title="Editar Kaizen" onClick={() => handleEditKaizen(kz)}>
+                            <IconEdit />
+                          </button>
+                          <button type="button" className="btn icon-only danger" title="Excluir Kaizen" onClick={() => handleDeleteKaizen(kz)}>
+                            <IconTrash />
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       ) : isPagamentosTab ? (
            <section className="details glass" style={{ padding: '20px', borderRadius: '16px' }}>
               {(() => {
@@ -1912,6 +2313,24 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                   </select>
                 </div>
                 <div className="form-group">
+                  <label>Cargo / Função (destaque no crachá) *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Retificador, Torneiro Mecânico..." 
+                    value={efetivoForm.cargo || ''} 
+                    onChange={e => setEfetivoForm({...efetivoForm, cargo: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Número de Matrícula</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: 0001" 
+                    value={efetivoForm.matricula || ''} 
+                    onChange={e => setEfetivoForm({...efetivoForm, matricula: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
                   <label>Data de Admissão *</label>
                   <input type="date" required value={efetivoForm.dataAdmissao || ''} onChange={e => setEfetivoForm({...efetivoForm, dataAdmissao: e.target.value})} />
                 </div>
@@ -1940,12 +2359,206 @@ const PainelAdministrativo = ({ brand, onBackToGateway }) => {
                 <label>Endereço Completo</label>
                 <input type="text" value={efetivoForm.endereco} onChange={e => setEfetivoForm({...efetivoForm, endereco: e.target.value})} />
               </div>
+              <div className="form-group" style={{ marginTop: '16px' }}>
+                <label>Foto 3x4 do Colaborador (para Crachá)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {efetivoForm.fotoUrl && (
+                    <img src={efetivoForm.fotoUrl} alt="Foto" style={{ width: '40px', height: '50px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--line)' }} />
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const fileRef = ref(storage, `fotos_efetivos/${brand || 'geral'}/${Date.now()}_${file.name}`);
+                        const snap = await uploadBytes(fileRef, file);
+                        const url = await getDownloadURL(snap.ref);
+                        setEfetivoForm(prev => ({ ...prev, fotoUrl: url }));
+                      } catch (err) {
+                        alert('Erro ao enviar foto: ' + err.message);
+                      }
+                    }} 
+                  />
+                </div>
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn ghost" type="button" onClick={() => setEfetivoModalOpen(false)}>Cancelar</button>
               <button className="btn primary" type="submit">{editingEfetivoId ? 'Salvar' : 'Cadastrar'}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ═══ MODAL CRACHÁ PVC & MATRIZ PGR ═══ */}
+      {crachaModalOpen && selectedEmployeeForCracha && (
+        <CrachaModal
+          isOpen={crachaModalOpen}
+          onClose={() => {
+            setCrachaModalOpen(false);
+            setSelectedEmployeeForCracha(null);
+          }}
+          employee={selectedEmployeeForCracha}
+          brand={brand}
+          onEmployeeUpdated={(updated) => {
+            setEfetivos(prev => prev.map(ef => ef.id === updated.id ? updated : ef));
+            setSelectedEmployeeForCracha(updated);
+          }}
+        />
+      )}
+
+      {/* ═══ MODAL KAIZEN (NOVO / EDITAR) ═══ */}
+      {kaizenModalOpen && (
+        <div className="modal show" style={{ zIndex: 1100 }}>
+          <div className="modal-backdrop" onClick={() => setKaizenModalOpen(false)}></div>
+          <form className="modal-form-card glass" onSubmit={handleSaveKaizen} style={{ maxWidth: '640px', width: '95vw', zIndex: 10 }}>
+            <div className="modal-header">
+              <h3>{editingKaizenId ? 'Editar Kaizen' : 'Novo Kaizen (Melhoria Contínua)'}</h3>
+              <button className="close" type="button" onClick={() => setKaizenModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Tema / Título do Kaizen *</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Ex: Otimização do tempo de preparação de ferramentas no torno" 
+                  value={kaizenForm.titulo} 
+                  onChange={e => setKaizenForm({...kaizenForm, titulo: e.target.value})} 
+                />
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Data de Realização *</label>
+                  <input 
+                    type="date" 
+                    required 
+                    value={kaizenForm.data} 
+                    onChange={e => setKaizenForm({...kaizenForm, data: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Status do Kaizen *</label>
+                  <select 
+                    value={kaizenForm.status} 
+                    onChange={e => setKaizenForm({...kaizenForm, status: e.target.value})}
+                  >
+                    <option value="Em andamento">Em andamento</option>
+                    <option value="Concluído">Concluído</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label>Participantes / Envolvidos *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ex: Alex Ribeiro, Cleyton, Marcos..." 
+                  value={kaizenForm.participantes} 
+                  onChange={e => setKaizenForm({...kaizenForm, participantes: e.target.value})} 
+                />
+              </div>
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label>Resumo / Descrição da Melhoria (opcional)</label>
+                <textarea 
+                  rows="3"
+                  placeholder="Breve descrição da oportunidade identificada, ação tomada e resultado alcançado..."
+                  value={kaizenForm.descricao}
+                  onChange={e => setKaizenForm({...kaizenForm, descricao: e.target.value})}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'transparent', color: 'inherit' }}
+                />
+              </div>
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label>Formulário / Apresentação / Evidências (Imagens ou PDFs) *</label>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*,application/pdf"
+                  onChange={e => setKaizenForm({ ...kaizenForm, files: Array.from(e.target.files || []) })} 
+                />
+                <small style={{ color: 'var(--muted)', fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  Selecione uma ou mais fotos do formulário ou slides da apresentação do Kaizen.
+                </small>
+
+                {/* Anexos já existentes se estiver editando */}
+                {kaizenForm.anexosExistentes?.length > 0 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Anexos salvos:</span>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {kaizenForm.anexosExistentes.map((anx, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>
+                          <a href={anx.url} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8' }}>
+                            {anx.name || `Anexo ${i + 1}`}
+                          </a>
+                          <button 
+                            type="button" 
+                            onClick={() => setKaizenForm({
+                              ...kaizenForm,
+                              anexosExistentes: kaizenForm.anexosExistentes.filter((_, idx) => idx !== i)
+                            })}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" type="button" onClick={() => setKaizenModalOpen(false)}>Cancelar</button>
+              <button className="btn primary" type="submit" disabled={isUploading}>
+                {isUploading ? 'Enviando arquivos...' : (editingKaizenId ? 'Salvar Alterações' : 'Cadastrar Kaizen')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ═══ MODAL VISUALIZAR APRESENTAÇÃO / SLIDES DO KAIZEN ═══ */}
+      {viewKaizenModal && (
+        <div className="modal show" style={{ zIndex: 1200 }}>
+          <div className="modal-backdrop" onClick={() => setViewKaizenModal(null)}></div>
+          <div className="modal-form-card glass" style={{ maxWidth: '850px', width: '95vw', padding: 0, overflow: 'hidden', zIndex: 10 }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px' }}>📊 {viewKaizenModal.titulo}</h3>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                  Data: {viewKaizenModal.dataKaizen ? viewKaizenModal.dataKaizen.split('-').reverse().join('/') : '-'} | Participantes: {viewKaizenModal.participantes || '-'}
+                </span>
+              </div>
+              <button className="close" onClick={() => setViewKaizenModal(null)}>×</button>
+            </div>
+            <div style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
+                {normalizeAnexos(viewKaizenModal).map((anx, i) => {
+                  const isPdf = anx.name?.toLowerCase().endsWith('.pdf') || anx.url?.includes('.pdf');
+                  return (
+                    <div key={i} style={{ width: '100%', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--line)', background: '#0f172a', textAlign: 'center' }}>
+                      <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Slide / Evidência {i + 1} de {normalizeAnexos(viewKaizenModal).length}</span>
+                        <a href={anx.url} target="_blank" rel="noopener noreferrer" className="btn outline sm" style={{ fontSize: '11px', padding: '2px 8px' }}>
+                          ⬇ Abrir em nova aba
+                        </a>
+                      </div>
+                      {isPdf ? (
+                        <iframe src={anx.url} title={`PDF ${i+1}`} style={{ width: '100%', height: '500px', border: 'none' }} />
+                      ) : (
+                        <img src={anx.url} alt={`Slide ${i + 1}`} style={{ maxWidth: '100%', maxHeight: '600px', objectFit: 'contain', padding: '10px' }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn ghost" onClick={() => setViewKaizenModal(null)}>Fechar</button>
+            </div>
+          </div>
         </div>
       )}
 

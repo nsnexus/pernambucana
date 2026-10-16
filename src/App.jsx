@@ -9,6 +9,7 @@ import Cadastros from './pages/Cadastros';
 import AutoGeral from './pages/AutoGeral';
 import Pernambucana from './pages/Pernambucana';
 import AdminGateway from './components/AdminGateway';
+import CrachaConsulta from './pages/CrachaConsulta';
 
 // Protected Route Component to block unauthenticated access
 const ProtectedRoute = ({ children }) => {
@@ -47,6 +48,7 @@ function App() {
             <Routes>
               {/* Public route */}
               <Route path="/" element={<Landing />} />
+              <Route path="/cracha/:id" element={<CrachaConsulta />} />
               
               {/* Protected routes */}
               <Route path="/painel" element={<Navigate to="/pernambucana" replace />} />
